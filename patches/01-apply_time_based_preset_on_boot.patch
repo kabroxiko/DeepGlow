@@ -1,0 +1,138 @@
+diff --git a/wled00/cfg.cpp b/wled00/cfg.cpp
+index 47ba152c..ab18f4ca 100644
+--- a/wled00/cfg.cpp
++++ b/wled00/cfg.cpp
+@@ -712,6 +712,9 @@ bool deserializeConfig(JsonObject doc, bool fromFS) {
+     it++;
+   }
+ 
++  // Apply the last event preset when the schedule changes
++  applyTimebasedPreset();
++
+   JsonObject ota = doc["ota"];
+   const char* pwd = ota["psk"]; //normally not present due to security
+ 
+diff --git a/wled00/const.h b/wled00/const.h
+index 9067d9b1..31c72bf1 100644
+--- a/wled00/const.h
++++ b/wled00/const.h
+@@ -207,6 +207,7 @@ static_assert(WLED_MAX_BUSSES <= 32, "WLED_MAX_BUSSES exceeds hard limit");
+ #define USERMOD_ID_RF433                 56     //Usermod "usermod_v2_RF433.h"
+ #define USERMOD_ID_BRIGHTNESS_FOLLOW_SUN 57     //Usermod "usermod_v2_brightness_follow_sun.h"
+ #define USERMOD_ID_USER_FX               58     //Usermod "user_fx"
++#define USERMOD_ID_AQUARIUM_CONTROLLER   59     //Usermod "aquarium_controller.h"
+ 
+ //Access point behavior
+ #define AP_BEHAVIOR_BOOT_NO_CONN          0     //Open AP when no connection after boot
+diff --git a/wled00/fcn_declare.h b/wled00/fcn_declare.h
+index 2346ee45..c47e579d 100644
+--- a/wled00/fcn_declare.h
++++ b/wled00/fcn_declare.h
+@@ -203,6 +203,7 @@ byte weekdayMondayFirst();
+ void checkTimers();
+ void calculateSunriseAndSunset();
+ void setTimeFromAPI(uint32_t timein);
++void applyTimebasedPreset();
+ 
+ //overlay.cpp
+ void handleOverlayDraw();
+diff --git a/wled00/ntp.cpp b/wled00/ntp.cpp
+index 12b698f4..67c2ab65 100644
+--- a/wled00/ntp.cpp
++++ b/wled00/ntp.cpp
+@@ -283,6 +283,11 @@ bool checkNTPResponse()
+   Serial.println(serverDelay);
+   #endif
+ 
++  if (!ntpInitialSync) {
++    applyTimebasedPreset();
++    ntpInitialSync = true;
++  }
++
+   if (countdownTime - toki.second() > 0) countdownOverTriggered = false;
+   // if time changed re-calculate sunrise/sunset
+   updateLocalTime();
+@@ -371,6 +376,59 @@ bool isTodayInDateRange(byte monthStart, byte dayStart, byte monthEnd, byte dayE
+ 	return (m == monthStart && d >= dayStart && d <= dayEnd); //just the designated days this month
+ }
+ 
++void applyTimebasedPreset() {
++  if (!ntpEnabled) return; // only run if NTP is enabled
++
++  updateLocalTime(); // make sure we have correct local time
++
++  int16_t lastTimer = -1;
++  long smallestTimeDiff = -1; // in minutes
++
++  byte currentWeekday = weekdayMondayFirst(); // 1-7
++  int16_t currentHour = hour(localTime);
++  int16_t currentMinute = minute(localTime);
++  long currentTimeInMinutes = (currentWeekday - 1) * 1440 + currentHour * 60 + currentMinute;
++
++  for (unsigned i = 0; i < 10; i++) { // 8 timers + sunrise/sunset
++    if (timerMacro[i] == 0 || !(timerWeekday[i] & 0x01)) continue;
++
++    int16_t timerHour, timerMinute;
++
++    if (i < 8) { // Regular timers
++      if (timerHours[i] == 24) continue; // "every hour" timers are not candidates for the "last" preset
++      if (!isTodayInDateRange(((timerMonth[i] >> 4) & 0x0F), timerDay[i], timerMonth[i] & 0x0F, timerDayEnd[i])) continue;
++      timerHour = timerHours[i];
++      timerMinute = timerMinutes[i];
++    } else { // Sunrise/Sunset
++      time_t suntime = (i == 8) ? sunrise : sunset;
++      if (!suntime) continue;
++      time_t tmp = suntime + timerMinutes[i] * 60;
++      timerHour = hour(tmp);
++      timerMinute = minute(tmp);
++    }
++
++    for (int d = 1; d <= 7; d++) { // check all 7 days of the week
++      if (!((timerWeekday[i] >> d) & 0x01)) continue; // if timer is not enabled for this day, skip
++
++      long timerTimeInMinutes = (d - 1) * 1440 + timerHour * 60 + timerMinute;
++      long timeDiff = currentTimeInMinutes - timerTimeInMinutes;
++
++      if (timeDiff < 0) { // timer is in the future this week
++        timeDiff += 7 * 1440; // look at last week
++      }
++
++      if (smallestTimeDiff == -1 || timeDiff < smallestTimeDiff) {
++        smallestTimeDiff = timeDiff;
++        lastTimer = i;
++      }
++    }
++  }
++
++  if (lastTimer != -1) {
++    applyPreset(timerMacro[lastTimer]);
++  }
++}
++
+ void checkTimers()
+ {
+   if (lastTimerMinute != minute(localTime)) //only check once a new minute begins
+diff --git a/wled00/set.cpp b/wled00/set.cpp
+index 087e9b39..3ebe2078 100644
+--- a/wled00/set.cpp
++++ b/wled00/set.cpp
+@@ -568,6 +568,7 @@ void handleSettingsSet(AsyncWebServerRequest *request, byte subPage)
+         timerDayEnd[i] = request->arg(k).toInt();
+       }
+     }
++    if (ntpEnabled) applyTimebasedPreset();
+   }
+ 
+   //SECURITY
+diff --git a/wled00/wled.h b/wled00/wled.h
+index c76d48bf..2a27d3bd 100644
+--- a/wled00/wled.h
++++ b/wled00/wled.h
+@@ -874,6 +874,7 @@ WLED_GLOBAL DNSServer dnsServer;
+ WLED_GLOBAL bool ntpConnected _INIT(false);
+ WLED_GLOBAL time_t localTime _INIT(0);
+ WLED_GLOBAL unsigned long ntpLastSyncTime _INIT(NTP_NEVER);
++WLED_GLOBAL bool ntpInitialSync _INIT(false);
+ WLED_GLOBAL unsigned long ntpPacketSentTime _INIT(NTP_NEVER);
+ WLED_GLOBAL IPAddress ntpServerIP;
+ WLED_GLOBAL uint16_t ntpLocalPort _INIT(2390);

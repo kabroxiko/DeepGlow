@@ -1,0 +1,19 @@
+{
+  "name": "aquarium_controller",
+  "version": "1.0.0",
+  "description": "Transforms WLED into a specialized aquarium lighting controller with fish-safe presets, automated scheduling, and aquarium-specific effects.",
+  "keywords": "wled, usermod, aquarium, lighting, automation, scheduling",
+  "authors": {
+    "name": "WLED Community"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wled-dev/WLED"
+  },
+  "license": "MIT",
+  "frameworks": "*",
+  "platforms": "*",
+  "build": {
+    "libArchive": false
+  }
+}
