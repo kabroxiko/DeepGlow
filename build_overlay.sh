@@ -9,7 +9,7 @@ fi
 
 REPO_URL="https://github.com/wled/WLED.git"
 REPO_DIR="WLED"
-REPO_REF="bb6114e8aaa7749f93ab50103c8b1e22fd8156bc"
+REPO_REF="304c59e09b30d22f9367737c2b0cf6031a697147"
 
 ############################################################
 # 1. Ensure WLED source is present and clean
