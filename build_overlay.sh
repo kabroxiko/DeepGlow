@@ -9,6 +9,7 @@ fi
 
 REPO_URL="https://github.com/wled/WLED.git"
 REPO_DIR="WLED"
+REPO_REF="bb6114e8aaa7749f93ab50103c8b1e22fd8156bc"
 
 ############################################################
 # 1. Ensure WLED source is present and clean
@@ -21,24 +22,26 @@ if [ -d "$REPO_DIR" ]; then
 		echo "Resetting existing WLED repository..."
 		cd "$REPO_DIR"
 		git fetch origin
-		git reset --hard origin/main
+		git reset --hard $REPO_REF
 		cd ..
 	else
 		echo "Directory $REPO_DIR exists but is not a git repo. Removing..."
 		rm -rf "$REPO_DIR"
 		echo "Cloning WLED repository..."
 		git clone "$REPO_URL" "$REPO_DIR"
+		git reset --hard $REPO_REF
 	fi
 else
 	echo "Cloning WLED repository..."
 	git clone "$REPO_URL" "$REPO_DIR"
+	git reset --hard $REPO_REF
 fi
 
 #
 # 2. Apply all patch files in overlay/patches to WLED source
 #    - Each .patch file in ./patches is applied to the WLED source
 #    - Already-applied/reversed patches are skipped without error
-if [ -d ./patches ]; then
+if [ -d ./patches ] && [ "$(ls -A ./patches/*.patch 2>/dev/null)" ]; then
 	for patch in ./patches/*.patch; do
 		if [ -f "$patch" ]; then
 			echo "Applying patch: $patch"
@@ -57,4 +60,4 @@ cp -vrf ./overlay/* ./WLED/
 # 4. Build WLED firmware
 #    - Change to WLED directory and run PlatformIO build
 cd WLED
-platformio run -e "$1"
+platformio run -e $@
