@@ -1,0 +1,26 @@
+diff --git a/wled00/FX.h b/wled00/FX.h
+index bcbab69a..35a37041 100644
+--- a/wled00/FX.h
++++ b/wled00/FX.h
+@@ -379,7 +379,7 @@ extern byte realtimeMode;           // used in getMappedPixelIndex()
+ #define FX_MODE_PS1DSONICBOOM          215
+ #define FX_MODE_PS1DSPRINGY            216
+ #define FX_MODE_PARTICLEGALAXY         217
+-#define MODE_COUNT                     218
++#define MODE_COUNT                     221
+ 
+ 
+ #define BLEND_STYLE_FADE            0x00  // universal
+diff --git a/wled00/const.h b/wled00/const.h
+index 31c72bf1..26293457 100644
+--- a/wled00/const.h
++++ b/wled00/const.h
+@@ -554,7 +554,7 @@ static_assert(WLED_MAX_BUSSES <= 32, "WLED_MAX_BUSSES exceeds hard limit");
+ 
+ // Size of buffer for API JSON object (increase for more segments)
+ #ifdef ESP8266
+-  #define JSON_BUFFER_SIZE 10240
++  #define JSON_BUFFER_SIZE (11*1024)
+ #else
+   #if defined(ARDUINO_ARCH_ESP32S2)
+     #define JSON_BUFFER_SIZE 24576
