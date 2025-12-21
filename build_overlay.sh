@@ -2,8 +2,16 @@
 set -e
 
 if [ -z "$1" ]; then
-	echo "Usage: $0 <platformio_env>"
-	echo "Example: $0 Athom_4Pin_Controller"
+	echo "Usage: $0 [platformio_args...]"
+	echo "Builds WLED firmware with overlay and patches."
+	echo ""
+	echo "Steps performed:"
+	echo "  1. Ensures WLED source is present and clean (clones or resets repo)"
+	echo "  2. Applies all patch files in ./patches to WLED source"
+	echo "  3. Copies all overlays from ./overlay/ into WLED/"
+	echo "  4. Builds WLED firmware using PlatformIO with provided environment and arguments"
+	echo ""
+	echo "Example: $0 -e Athom_4Pin_Controller -t upload"
 	exit 1
 fi
 
@@ -59,5 +67,4 @@ cp -vrf ./overlay/* ./WLED/
 #
 # 4. Build WLED firmware
 #    - Change to WLED directory and run PlatformIO build
-cd WLED
-platformio run -e $@
+platformio run -d WLED $@

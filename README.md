@@ -1,4 +1,3 @@
-
 # AquariumWLED Overlay Project
 
 AquariumWLED is an overlay system for [WLED](https://github.com/Aircoookie/WLED) that transforms it into a specialized aquarium lighting controller. It introduces:
@@ -135,10 +134,11 @@ flowchart TD
 
 ## Usage
 
-1. Run `./build_overlay.sh` to:
+1. Run `./build_overlay.sh [platformio_args...]` to:
    - Prepare the WLED source
    - Apply patches and overlays
    - Build the firmware
+   - Example: `./build_overlay.sh -e Athom_4Pin_Controller -t upload`
 2. The resulting firmware will be in `WLED/build_output/release/`.
 3. Flash the firmware to your ESP8266/ESP32 device as you would with standard WLED.
 
