@@ -560,11 +560,6 @@
             if (hasPal) cacheEntry.pal = pal;
             effectDefaultsCache[id] = cacheEntry;
           });
-          console.debug(
-            "[PRELOAD ALL EFFECT DEFAULTS] Loaded for IDs",
-            effectIds,
-            effectDefaultsCache,
-          );
         } catch (e) {
           console.error(
             "[PRELOAD ALL EFFECT DEFAULTS] Failed to load from backend",
@@ -786,7 +781,6 @@
             "preset-card" + (e.id === selectedId ? " active" : "");
           card.style.cursor = "pointer";
           card.onclick = async () => {
-            console.debug("[EFFECT CLICK]", e.id, e.name);
             selectedEffect = e.id;
             // Set cs/ci/pal from effectDefaultsCache if available
             const def =
@@ -810,9 +804,7 @@
               palCombo.value = def.pal;
             }
             renderEffectLane(selectedEffect);
-            console.debug("[EFFECT CLICK] Calling applyFx for", selectedEffect);
             applyFx(selectedEffect);
-            console.debug("[EFFECT CLICK] applyFx called for", selectedEffect);
           };
           // Show effect name, icon, and description if available
           card.innerHTML = `<div style="font-size:2em">${e.icon}</div><div class="preset-name">${e.name || "Effect " + e.id}</div>${e.desc ? `<div class='preset-info' style='margin-top:4px;font-size:0.9em;opacity:0.7'>${e.desc}</div>` : ""}`;
@@ -889,11 +881,6 @@
             if (hasPal) cacheEntry.pal = pal;
             effectDefaultsCache[id] = cacheEntry;
           });
-          console.debug(
-            "[PRELOAD ALL EFFECT DEFAULTS] Loaded for IDs",
-            effectIds,
-            effectDefaultsCache,
-          );
         } catch (e) {
           console.error(
             "[PRELOAD ALL EFFECT DEFAULTS] Failed to load from backend",
@@ -936,29 +923,21 @@
             includePal = true;
           }
         }
-        // Get original transition from slider (no fallback)
+        // Always use the slider value for transition (seconds), convert to deciseconds for backend
+        let sliderTr = gId("min_tr") ? parseInt(gId("min_tr").value) : 10;
+        if (isNaN(sliderTr) || sliderTr < 1) sliderTr = 10;
+        await wledPostState({ transition: sliderTr * 10 });
+        // Now send the effect change (fx, sx, ix, pal) without transition
+        const segPayload = { fx: ce, sx: cs, ix: ci };
+        if (includePal && typeof pal === "number" && !isNaN(pal))
+          segPayload.pal = pal;
+        const payload = { seg: segPayload };
+        await wledPostState(payload);
+        // Restore original transition if available and not minTr
         let origTr = undefined;
         const trElem = gId("tr");
         if (trElem) origTr = parseInt(trElem.value);
-        // Send effect change with transition 0
-        const payload = { transition: 0, seg: { fx: ce, sx: cs, ix: ci } };
-        if (includePal && typeof pal === "number" && !isNaN(pal))
-          payload.seg.pal = pal;
-        console.debug("[APPLY FX] id:", id, "ce:", ce);
-        console.debug("[APPLY FX] cs (speed):", cs, "ci (intensity):", ci);
-        console.debug(
-          "[APPLY FX] effectDefaultsCache[ce]:",
-          effectDefaultsCache[ce],
-        );
-        console.debug("[APPLY FX] pal:", pal);
-        console.debug("[APPLY FX] payload:", payload);
-        console.debug(
-          "[API REQUEST] Sending to /json/state:",
-          JSON.stringify(payload),
-        );
-        await wledPostState(payload);
-        // Restore original transition if available and not 0
-        if (typeof origTr === "number" && origTr !== 0) {
+        if (typeof origTr === "number" && typeof minTr === "number" && origTr !== minTr) {
           await wledPostState({ transition: origTr * 10 });
           if (gId("tr")) {
             gId("tr").value = origTr;
@@ -1093,7 +1072,6 @@
             ws.close();
           } catch (e) {}
         const wsUrl = wledWsUrl();
-        console.log('[WLED] Connecting WebSocket to:', wsUrl);
         ws = new WebSocket(wsUrl);
         ws.onopen = () => {
           updateStatus(true);
@@ -1251,6 +1229,7 @@
               }
             }
             let trVal;
+            // Use transition from state if available, convert deciseconds to seconds
             if (typeof data.transition !== "undefined") {
               trVal = Math.round(data.transition / 10);
             } else if (
@@ -1259,7 +1238,11 @@
             ) {
               trVal = Math.round(data.state.transition / 10);
             }
-            if (typeof trVal === "undefined" || isNaN(trVal)) trVal = 50;
+            // If transition is present in segment, prefer that
+            if (data.seg && data.seg[0] && typeof data.seg[0].transition !== "undefined") {
+              trVal = Math.round(data.seg[0].transition / 10);
+            }
+            if (typeof trVal === "undefined" || isNaN(trVal)) trVal = 10;
             if (gId("tr")) {
               gId("tr").value = trVal;
               gId("tv").textContent = trVal + "s";
@@ -1536,6 +1519,7 @@
               .then(async (r) => {
                 if (r.ok) {
                   _cachedConfig = await r.json();
+                  window._cachedConfig = _cachedConfig;
                   return _cachedConfig;
                 } else {
                   throw new Error("Failed to fetch /json/cfg");
@@ -1550,7 +1534,9 @@
             _configForceFetchPromise = fetch("/json/cfg")
               .then(async (r) => {
                 if (r.ok) {
-                  return await r.json();
+                  const cfg = await r.json();
+                  window._cachedConfig = cfg;
+                  return cfg;
                 } else {
                   throw new Error("Failed to fetch /json/cfg");
                 }
@@ -1941,6 +1927,22 @@
         ct = parseInt(v) * 10;
         gId("tv").textContent = v + "s";
         await wledPostState({ transition: ct });
+
+        // If the AquariumController usermod config is present, update minTransitionTime in the cache
+        if (
+          window._cachedConfig &&
+          window._cachedConfig.um &&
+          (window._cachedConfig.um.AquariumController || window._cachedConfig.um['AquariumController'])
+        ) {
+          const ac = window._cachedConfig.um.AquariumController || window._cachedConfig.um['AquariumController'];
+          if (ac.safety) {
+            // Update the cached value to match the new slider value (in seconds)
+            ac.safety.minTransitionTime = parseInt(v);
+            // Also update the global cache reference
+            _cachedConfig = window._cachedConfig;
+
+          }
+        }
       }
       async function loadPreset(p, fastTransition = false) {
         // Set pending preset for instant UI feedback
@@ -2028,21 +2030,69 @@
               (t) => t.en && t.macro >= 1 && t.macro <= 4,
             );
             gId("sch_en").checked = anyEnabled;
-            // Load aquarium controller settings
+            // Load aquarium controller settings (no enable toggle)
             const um = cfg.um;
+            const minTrGroup = gId("min-tr-group");
+            const maxBriGroup = gId("max-bri-group");
             if (um && um.AquariumController) {
               const ac = um.AquariumController;
-              gId("aq_en").checked = ac.enabled !== false;
               const safety = ac.safety || {};
-              const minTr = safety.minTransitionSeconds || 10;
-              const maxBri = safety.maxBrightness || 200;
-              gId("min_tr").value = minTr;
-              gId("min_tr_v").textContent = minTr + "s";
-              gId("max_bri").value = maxBri;
-              gId("max_bri_v").textContent = maxBri;
+              let minTr = safety.minTransitionTime;
+              // Convert deciseconds to seconds for display and slider
+              if (typeof minTr === "number" && !isNaN(minTr)) {
+                if (minTr === 1) minTr = 100; // legacy fallback
+                const minTrSec = Math.round(minTr / 10);
+                minTrGroup.innerHTML = `
+                  <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">${minTrSec}s</span></label>
+                  <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"${minTrSec}\" oninput=\"gId('min_tr_v').textContent = this.value + 's'\" onchange=\"updateAqSettings()\" />
+                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
+                `;
+              } else {
+                // Show skeleton if not available
+                minTrGroup.innerHTML = `
+                  <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">&nbsp;</span></label>
+                  <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"10\" disabled style=\"opacity:0.5;pointer-events:none;\" />
+                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
+                `;
+              }
+              const maxBri = safety.maxBrightness;
+              if (typeof maxBri === "number" && !isNaN(maxBri)) {
+                maxBriGroup.innerHTML = `
+                  <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">${maxBri}</span></label>
+                  <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"${maxBri}\" oninput=\"gId('max_bri_v').textContent = this.value\" onchange=\"updateAqSettings()\" />
+                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
+                `;
+              } else {
+                // Show skeleton if not available
+                maxBriGroup.innerHTML = `
+                  <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">&nbsp;</span></label>
+                  <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"200\" disabled style=\"opacity:0.5;pointer-events:none;\" />
+                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
+                `;
+              }
+            } else {
+              // Show skeleton if not available
+              minTrGroup.innerHTML = `
+                <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">&nbsp;</span></label>
+                <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"10\" disabled style=\"opacity:0.5;pointer-events:none;\" />
+                <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
+              `;
+              maxBriGroup.innerHTML = `
+                <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">&nbsp;</span></label>
+                <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"200\" disabled style=\"opacity:0.5;pointer-events:none;\" />
+                <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
+              `;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+          // Show skeleton if error
+          const minTrGroup = gId("min-tr-group");
+          minTrGroup.innerHTML = `
+            <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">&nbsp;</span></label>
+            <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"10\" disabled style=\"opacity:0.5;pointer-events:none;\" />
+            <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
+          `;
+        }
         // Load presets
         await loadPresetList();
         // Update active event indicator is now handled in populateScheduleTable
@@ -2104,9 +2154,8 @@ ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
         const cfg = {
           um: {
             AquariumController: {
-              enabled: gId("aq_en").checked,
               safety: {
-                minTransitionSeconds: parseInt(gId("min_tr").value),
+                minTransitionTime: parseInt(gId("min_tr").value) * 10,
                 maxBrightness: parseInt(gId("max_bri").value),
               },
             },
@@ -2115,6 +2164,11 @@ ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
         try {
           const r = await wledFetchConfig({ method: "POST", body: cfg });
           if (r.ok) {
+            // Invalidate config cache so next fetch gets updated value
+            _cachedConfig = null;
+            _configFetchPromise = null;
+            // Optionally, reload config immediately
+            await getConfig(true);
           }
         } catch (e) {}
       }
@@ -2573,53 +2627,16 @@ ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
             gap: 20px;
           "
         >
-          <div class="control-group">
-            <label
-              ><input
-                type="checkbox"
-                id="aq_en"
-                onchange="updateAqSettings()"
-              />
-              Enable Aquarium Mode</label
-            >
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
-              Enables safety features and custom effects
-            </p>
+          <!-- Aquarium Mode enable toggle removed -->
+          <div class="control-group" id="min-tr-group">
+            <label>Min Transition Time: <span class="value-display" id="min_tr_v">&nbsp;</span></label>
+            <input type="range" id="min_tr" min="5" max="60" value="10" disabled style="opacity:0.5;pointer-events:none;" />
+            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Minimum safe transition for fish (prevents stress)</p>
           </div>
-          <div class="control-group">
-            <label
-              >Min Transition Time:
-              <span class="value-display" id="min_tr_v">10s</span></label
-            >
-            <input
-              type="range"
-              id="min_tr"
-              min="5"
-              max="60"
-              value="10"
-              oninput="gId('min_tr_v').textContent = this.value + 's'"
-              onchange="updateAqSettings()"
-            />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
-              Minimum safe transition for fish (prevents stress)
-            </p>
-          </div>
-          <div class="control-group">
-            <label
-              >Max Brightness:
-              <span class="value-display" id="max_bri_v">200</span></label
-            >
-            <input
-              type="range"
-              id="max_bri"
-              min="50"
-              max="255"
-              value="200"
-              oninput="gId('max_bri_v').textContent = this.value"
-              onchange="updateAqSettings()"
-            />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
-              Safety limit to protect fish from sudden brightness
+          <div class="control-group" id="max-bri-group">
+            <label>Max Brightness: <span class="value-display" id="max_bri_v">&nbsp;</span></label>
+            <input type="range" id="max_bri" min="50" max="255" value="200" disabled style="opacity:0.5;pointer-events:none;" />
+            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Safety limit to protect fish from sudden brightness</p>
             </p>
           </div>
         </div>

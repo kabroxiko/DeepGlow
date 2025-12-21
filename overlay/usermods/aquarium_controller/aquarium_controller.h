@@ -10,20 +10,17 @@
  * with fish-safe presets, automated scheduling, and aquarium-specific effects.
  */
 // Default configuration values
-#define DEFAULT_MIN_TRANSITION      10  // seconds
+#define DEFAULT_MIN_TRANSITION      100  // deciseconds (10s)
 #define DEFAULT_MAX_BRIGHTNESS      200
 
 class AquariumControllerUsermod : public Usermod {
   private:
     // Configuration
-    bool enabled = true;
-    uint8_t minTransitionSeconds = DEFAULT_MIN_TRANSITION;
+    uint16_t minTransitionTime = DEFAULT_MIN_TRANSITION; // deciseconds
     uint8_t maxBrightness = DEFAULT_MAX_BRIGHTNESS;
 
     // Constants
     static const char _name[];
-    static const char _enabled[];
-
     /**
      * Initialize aquarium presets
      */
@@ -35,10 +32,9 @@ class AquariumControllerUsermod : public Usermod {
      * Ensure minimum transition time for fish safety
      */
     void enforceSafeTransition() {
-      if (!enabled) return;
-
-      // Ensure transition time is at least minTransitionSeconds
-      uint16_t minTransition = minTransitionSeconds * 10; // Convert to tenths of seconds
+      // minTransitionTime is now in deciseconds (tenths of a second)
+      uint16_t minTransition = minTransitionTime; // already in deciseconds
+      if (minTransitionTime == 1) minTransition = 100; // 1 means 10s, not 0.1s (legacy fallback)
       if (transitionDelay < minTransition) {
         transitionDelay = minTransition;
       }
@@ -66,14 +62,10 @@ class AquariumControllerUsermod : public Usermod {
     }
 
     void loop() {
-      if (!enabled) return;
-
       enforceSafeTransition();
     }
 
     void addToJsonInfo(JsonObject& root) {
-      if (!enabled) return;
-
       JsonObject user = root["u"];
       if (user.isNull()) user = root.createNestedObject("u");
 
@@ -83,16 +75,11 @@ class AquariumControllerUsermod : public Usermod {
     }
 
     void addToJsonState(JsonObject& root) {
-      if (!enabled) return;
-
       JsonObject aquarium = root.createNestedObject(F("aquarium"));
-      aquarium[F("enabled")] = enabled;
       aquarium[F("maxBrightness")] = maxBrightness;
     }
 
     void readFromJsonState(JsonObject& root) {
-      if (!enabled) return;
-
       JsonObject aquarium = root[F("aquarium")];
       if (!aquarium.isNull()) {
         if (aquarium.containsKey(F("maxBrightness"))) {
@@ -103,10 +90,8 @@ class AquariumControllerUsermod : public Usermod {
 
     void addToConfig(JsonObject& root) {
       JsonObject top = root.createNestedObject(F("AquariumController"));
-      top[F("enabled")] = enabled;
-
       JsonObject safety = top.createNestedObject(F("safety"));
-      safety[F("minTransitionSeconds")] = minTransitionSeconds;
+      safety[F("minTransitionTime")] = minTransitionTime;
       safety[F("maxBrightness")] = maxBrightness;
     }
 
@@ -120,11 +105,20 @@ class AquariumControllerUsermod : public Usermod {
 
       bool configComplete = true;
 
-      configComplete &= getJsonValue(top[F("enabled")], enabled, true);
-
       JsonObject safety = top[F("safety")];
       if (!safety.isNull()) {
-        configComplete &= getJsonValue(safety[F("minTransitionSeconds")], minTransitionSeconds, DEFAULT_MIN_TRANSITION);
+        // Accept both legacy (seconds) and new (deciseconds) config
+        if (safety.containsKey(F("minTransitionTime"))) {
+          uint32_t val = safety[F("minTransitionTime")];
+          // If value is less than 50, assume legacy seconds, convert to deciseconds
+          if (val < 50) {
+            minTransitionTime = val * 10;
+          } else {
+            minTransitionTime = val;
+          }
+        } else {
+          minTransitionTime = DEFAULT_MIN_TRANSITION;
+        }
         configComplete &= getJsonValue(safety[F("maxBrightness")], maxBrightness, DEFAULT_MAX_BRIGHTNESS);
       }
 

@@ -2,7 +2,7 @@
 
 // Static member definitions
 const char AquariumControllerUsermod::_name[] PROGMEM = "AquariumController";
-const char AquariumControllerUsermod::_enabled[] PROGMEM = "enabled";
+// const char AquariumControllerUsermod::_enabled[] PROGMEM = "enabled"; // removed
 
 // Register the usermod
 static AquariumControllerUsermod aquariumController;

@@ -20,7 +20,7 @@ index 31c72bf1..26293457 100644
  // Size of buffer for API JSON object (increase for more segments)
  #ifdef ESP8266
 -  #define JSON_BUFFER_SIZE 10240
-+  #define JSON_BUFFER_SIZE (11*1024)
++  #define JSON_BUFFER_SIZE 10752
  #else
    #if defined(ARDUINO_ARCH_ESP32S2)
      #define JSON_BUFFER_SIZE 24576
