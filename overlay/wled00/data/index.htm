@@ -460,22 +460,22 @@
       // --- Effect Lane ---
       // --- Effect Lane: dynamically load effect metadata from /json/effects ---
       // Effects fallback for initial render and error cases
-      // Effects array with icon integrated
+      // Effects array with icon only for known effects (no hardcoded names)
       let effects = [
-        { id: 0, name: "Solid", icon: "🟩" },
-        { id: 17, name: "Glitter", icon: "✨" },
-        { id: 28, name: "Wipe", icon: "➡️" },
-        { id: 110, name: "Waterfall", icon: "🌊" },
-        { id: 57, name: "Lightning", icon: "⚡" },
-        { id: 79, name: "Drops", icon: "💧" },
-        { id: 113, name: "Swirl", icon: "🌀" },
-        { id: 38, name: "Rainbow", icon: "🌈" },
-        { id: 218, name: "Fish", icon: "🐟" },
-        { id: 219, name: "Waves", icon: "🌊" },
-        { id: 220, name: "Sunset", icon: "🌅" },
-        { id: 221, name: "Coral", icon: "🪸" },
-        { id: 222, name: "Surf", icon: "🌊" },
-        { id: 223, name: "Moon", icon: "🌙" },
+        { id: 0, icon: "🟩" },
+        { id: 17, icon: "✨" },
+        { id: 28, icon: "➡️" },
+        { id: 45, icon: "🔥" }, // Fire Flicker
+        { id: 57, icon: "⚡" },
+        { id: 79, icon: "💧" },
+        { id: 110, icon: "🌊" },
+        { id: 113, icon: "🌀" },
+        { id: 218, icon: "🐟" },
+        { id: 219, icon: "🌊" },
+        { id: 220, icon: "🌅" },
+        { id: 221, icon: "🪸" },
+        { id: 222, icon: "🌊" },
+        { id: 223, icon: "🌙" },
       ];
       async function fetchEffectsMeta() {
         try {
