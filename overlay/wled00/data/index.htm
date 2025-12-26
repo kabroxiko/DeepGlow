@@ -725,12 +725,16 @@
             ci = def.ix;
             // Update sliders to match new effect defaults
             if (gId("sx-slider")) {
-              gId("sx-slider").value = cs;
-              gId("sv").textContent = cs;
+                gId("sx-slider").value = cs;
+                gId("sv").textContent = isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%');
+                gId("sx-slider").setAttribute('value', cs);
+                gId("sx-slider").setAttribute('title', isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%'));
             }
             if (gId("ix-slider")) {
-              gId("ix-slider").value = ci;
-              gId("iv").textContent = ci;
+                gId("ix-slider").value = ci;
+                gId("iv").textContent = isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%');
+                gId("ix-slider").setAttribute('value', ci);
+                gId("ix-slider").setAttribute('title', isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%'));
             }
             // Update palette combo to match effect default
             const palCombo = gId("pal");
@@ -744,11 +748,7 @@
           card.innerHTML = `<div style="font-size:2em">${e.icon}</div><div class="preset-name">${e.name || "Effect " + e.id}</div>${e.desc ? `<div class='preset-info' style='margin-top:4px;font-size:0.9em;opacity:0.7'>${e.desc}</div>` : ""}`;
           lane.appendChild(card);
         });
-        // Update sliders to match current state
-        if (typeof cs !== "undefined")
-          ((gId("sx-slider").value = cs), (gId("sv").textContent = cs));
-        if (typeof ci !== "undefined")
-          ((gId("ix-slider").value = ci), (gId("iv").textContent = ci));
+        // Do not update speed/intensity UI here; only update from backend state (WebSocket)
       }
       // Render on load
       // Do not select any effect on load; only update from backend state via WS
@@ -1000,7 +1000,10 @@
         // debug suppressed
       }
 
+      let wsConnecting = false;
       function connectPeekWS() {
+        if (wsConnecting) return;
+        wsConnecting = true;
         if (ws)
           try {
             ws.close();
@@ -1008,9 +1011,22 @@
         const wsUrl = wledWsUrl();
         ws = new WebSocket(wsUrl);
         ws.onopen = () => {
-          updateStatus(true);
           wsReconnectPending = false;
+          wsConnecting = false;
           ws.send('{"lv":true}');
+        };
+        ws.onclose = (ev) => {
+          updateStatus(false);
+          wsConnecting = false;
+          // Only reconnect if not already pending
+          if (!wsReconnectPending) {
+            wsReconnectPending = true;
+            setTimeout(connectPeekWS, 2000);
+          }
+        };
+        ws.onerror = (err) => {
+          updateStatus(false);
+          wsConnecting = false;
         };
         ws.onmessage = (e) => {
           // Only suppress logging for binary blobs, log everything else
@@ -1022,6 +1038,13 @@
           } else {
             console.debug("[WS] Message:", e.data);
           }
+          // Only set status to connected after receiving {success:true}
+          try {
+            const msg = typeof e.data === 'string' ? JSON.parse(e.data) : null;
+            if (msg && msg.success === true) {
+              updateStatus(true);
+            }
+          } catch (err) {}
           let handleState = async (data) => {
             // Force preset highlight from backend state on every WS message
             if (typeof data.ps === "number") {
@@ -1113,14 +1136,18 @@
                 cs = data.seg[0].sx;
                 if (gId("sx-slider")) {
                   gId("sx-slider").value = cs;
-                  gId("sv").textContent = cs;
+                  gId("sv").textContent = isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%');
+                  gId("sx-slider").setAttribute('value', cs);
+                  gId("sx-slider").setAttribute('title', isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%'));
                 }
               }
               if (typeof data.seg[0].ix === "number") {
                 ci = data.seg[0].ix;
                 if (gId("ix-slider")) {
                   gId("ix-slider").value = ci;
-                  gId("iv").textContent = ci;
+                  gId("iv").textContent = isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%');
+                  gId("ix-slider").setAttribute('value', ci);
+                  gId("ix-slider").setAttribute('title', isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%'));
                 }
               }
             }
@@ -1160,7 +1187,7 @@
               cb = data.bri;
               if (gId("bri")) {
                 gId("bri").value = cb;
-                gId("bv").textContent = cb;
+                gId("bv").textContent = isNaN(cb) ? '--%' : (Math.round(cb/255*100) + '%');
               }
             }
             let trVal;
@@ -1259,14 +1286,16 @@
                 : data.state && typeof data.state.on !== "undefined"
                   ? data.state.on
                   : undefined;
-            if (ps) {
-              b.classList.remove("off");
-              b.classList.add("on");
-              b.textContent = "Turn Off";
-            } else {
-              b.classList.remove("on");
-              b.classList.add("off");
-              b.textContent = "Turn On";
+            if (b) {
+              if (ps) {
+                b.classList.remove("off");
+                b.classList.add("on");
+                b.textContent = "Turn Off";
+              } else {
+                b.classList.remove("on");
+                b.classList.add("off");
+                b.textContent = "Turn On";
+              }
             }
           };
           if (typeof e.data === "string") {
@@ -1825,6 +1854,7 @@
           b.classList.add("off");
           b.textContent = "Turn On";
         }
+        updateStatus(true);
         try {
           // Send instant on/off with transition:0 and segment 0
           const req = {
@@ -1845,6 +1875,7 @@
               b.classList.add("off");
               b.textContent = "Turn On";
             }
+            updateStatus(true);
           }
         } catch (e) {
           // Revert UI on error
@@ -1864,12 +1895,24 @@
         }
       }
       function updateBriLocal(v) {
-        cb = parseInt(v);
-        gId("bv").textContent = v;
+        let maxBri = 255;
+        const maxBriSlider = gId('max_bri');
+        if (maxBriSlider && !maxBriSlider.disabled) {
+          maxBri = parseInt(maxBriSlider.value) || 255;
+        }
+        cb = Math.min(parseInt(v), maxBri);
+        gId("bri").value = cb;
+        gId("bv").textContent = isNaN(cb) ? '--%' : (Math.round(cb/255*100) + '%');
       }
       async function updateBri(v) {
-        cb = parseInt(v);
-        gId("bv").textContent = v;
+        let maxBri = 255;
+        const maxBriSlider = gId('max_bri');
+        if (maxBriSlider && !maxBriSlider.disabled) {
+          maxBri = parseInt(maxBriSlider.value) || 255;
+        }
+        cb = Math.min(parseInt(v), maxBri);
+        gId("bri").value = cb;
+        gId("bv").textContent = isNaN(cb) ? '--%' : (Math.round(cb/255*100) + '%');
         await wledPostState({ bri: cb });
       }
       function updateTrLocal(v) {
@@ -1936,12 +1979,14 @@
       }
       async function updateSp(v) {
         cs = parseInt(v);
-        gId("sv").textContent = v;
+        // Always show percent, never fallback to raw number
+        gId("sv").textContent = isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%');
         await wledPostState({ seg: { sx: cs } });
       }
       async function updateIx(v) {
         ci = parseInt(v);
-        gId("iv").textContent = v;
+        // Always show percent, never fallback to raw number
+        gId("iv").textContent = isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%');
         await wledPostState({ seg: { ix: ci } });
       }
       async function applyPal() {
@@ -2010,9 +2055,10 @@
               }
               const maxBri = safety.maxBrightness;
               if (typeof maxBri === "number" && !isNaN(maxBri)) {
+                const percent = Math.round((maxBri / 255) * 100);
                 maxBriGroup.innerHTML = `
-                  <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">${maxBri}</span></label>
-                  <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"${maxBri}\" oninput=\"gId('max_bri_v').textContent = this.value\" onchange=\"updateAqSettings()\" />
+                  <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">${percent}%</span></label>
+                  <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"${maxBri}\" oninput=\"gId('max_bri_v').textContent = Math.round(this.value/255*100) + '%';\" onchange=\"updateAqSettings()\" />
                   <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
                 `;
               } else {
@@ -2084,6 +2130,7 @@
               const bri = p.bri !== undefined ? p.bri : 128;
               const on = p.on !== false;
               const fxName = p.seg?.fx !== undefined ? `FX:${p.seg.fx}` : "";
+              const briPercent = Math.round((bri / 255) * 100);
               card.innerHTML = `
             <span style="position:absolute;top:8px;right:12px;cursor:pointer;width:22px;height:22px;z-index:2;" title="Edit preset" onclick="event.stopPropagation();openEditPresetModal(${i});">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="18" height="18" style="display:block;">
@@ -2097,7 +2144,7 @@
             </span>
             <div class="preset-name">${name}</div>
             <div class="preset-info">${on ? "ON" : "OFF"}</div>
-            <div class="preset-brightness">💡 ${bri}</div>
+            <div class="preset-brightness">💡 ${briPercent}%</div>
             ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
 `;
               // Confirm delete modal logic
@@ -2175,6 +2222,7 @@
               // Find next available preset slot (1-16)
               let presets = await getPresets();
               let nextId = null;
+
               for (let i = 1; i <= 16; i++) {
                 if (!presets[i.toString()]) {
                   nextId = i;
@@ -2472,9 +2520,9 @@
             toast.style.opacity = '0';
           }, 2200);
         }
-        const bri = parseInt(document.getElementById('edit-preset-bri').value);
+        let bri = parseInt(document.getElementById('edit-preset-bri').value);
         const fx = parseInt(document.getElementById('edit-preset-fx').value);
-        const tr = parseInt(document.getElementById('edit-preset-tr').value);
+        let tr = parseInt(document.getElementById('edit-preset-tr').value);
         const sx = parseInt(document.getElementById('edit-preset-sx').value);
         const ix = parseInt(document.getElementById('edit-preset-ix').value);
         let seg = { fx: fx, sx: sx, ix: ix };
@@ -2497,6 +2545,20 @@
           const palSel = document.getElementById('edit-preset-pal');
           if (palSel && palSel.value) seg.pal = Number(palSel.value);
         }
+        // Enforce min transition time and max brightness
+        let minTr = 5; // default 5s
+        let maxBri = 255; // default max
+        if (window._cachedConfig && window._cachedConfig.um && window._cachedConfig.um.AquariumController && window._cachedConfig.um.AquariumController.safety) {
+          if (typeof window._cachedConfig.um.AquariumController.safety.minTransitionTime === 'number') {
+            minTr = Math.round(window._cachedConfig.um.AquariumController.safety.minTransitionTime / 10);
+          }
+          if (typeof window._cachedConfig.um.AquariumController.safety.maxBrightness === 'number') {
+            maxBri = window._cachedConfig.um.AquariumController.safety.maxBrightness;
+          }
+        }
+        if (tr < minTr) tr = minTr;
+        if (bri > maxBri) bri = maxBri;
+        if (bri < 0) bri = 0;
         try {
           // 1. Get current presets.json
           let presets = await getPresets(true);
@@ -2538,6 +2600,45 @@
             _configFetchPromise = null;
             // Optionally, reload config immediately
             await getConfig(true);
+
+            // Clamp current brightness if above new max
+            let maxBri = parseInt(gId("max_bri").value);
+            let briSlider = gId("bri");
+            if (briSlider && parseInt(briSlider.value) > maxBri) {
+              briSlider.value = maxBri;
+              cb = maxBri;
+              gId("bv").textContent = Math.round(cb/255*100) + '%';
+              await wledPostState({ bri: cb });
+            }
+
+            // After config is updated, raise all preset transitions below new min and clamp brightness above max
+            let minTr = parseInt(gId("min_tr").value);
+            let presets = await getPresets(true);
+            let changed = false;
+            for (let pid in presets) {
+              if (!presets.hasOwnProperty(pid)) continue;
+              let p = presets[pid];
+              if (typeof p.transition === 'number' && p.transition < minTr * 10) {
+                p.transition = minTr * 10;
+                changed = true;
+              }
+              if (typeof p.bri === 'number' && p.bri > maxBri) {
+                p.bri = maxBri;
+                changed = true;
+              }
+              if (typeof p.bri === 'number' && p.bri < 0) {
+                p.bri = 0;
+                changed = true;
+              }
+            }
+            if (changed) {
+              const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+              const form = new FormData();
+              form.append('data', blob, 'presets.json');
+              await fetch('/upload', { method: 'POST', body: form });
+              await loadPresetList();
+              showToast('Updated presets below new min transition or above max brightness.');
+            }
           }
         } catch (e) {}
       }
@@ -2661,15 +2762,18 @@
       }
       function updateStatus(ok) {
         const i = gId("si"),
-          t = gId("st");
+          t = gId("st"),
+          pwr = gId("power-icon") && gId("power-icon").querySelector("svg");
         if (ok) {
           i.classList.remove("disconnected");
           i.classList.add("connected");
           t.textContent = "Connected";
+          if (pwr) pwr.style.fill = (typeof ps !== 'undefined' && !ps) ? "#e74c3c" : "#00d26a";
         } else {
           i.classList.remove("connected");
           i.classList.add("disconnected");
           t.textContent = "Disconnected";
+          if (pwr) pwr.style.fill = "#e74c3c";
         }
       }
       async function checkConn() {
@@ -2677,7 +2781,7 @@
         updateStatus(ws && ws.readyState === 1);
       }
       async function initOnLoad() {
-        await checkConn(); // Only once on load, now only updates status
+        // Do not call checkConn() on load; let WebSocket handlers update status
         await loadCfg();
         await fetchAllPaletteColors();
         await getPal();
@@ -2699,9 +2803,12 @@
         <p class="subtitle">Smart Lighting System</p>
       </header>
       <div class="status-bar">
-        <div>
-          <span class="status-indicator connected" id="si"></span
-          ><span id="st">Connected</span>
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span id="power-icon" style="display:inline-block;width:22px;height:22px;vertical-align:middle;cursor:pointer;" onclick="togglePower()">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" style="width:22px;height:22px;fill:#e74c3c;vertical-align:middle;"><path d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 320C288 337.7 302.3 352 320 352C337.7 352 352 337.7 352 320L352 64zM210.3 162.4C224.8 152.3 228.3 132.3 218.2 117.8C208.1 103.3 188.1 99.8 173.6 109.9C107.4 156.1 64 233 64 320C64 461.4 178.6 576 320 576C461.4 576 576 461.4 576 320C576 233 532.6 156.1 466.3 109.9C451.8 99.8 431.9 103.3 421.7 117.8C411.5 132.3 415.1 152.2 429.6 162.4C479.4 197.2 511.9 254.8 511.9 320C511.9 426 425.9 512 319.9 512C213.9 512 128 426 128 320C128 254.8 160.5 197.1 210.3 162.4z"/></svg>
+          </span>
+          <span class="status-indicator disconnected" id="si"></span>
+          <span id="st">Disconnected</span>
         </div>
         <div>
           <button class="btn" onclick="location.href = '/settings'">
@@ -2737,16 +2844,11 @@
         }
       </style>
       <div class="control-grid">
-        <div class="card">
-          <h2>⚡ Power</h2>
-          <button class="power-btn on" id="pb" onclick="togglePower()">
-            Turn Off
-          </button>
-        </div>
+        <!-- Power card removed -->
         <div class="card">
           <h2>💡 Brightness</h2>
           <div class="control-group">
-            <label>Level: <span class="value-display" id="bv">128</span></label>
+            <label>Level: <span class="value-display" id="bv"></span></label>
             <input
               type="range"
               id="bri"
@@ -2760,7 +2862,7 @@
           </div>
           <div class="control-group">
             <label
-              >Transition: <span class="value-display" id="tv">50s</span></label
+              >Transition: <span class="value-display" id="tv"></span></label
             >
             <input
               type="range"
@@ -2803,6 +2905,22 @@
             ></div>
           </div>
         </div>
+        <div class="card">
+          <h2>⚙️ Safety & Settings</h2>
+          <div class="control-group" id="min-tr-group">
+            <label>Min Transition Time: <span class="value-display" id="min_tr_v">&nbsp;</span></label>
+            <input type="range" id="min_tr" min="5" max="60" value="10" disabled style="opacity:0.5;pointer-events:none;" />
+            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Minimum safe transition for fish (prevents stress)</p>
+          </div>
+          <div class="control-group" id="max-bri-group">
+            <label>Max Brightness: <span class="value-display" id="max_bri_v">&nbsp;</span></label>
+            <input type="range" id="max_bri" min="50" max="255" value="200" disabled style="opacity:0.5;pointer-events:none;" />
+            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Safety limit to protect fish from sudden brightness</p>
+          </div>
+          <p style="margin-top: 15px; opacity: 0.7; font-size: 0.9em">
+            🛡️ Safety features ensure gradual transitions and brightness limits for fish health. Changes save automatically.
+          </p>
+        </div>
         <div class="card" style="grid-column: 1/-1">
           <h2>🎭 Effects</h2>
           <div
@@ -2821,7 +2939,7 @@
           >
             <div class="control-group" style="flex: 1; min-width: 220px">
               <label for="sx-slider"
-                >Speed: <span class="value-display" id="sv">128</span></label
+                >Speed: <span class="value-display" id="sv"></span></label
               >
               <input
                 type="range"
@@ -2829,7 +2947,7 @@
                 min="0"
                 max="255"
                 value="128"
-                oninput="gId('sv').textContent = this.value"
+                oninput="gId('sv').textContent = Math.round(this.value/255*100) + '%'"
                 onmouseup="updateSp(this.value)"
                 ontouchend="updateSp(this.value)"
               />
@@ -2837,7 +2955,7 @@
             <div class="control-group" style="flex: 1; min-width: 220px">
               <label for="ix-slider"
                 >Intensity:
-                <span class="value-display" id="iv">128</span></label
+                <span class="value-display" id="iv"></span></label
               >
               <input
                 type="range"
@@ -2845,7 +2963,7 @@
                 min="0"
                 max="255"
                 value="128"
-                oninput="gId('iv').textContent = this.value"
+                oninput="gId('iv').textContent = Math.round(this.value/255*100) + '%'"
                 onmouseup="updateIx(this.value)"
                 ontouchend="updateIx(this.value)"
               />
@@ -2986,33 +3104,6 @@
             </button>
           </div>
         </div>
-      </div>
-      <div class="card" style="grid-column: 1/-1">
-        <h2>⚙️ Safety & Settings</h2>
-        <div
-          style="
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-          "
-        >
-          <!-- Aquarium Mode enable toggle removed -->
-          <div class="control-group" id="min-tr-group">
-            <label>Min Transition Time: <span class="value-display" id="min_tr_v">&nbsp;</span></label>
-            <input type="range" id="min_tr" min="5" max="60" value="10" disabled style="opacity:0.5;pointer-events:none;" />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Minimum safe transition for fish (prevents stress)</p>
-          </div>
-          <div class="control-group" id="max-bri-group">
-            <label>Max Brightness: <span class="value-display" id="max_bri_v">&nbsp;</span></label>
-            <input type="range" id="max_bri" min="50" max="255" value="200" disabled style="opacity:0.5;pointer-events:none;" />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Safety limit to protect fish from sudden brightness</p>
-            </p>
-          </div>
-        </div>
-        <p style="margin-top: 15px; opacity: 0.7; font-size: 0.9em">
-          🛡️ Safety features ensure gradual transitions and brightness limits
-          for fish health. Changes save automatically.
-        </p>
       </div>
     </div>
   </body>
