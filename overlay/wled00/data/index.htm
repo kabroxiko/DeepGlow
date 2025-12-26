@@ -2105,7 +2105,7 @@
         // Extract fields
         const name = p.n || '';
         const bri = p.bri !== undefined ? p.bri : 128;
-        const fx = p.seg?.fx !== undefined ? p.seg.fx : 0;
+        const fx = p.seg?.[0]?.fx !== undefined ? p.seg[0].fx : 0;
         const tr = p.transition !== undefined ? Math.round(p.transition/10) : 10;
         const col = p.seg?.col && p.seg.col[0] ? p.seg.col[0] : [0,0,0];
         const colHex = '#' + col.map(x => x.toString(16).padStart(2,'0')).join('').toUpperCase();
