@@ -501,83 +501,12 @@
           // fallback: keep static list
         }
       }
-      // Preload all effect defaults at startup (must be after effects[] is defined)
-      async function preloadAllEffectDefaults() {
-        await fetchEffectsMeta();
-        // ...existing code...
-        try {
-          // Use the global effects array for IDs
-          const effectIds = Array.isArray(effects)
-            ? effects.map((e) => e.id)
-            : [];
-          // Fetch both endpoints in parallel
-          const [effRes, fxdataRes] = await Promise.all([
-            wledApiFetch("/json/eff"),
-            wledApiFetch("/json/fxdata"),
-          ]);
-          const eff = await effRes.json(); // Array of effect names
-          let fxdata = await fxdataRes.json(); // Array of effect param strings
-          // Align fxdata as in main UI
-          fxdata.shift();
-          fxdata.unshift(";!;");
-          effectDefaultsCache = {};
-          // Optionally update the global effects array with names/params
-          if (Array.isArray(effects)) {
-            effects.forEach((e) => {
-              e.name = eff[e.id] || e.name;
-              e.params = fxdata[e.id] || "";
-              // Optionally, attach meta fields if available
-              if (meta && Array.isArray(meta)) {
-                const found = meta.find(m => m.id === e.id);
-                if (found) {
-                  e.desc = found.desc;
-                  e.ui = found.ui;
-                }
-              }
-            });
-          }
-          // ...existing code...
-          effectIds.forEach((id) => {
-            const entry = fxdata[id];
-            if (!entry) return;
-            const paramMatch = entry.match(/([a-z]+=[^,;]*)/g);
-            let sx,
-              ix,
-              pal,
-              hasPal = false;
-            if (paramMatch) {
-              paramMatch.forEach((p) => {
-                if (p.startsWith("sx=")) sx = parseInt(p.slice(3));
-                else if (p.startsWith("ix=")) ix = parseInt(p.slice(3));
-                else if (p.startsWith("pal=")) {
-                  pal = parseInt(p.slice(4));
-                  hasPal = true;
-                }
-              });
-            }
-            const cacheEntry = {
-              sx: sx !== undefined ? sx : 128,
-              ix: ix !== undefined ? ix : 128,
-              col: "#00BFFF",
-              name: eff[id] || "",
-              params: entry,
-            };
-            if (hasPal) cacheEntry.pal = pal;
-            effectDefaultsCache[id] = cacheEntry;
-          });
-        } catch (e) {
-          console.error(
-            "[PRELOAD ALL EFFECT DEFAULTS] Failed to load from backend",
-            e,
-          );
-        }
-      }
       // Now preload effect defaults
       preloadAllEffectDefaults();
       // Updated aquarium-related palettes based on device palette list
       // Ocean, Atlantica, Aqua Flash, Fairy Reaf, Red Reaf, Semi Blue, Toxy Reaf, Aurora, Aurora 2, April Night, Orangery
       const aquariumPaletteIds = [
-        2, 9, 11, 19, 22, 35, 50, 51, 55, 46, 47, 59, 58, 62, 60, 63,
+        0, 2, 9, 11, 15, 19, 22, 35, 50, 51, 55, 46, 47, 59, 58, 62, 60, 63,
       ];
 
       // --- Fetch and filter palettes from API ---
@@ -839,12 +768,12 @@
           const effectIds = Array.isArray(effects)
             ? effects.map((e) => e.id)
             : [];
-          // Fetch both endpoints in parallel
-          const [effRes, fxdataRes] = await Promise.all([
-            wledApiFetch("/json/eff"),
-            wledApiFetch("/json/fxdata"),
-          ]);
+          // Fetch /json/eff first
+          const effRes = await wledApiFetch("/json/eff");
           const eff = await effRes.json(); // Array of effect names
+          // Add a delay before fetching /json/fxdata
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          const fxdataRes = await wledApiFetch("/json/fxdata");
           let fxdata = await fxdataRes.json(); // Array of effect param strings
           // Align fxdata as in main UI
           fxdata.shift();
@@ -891,6 +820,10 @@
             "[PRELOAD ALL EFFECT DEFAULTS] Failed to load from backend",
             e,
           );
+        }
+        // Always re-render effect lane after updating effect names
+        if (typeof renderEffectLane === "function") {
+          renderEffectLane(selectedEffect);
         }
       }
 
@@ -1009,7 +942,7 @@
       function updatePaletteBar(palIdx) {
         const bar = gId("palette-bar");
         bar.innerHTML = "";
-        // Use loaded palette color data if available
+        // Only use loaded palette color data if available
         if (window._allPaletteColors && window._allPaletteColors[palIdx]) {
           const colors = window._allPaletteColors[palIdx];
           if (Array.isArray(colors) && colors.length > 0) {
@@ -1025,23 +958,7 @@
             return;
           }
         }
-        // Fallback to genPalPrevCss if available
-        if (typeof genPalPrevCss === "function") {
-          const line = document.createElement("div");
-          line.style.width = "100%";
-          line.style.height = "18px";
-          line.style.borderRadius = "8px";
-          line.style.boxShadow = "0 2px 8px #0003";
-          line.style.margin = "0";
-          line.style.padding = "0";
-          line.style.display = "block";
-          const css = genPalPrevCss(palIdx);
-          if (css) {
-            line.style.cssText += css;
-            bar.appendChild(line);
-          }
-        }
-        // If no palette data or genPalPrevCss missing, show nothing
+        // If no palette data, show nothing
       }
       // --- Peek Bar: Live LED Color Strip ---
       let ws,
@@ -1606,12 +1523,13 @@
       async function getConfig(forceRefresh = false) {
         return wledFetchConfig({ forceRefresh });
       }
-      let eventPresets = [1, 2, 3, 4]; // Default preset for each event
+      let eventPresets = [1, 2, 3, 4, 5, 6, 7]; // Default preset for each event
 
       function addScheduleEvent() {
         const tbody = gId("schedule-body");
         // Only allow up to 8 events
         if (tbody.querySelectorAll("tr").length >= 8) return;
+        // Always use the latest presetOptions (clear and repopulate if needed)
         // Default time: next hour, default preset: first available
         const now = new Date();
         let h = (now.getHours() + 1) % 24;
@@ -1629,14 +1547,18 @@
         // Preset select
         const tdPreset = document.createElement("td");
         const sel = document.createElement("select");
-        sel.style = "width:120px;padding:8px";
-        // Clear any existing options (should be empty, but for safety)
+        sel.style = "width:180px;padding:8px";
         sel.innerHTML = "";
+        // Only add unique options
+        const seen = new Set();
         presetOptions.forEach((opt) => {
-          const o = document.createElement("option");
-          o.value = opt.id;
-          o.textContent = opt.name;
-          sel.appendChild(o);
+          if (!seen.has(opt.id)) {
+            seen.add(opt.id);
+            const o = document.createElement("option");
+            o.value = opt.id;
+            o.textContent = opt.name;
+            sel.appendChild(o);
+          }
         });
         tdPreset.appendChild(sel);
         // Actions
@@ -1746,7 +1668,7 @@
           // Preset select
           const tdPreset = document.createElement("td");
           const sel = document.createElement("select");
-          sel.style = "width:120px;padding:8px";
+          sel.style = "width:180px;padding:8px";
           // Clear any existing options (should be empty, but for safety)
           sel.innerHTML = "";
           presetOptions.forEach((opt) => {
@@ -1846,7 +1768,6 @@
         } catch (e) {}
       }
 
-      window.addEventListener("DOMContentLoaded", populateScheduleTable);
       window.addEventListener("DOMContentLoaded", () => {
         populateScheduleTable();
         if (typeof loadPresetList === "function") loadPresetList();
