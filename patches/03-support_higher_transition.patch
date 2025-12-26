@@ -1,0 +1,3112 @@
+diff --git a/wled00/FX.h b/wled00/FX.h
+index bcbab69a..774bb569 100644
+--- a/wled00/FX.h
++++ b/wled00/FX.h
+@@ -512,11 +512,11 @@ class Segment {
+       #ifndef WLED_SAVE_RAM
+       CRGBPalette16 _palT;                // temporary palette (slowly being morphed from old to new)
+       #endif
+-      uint16_t      _dur;                 // duration of transition in ms
++      uint32_t      _dur;                 // duration of transition in ms
+       uint16_t      _progress;            // transition progress (0-65535); pre-calculated from _start & _dur in updateTransitionProgress()
+       uint8_t       _prevPaletteBlends;   // number of previous palette blends (there are max 255 blends possible)
+       uint8_t       _palette, _bri, _cct; // palette ID, brightness and CCT at the start of transition (brightness will be 0 if segment was off)
+-      Transition(uint16_t dur=750)
++      Transition(uint32_t dur=750)
+       : _oldSegment(nullptr)
+       , _start(millis())
+       , _colors{0,0,0}
+@@ -688,7 +688,7 @@ class Segment {
+       */
+     inline Segment &markForReset() { reset = true; return *this; }  // setOption(SEG_OPTION_RESET, true)
+ 
+-    void startTransition(uint16_t dur, bool segmentCopy = true);    // transition has to start before actual segment values change
++    void startTransition(uint32_t dur, bool segmentCopy = true);    // transition has to start before actual segment values change
+     uint8_t  currentCCT() const; // current segment's CCT (blended while in transition)
+     uint8_t  currentBri() const; // current segment's opacity/brightness (blended while in transition)
+ 
+@@ -916,7 +916,7 @@ class WS2812FX {
+     inline void fill(uint32_t c) const                        { for (size_t i = 0; i < getLengthTotal(); i++) setPixelColor(i, c); } // fill whole strip with color (inline)
+     inline void trigger()                                     { _triggered = true; }  // Forces the next frame to be computed on all active segments.
+     inline void setShowCallback(show_callback cb)             { _callback = cb; }
+-    inline void setTransition(uint16_t t)                     { _transitionDur = t; } // sets transition time (in ms)
++    inline void setTransition(uint32_t t)                     { _transitionDur = t; } // sets transition time (in ms)
+     inline void appendSegment(uint16_t sStart=0, uint16_t sStop=30, uint16_t sStartY = 0, uint16_t sStopY = 1)
+                                                               { if (_segments.size() < getMaxSegments()) _segments.emplace_back(sStart,sStop,sStartY,sStopY); }
+     inline void suspend()                                     { _suspend = true; }    // will suspend (and canacel) strip.service() execution
+@@ -959,7 +959,7 @@ class WS2812FX {
+     inline uint16_t getFrameTime() const    { return _frametime; }        // returns amount of time a frame should take (in ms)
+     inline uint16_t getMinShowDelay() const { return MIN_FRAME_DELAY; }   // returns minimum amount of time strip.service() can be delayed (constant)
+     inline uint16_t getLength() const       { return _length; }           // returns actual amount of LEDs on a strip (2D matrix may have less LEDs than W*H)
+-    inline uint16_t getTransition() const   { return _transitionDur; }    // returns currently set transition time (in ms)
++    inline uint32_t getTransition() const   { return _transitionDur; }    // returns currently set transition time (in ms)
+     inline uint16_t getMappedPixelIndex(uint16_t index) const {           // convert logical address to physical
+       if (index < customMappingSize && (realtimeMode == REALTIME_MODE_INACTIVE || realtimeRespectLedMaps)) index = customMappingTable[index];
+       return index;
+@@ -1033,7 +1033,7 @@ class WS2812FX {
+ 
+     uint8_t  _brightness;
+     uint16_t _length;
+-    uint16_t _transitionDur;
++    uint32_t _transitionDur;
+ 
+     uint16_t _frametime;
+     uint16_t _cumulativeFps;
+diff --git a/wled00/FX_fcn.cpp b/wled00/FX_fcn.cpp
+index 3f357daa..1c04954c 100644
+--- a/wled00/FX_fcn.cpp
++++ b/wled00/FX_fcn.cpp
+@@ -281,7 +281,7 @@ CRGBPalette16 &Segment::loadPalette(CRGBPalette16 &targetPalette, uint8_t pal) {
+ }
+ 
+ // starting a transition has to occur before change so we get current values 1st
+-void Segment::startTransition(uint16_t dur, bool segmentCopy) {
++void Segment::startTransition(uint32_t dur, bool segmentCopy) {
+   if (dur == 0 || !isActive()) {
+     if (isInTransition()) _t->_dur = 0;
+     return;
+@@ -320,7 +320,7 @@ void Segment::startTransition(uint16_t dur, bool segmentCopy) {
+     } else {
+       DEBUGFX_PRINTF_P(PSTR("-- Started transition without old segment: S=%p T(%p)\n"), this, _t);
+     }
+-  };
++  }
+ }
+ 
+ void Segment::stopTransition() {
+@@ -331,8 +331,10 @@ void Segment::stopTransition() {
+ void Segment::updateTransitionProgress() const {
+   if (isInTransition()) {
+     _t->_progress = 0xFFFF;
+-    unsigned diff = millis() - _t->_start;
+-    if (_t->_dur > 0 && diff < _t->_dur) _t->_progress = diff * 0xFFFFU / _t->_dur;
++    unsigned long diff = millis() - _t->_start;
++    if (_t->_dur > 0 && diff < _t->_dur) {
++      _t->_progress = diff * 0xFFFFU / _t->_dur;
++    }
+   }
+ }
+ 
+diff --git a/wled00/cfg.cpp b/wled00/cfg.cpp
+index e30be759..11381fd0 100644
+--- a/wled00/cfg.cpp
++++ b/wled00/cfg.cpp
+@@ -520,8 +520,8 @@ bool deserializeConfig(JsonObject doc, bool fromFS) {
+   NeoGammaWLEDMethod::calcGammaTable(gammaCorrectVal); // fill look-up tables
+ 
+   JsonObject light_tr = light["tr"];
+-  int tdd = light_tr["dur"] | -1;
+-  if (tdd >= 0) transitionDelay = transitionDelayDefault = tdd * 100;
++  int64_t tdd = light_tr["dur"] | -1;
++  if (tdd >= 0) transitionDelay = transitionDelayDefault = (uint32_t)tdd * 100U;
+   strip.setTransition(transitionDelayDefault);
+   CJSON(randomPaletteChangeTime, light_tr[F("rpc")]);
+   CJSON(useHarmonicRandomPalette, light_tr[F("hrp")]);
+diff --git a/wled00/data/index.htm b/wled00/data/index.htm
+index e37844f0..63a60497 100644
+--- a/wled00/data/index.htm
++++ b/wled00/data/index.htm
+@@ -1,372 +1,2576 @@
+-<!DOCTYPE html>
++<!doctype html>
+ <html lang="en">
+-<head>
+-	<meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1">
+-	<meta charset="utf-8">
+-	<meta name="theme-color" content="#222222">
+-	<meta content="yes" name="apple-mobile-web-app-capable">
+-	<link rel="shortcut icon" href="data:image/x-icon;base64,AAABAAEAEBAAAAEAGACGAAAAFgAAAIlQTkcNChoKAAAADUlIRFIAAAAQAAAAEAgGAAAAH/P/YQAAAE1JREFUOI1j/P//PwOxgNGeAUMxE9G6cQCKDWAhpADZ2f8PMjBS3QW08QK20KaZC2gfC9hCnqouoNgARgY7zMxAyNlUdQHlXiAlO2MDAD63EVqNHAe0AAAAAElFTkSuQmCC"/>
+-	<link rel="apple-touch-icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAMAAAAKE/YAAAAANlBMVEUAAAAAKacAPv8APv8APv8APv8APv8AKacAQv8AJZsAKacAKacAPv8APv8AL8MAPv8APv8AQv/mTD7uAAAAEHRSTlMAf1mvpgzzka9/Vy3wnX9ic6GVaQAAAQhJREFUeNrt3EtuwkAQRdGGYAyYT9j/ZqN4GNkv9gSV4ZwVXJU8cVerGwAAAAAAUNTl9LXY6dJq6J/fiz37VsNuTfSu1SB6hmjRgWjRgWjRgWjRgWjRgehf5y1G70r/2Ha3w5T7foWhvVg3Pbxzq6w7lv5MRa8iWnQgWnQgWnQgWnQgWnQgenQtHT3spzxqT7p/+/MX0aJFj0SLDkSLDkSLDkSLDkSL/s/n7OhXRR8fNXb0q6KvrbSZSXetMtEzRIsORIsORIsORIsORIsORIdr/i+PHvYr3A9Tbsui7egn+2pf83//ky7RokWPRIsORIsORIsORIsORG/2gbhNPsUHAAAAAAD89QMg+PZb+jO0tAAAAABJRU5ErkJggg==" sizes="180x180"/>
+-	<title>WLED</title>
+-	<link rel="stylesheet" href="index.css">
+-</head>
+-<body onload="onLoad()">
++  <head>
++    <meta charset="UTF-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
++    <title>Aquarium Control</title>
++    <style>
++      * {
++        margin: 0;
++        padding: 0;
++        box-sizing: border-box;
++      }
++      body {
++        font-family: "Segoe UI", sans-serif;
++        background: linear-gradient(135deg, #001f3f 0%, #003d5c 100%);
++        color: #fff;
++        padding: 20px;
++        min-height: 100vh;
++      }
++      .container {
++        max-width: 1200px;
++        margin: 0 auto;
++      }
++      header {
++        text-align: center;
++        margin-bottom: 30px;
++      }
++      h1 {
++        font-size: 2.5em;
++        margin-bottom: 10px;
++        text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
++      }
++      .subtitle {
++        opacity: 0.8;
++        font-size: 1.1em;
++      }
++      .control-grid {
++        display: grid;
++        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
++        gap: 20px;
++        margin-bottom: 30px;
++      }
++      .card {
++        background: rgba(255, 255, 255, 0.1);
++        border-radius: 15px;
++        padding: 25px;
++        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
++        border: 1px solid rgba(255, 255, 255, 0.1);
++      }
++      .card h2 {
++        margin-bottom: 20px;
++        font-size: 1.5em;
++        border-bottom: 2px solid rgba(255, 255, 255, 0.2);
++        padding-bottom: 10px;
++      }
++      .preset-grid {
++        display: grid;
++        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
++        gap: 15px;
++      }
++      .preset-btn {
++        padding: 15px;
++        border: none;
++        border-radius: 10px;
++        background: linear-gradient(135deg, #0080ff 0%, #00bfff 100%);
++        color: white;
++        font-size: 1em;
++        cursor: pointer;
++        transition: all 0.3s ease;
++        box-shadow: 0 4px 15px rgba(0, 128, 255, 0.3);
++      }
++      .preset-btn:hover {
++        transform: translateY(-2px);
++        box-shadow: 0 6px 20px rgba(0, 128, 255, 0.5);
++      }
++      .preset-btn.active {
++        background: linear-gradient(135deg, #ff6b00 0%, #ffa500 100%);
++        box-shadow: 0 4px 15px rgba(255, 107, 0, 0.5);
++      }
++      .control-group {
++        margin-bottom: 20px;
++      }
++      .control-group label {
++        display: block;
++        margin-bottom: 8px;
++        font-weight: 500;
++        font-size: 0.95em;
++      }
++      input[type="range"] {
++        width: 100%;
++        height: 8px;
++        border-radius: 5px;
++        background: rgba(255, 255, 255, 0.2);
++        outline: none;
++        -webkit-appearance: none;
++        appearance: none;
++      }
++      input[type="range"]::-webkit-slider-thumb {
++        -webkit-appearance: none;
++        width: 20px;
++        height: 20px;
++        border-radius: 50%;
++        background: #00bfff;
++        cursor: pointer;
++        box-shadow: 0 2px 8px rgba(0, 191, 255, 0.5);
++      }
++      input[type="range"]::-moz-range-thumb {
++        width: 20px;
++        height: 20px;
++        border-radius: 50%;
++        background: #00bfff;
++        cursor: pointer;
++        border: none;
++      }
++      .value-display {
++        display: inline-block;
++        min-width: 50px;
++        text-align: right;
++        font-weight: bold;
++        margin-left: 10px;
++      }
++      .power-btn {
++        width: 100%;
++        padding: 20px;
++        font-size: 1.3em;
++        border: none;
++        border-radius: 10px;
++        cursor: pointer;
++        transition: all 0.3s ease;
++        font-weight: bold;
++        text-transform: uppercase;
++      }
++      .power-btn.on {
++        background: linear-gradient(135deg, #00ff80 0%, #00cc66 100%);
++        color: #003d00;
++        box-shadow: 0 4px 15px rgba(0, 255, 128, 0.4);
++      }
++      .power-btn.off {
++        background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
++        color: white;
++        box-shadow: 0 4px 15px rgba(255, 68, 68, 0.4);
++      }
++      .power-btn:hover {
++        transform: translateY(-3px);
++        box-shadow: 0 6px 25px rgba(0, 255, 128, 0.6);
++      }
++      select {
++        width: 100%;
++        padding: 10px;
++        border-radius: 8px;
++        border: 1px solid rgba(255, 255, 255, 0.3);
++        background: rgba(255, 255, 255, 0.1);
++        color: white;
++        font-size: 1em;
++        cursor: pointer;
++      }
++      select option {
++        background: #003d5c;
++        color: white;
++      }
++      .status-indicator {
++        display: inline-block;
++        width: 12px;
++        height: 12px;
++        border-radius: 50%;
++        margin-right: 8px;
++        animation: pulse 2s ease-in-out infinite;
++      }
++      .status-indicator.connected {
++        background: #00ff80;
++      }
++      .status-indicator.disconnected {
++        background: #ff4444;
++      }
++      @keyframes pulse {
++        0%,
++        100% {
++          opacity: 1;
++        }
++        50% {
++          opacity: 0.5;
++        }
++      }
++      .status-bar {
++        background: rgba(0, 0, 0, 0.3);
++        padding: 15px 25px;
++        border-radius: 10px;
++        margin-bottom: 20px;
++        display: flex;
++        justify-content: space-between;
++        align-items: center;
++      }
++      .btn {
++        padding: 10px 20px;
++        border: none;
++        border-radius: 8px;
++        background: #0080ff;
++        color: white;
++        cursor: pointer;
++        transition: all 0.3s ease;
++      }
++      .btn:hover {
++        background: #00bfff;
++        transform: translateY(-2px);
++      }
++      .schedule-table {
++        width: 100%;
++        border-collapse: collapse;
++        margin-top: 15px;
++      }
++      .schedule-table th,
++      .schedule-table td {
++        padding: 12px;
++        text-align: left;
++        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
++      }
++      .schedule-table th {
++        background: rgba(0, 0, 0, 0.2);
++        font-weight: 600;
++      }
++      .schedule-table tr:hover {
++        background: rgba(255, 255, 255, 0.05);
++      }
++      input[type="time"],
++      input[type="checkbox"] {
++        cursor: pointer;
++      }
++      input[type="time"] {
++        background: rgba(255, 255, 255, 0.15);
++        border: 1px solid rgba(255, 255, 255, 0.3);
++        color: #fff;
++        border-radius: 6px;
++        font-size: 0.95em;
++      }
++      input[type="checkbox"] {
++        width: 18px;
++        height: 18px;
++        margin-right: 8px;
++        vertical-align: middle;
++      }
++      /* Preset card base style */
++      .preset-card {
++        background: rgba(255, 255, 255, 0.08);
++        border: 2px solid rgba(255, 255, 255, 0.15);
++        border-radius: 10px;
++        padding: 15px;
++        cursor: pointer;
++        transition: all 0.3s ease;
++        text-align: center;
++        height: 110px;
++        display: flex;
++        flex-direction: column;
++        justify-content: center;
++        align-items: center;
++      }
++      .preset-card:hover {
++        background: rgba(255, 255, 255, 0.15);
++        border-color: rgba(0, 191, 255, 0.5);
++        transform: translateY(-3px);
++        box-shadow: 0 4px 15px rgba(0, 191, 255, 0.3);
++      }
++      .preset-card .preset-name {
++        font-weight: 600;
++        font-size: 1.1em;
++        margin-bottom: 8px;
++        color: #00bfff;
++      }
++      .preset-card .preset-info {
++        font-size: 0.85em;
++        opacity: 0.8;
++        margin-top: 5px;
++      }
++      .preset-card .preset-brightness {
++        display: inline-block;
++        padding: 3px 8px;
++        background: rgba(0, 191, 255, 0.2);
++        border-radius: 5px;
++        margin: 5px 2px;
++        font-size: 0.8em;
++      }
++      /* Highlight active preset with same style as selected effect */
++      .preset-card.active {
++        border-color: #00bfff !important;
++        box-shadow:
++          0 0 0 3px #00bfff55,
++          0 4px 15px rgba(0, 191, 255, 0.3);
++        background: rgba(0, 191, 255, 0.1);
++        z-index: 1;
++      }
++      @media (max-width: 768px) {
++        .control-grid {
++          grid-template-columns: 1fr;
++        }
++        h1 {
++          font-size: 2em;
++        }
++      }
++      .primary-color-circle {
++        width: 25px;
++        height: 25px;
++        border-radius: 50%;
++        display: inline-block;
++        box-shadow: 0 2px 8px #0003;
++        margin: 0;
++        padding: 0;
++        border: 2px solid #fff3;
++        cursor: pointer;
++        transition: border 0.2s;
++      }
++      .primary-color-circle.selected {
++        border: 4px solid #00bfff;
++      }
++    </style>
++    <script>
++      // --- WLED Remote IP Prompt Logic ---
++      let lastPresetId = null;
++      let WLED_REMOTE_IP = localStorage.getItem("wled_remote_ip") || "";
++      function askForWledIp() {
++        let ip = prompt(
++          "Enter WLED device IP address (e.g. 192.168.1.123):",
++          WLED_REMOTE_IP || "",
++        );
++        if (ip && ip.match(/^\d+\.\d+\.\d+\.\d+$/)) {
++          WLED_REMOTE_IP = ip;
++          localStorage.setItem("wled_remote_ip", ip);
++          return ip;
++        } else {
++          alert("Invalid IP address. Please reload and try again.");
++          return null;
++        }
++      }
++      function wledFetch(path, opts) {
++        // Only use protocol and IP if running as file:// (local file)
++        if (location.protocol === "file:") {
++          if (!WLED_REMOTE_IP) return Promise.reject("No WLED IP set");
++          let proto = location.protocol === "https:" ? "https://" : "http://";
++          let url = path;
++          if (typeof path === "string" && path.startsWith("/")) {
++            url = `${proto}${WLED_REMOTE_IP}${path}`;
++          }
++          return fetch(url, opts);
++        } else {
++          // On server, just use the path (relative fetch)
++          return fetch(path, opts);
++        }
++      }
++      function wledWsUrl() {
++        // Always use full protocol + host for WebSocket URL
++        let proto = location.protocol === "https:" ? "wss://" : "ws://";
++        if (location.protocol === "file:") {
++          return `${proto}${WLED_REMOTE_IP}/ws`;
++        } else {
++          return `${proto}${location.host}/ws`;
++        }
++      }
++      // --- Centralized /json/state POST helper ---
++      async function wledPostState(body) {
++        let tries = 0;
++        let ok = false;
++        let resp;
++        while (!ok && tries < 3) {
++          try {
++            resp = await fetch("/json/state", {
++              method: "POST",
++              headers: { "Content-Type": "application/json" },
++              body: JSON.stringify(body),
++            });
++            if (resp.ok) ok = true;
++          } catch (e) {}
++          if (!ok) await new Promise((r) => setTimeout(r, 150));
++          tries++;
++        }
++        return resp;
++      }
+ 
+-<div id="cv" class="overlay">Loading WLED UI...</div>
+-<noscript><div class="overlay" style="opacity:1;">Sorry, WLED UI needs JavaScript!</div></noscript>
+-<div id="bg"></div>
++      // On local file load, prompt for WLED IP and override fetch/ws
++      if (location.protocol === "file:") {
++        if (!WLED_REMOTE_IP) {
++          if (!askForWledIp()) {
++            document.body.innerHTML =
++              '<div style="color:red;padding:2em;font-size:1.5em">No valid WLED IP provided. Reload to try again.</div>';
++            throw new Error("No WLED IP");
++          }
++        }
++        // Patch fetch and WebSocket globally
++        window._origFetch = window.fetch;
++        window.fetch = function (path, opts) {
++          if (typeof path === "string" && path.startsWith("/"))
++            return wledFetch(path, opts);
++          return window._origFetch.apply(this, arguments);
++        };
++        window._origWS = window.WebSocket;
++        window.WebSocket = function (url, ...args) {
++          if (url === "/ws" || url.endsWith("/ws")) url = wledWsUrl();
++          return new window._origWS(url, ...args);
++        };
++      }
+ 
+-<div class="wrapper" id="top">
+-	<div class="tab top">
+-		<div class="btnwrap">
+-			<button id="buttonPower" onclick="togglePower()" class="tgl"><i class="icons">&#xe08f;</i><p class="tab-label">Power</p></button>
+-			<button id="buttonNl" onclick="toggleNl()"><i class="icons">&#xe2a2;</i><p class="tab-label">Timer</p></button>
+-			<button id="buttonSync" onclick="toggleSync()"><i class="icons">&#xe116;</i><p class="tab-label">Sync</p></button>
+-			<button id="buttonSr" onclick="toggleLiveview()"><i class="icons">&#xe410;</i><p class="tab-label">Peek</p></button>
+-			<button id="buttonI" onclick="toggleInfo()"><i class="icons">&#xe066;</i><p class="tab-label">Info</p></button>
+-			<button id="buttonNodes" onclick="toggleNodes()"><i class="icons">&#xe22d;</i><p class="tab-label">Nodes</p></button>
+-			<button onclick="window.location.href=getURL('/settings');"><i class="icons">&#xe0a2;</i><p class="tab-label">Config</p></button>
+-			<button id="buttonPcm" onclick="togglePcMode(true)"><i class="icons">&#xe23d;</i><p class="tab-label">PC Mode</p></button>
+-		</div>
+-		<div id="briwrap">
+-			<p class="hd">Brightness</p>
+-			<div class="slider">
+-				<i class="icons slider-icon" onclick="tglTheme()" style="transform: translateY(2px);">&#xe2a6;</i>
+-				<div class="sliderwrap il">
+-					<input id="sliderBri" onchange="setBri()" oninput="updateTrail(this)" max="255" min="1" type="range" value="128" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-				<output class="sliderbubble"></output>
+-			</div>
+-		</div>
+-		<iframe id="liveview" src="about:blank"></iframe>
+-	</div>
+-</div>
++      // Always use wledFetch for backend API calls
++      function wledApiFetch(path, opts) {
++        if (typeof wledFetch === "function") return wledFetch(path, opts);
++        return fetch(path, opts);
++      }
++      // --- Global palette color data store ---
++      window._allPaletteColors = {};
+ 
+-<div class ="container">
+-	<div id="Colors" class="tabcontent">
+-		<div id="picker" class="noslide"></div>
+-		<div id="hwrap" class="slider">
+-			<div title="Hue" class="sliderwrap il">
+-				<input id="sliderH" class="noslide" oninput="fromH()" onchange="setColor(0)" max="359" min="0" type="range" value="0" step="any">
+-				<div class="sliderdisplay" style="background: linear-gradient(90deg, #f00 2%, #ff0 19%, #0f0 35%, #0ff 52%, #00f 68%, #f0f 85%, #f00)"></div>
+-			</div>
+-		</div>
+-		<div id="swrap" class="slider">
+-			<div title="Saturation" class="sliderwrap il">
+-				<input id="sliderS" class="noslide" oninput="fromS()" onchange="setColor(0)" max="100" min="0" type="range" value="100" step="any">
+-				<div class="sliderdisplay" style="background: linear-gradient(90deg, #aaa 0%, #f00)"></div>
+-			</div>
+-		</div>
+-		<div id="vwrap" class="slider">
+-			<div title="Value/Brightness" class="sliderwrap il">
+-				<input id="sliderV" class="noslide" oninput="fromV()" onchange="setColor(0)" max="100" min="0" type="range" value="100" step="any" />
+-				<div class="sliderdisplay"></div>
+-			</div>
+-		</div>
+-		<div id="kwrap" class="slider">
+-			<div title="Kelvin/Temperature" class="sliderwrap il">
+-				<input id="sliderK" class="noslide" oninput="fromK()" onchange="setColor(0)" max="10091" min="1900" type="range" value="6550" />
+-				<div class="sliderdisplay"></div>
+-			</div>
+-		</div>
+-		<div id="rgbwrap">
+-			<div id="rwrap" class="slider">
+-				<div title="Red channel" class="sliderwrap il">
+-					<input id="sliderR" class="noslide" oninput="fromRgb()" onchange="setColor(0)" max="255" min="0" type="range" value="128" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-			</div>
+-			<div id="gwrap" class="slider">
+-				<div title="Green channel" class="sliderwrap il">
+-					<input id="sliderG" class="noslide" oninput="fromRgb()" onchange="setColor(0)" max="255" min="0" type="range" value="128" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-			</div>
+-			<div id="bwrap" class="slider">
+-				<div title="Blue channel" class="sliderwrap il">
+-					<input id="sliderB" class="noslide" oninput="fromRgb()" onchange="setColor(0)" max="255" min="0" type="range" value="128" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-			</div>
+-		</div>
+-		<div id="wwrap" class="slider">
+-			<div id="whibri" title="White channel" class="sliderwrap il">
+-				<input id="sliderW" class="noslide" oninput="fromW()" onchange="setColor(0)" max="255" min="0" type="range" value="128" />
+-				<div class="sliderdisplay"></div>
+-			</div>
+-		</div>
+-		<div id="wbal" class="slider">
+-			<div title="White balance" class="sliderwrap il">
+-				<input id="sliderA" class="noslide" onchange="setBalance(this.value)" max="255" min="0" type="range" value="128" />
+-				<div class="sliderdisplay"></div>
+-			</div>
+-		</div>
+-		<div id="qcs-w">
+-			<div class="qcs" onclick="pC('#ff0000');" style="background-color:#ff0000;"></div>
+-			<div class="qcs" onclick="pC('#ffa000');" style="background-color:#ffa000;"></div>
+-			<div class="qcs" onclick="pC('#ffc800');" style="background-color:#ffc800;"></div>
+-			<div class="qcs" onclick="pC('#ffe0a0');" style="background-color:#ffe0a0;"></div>
+-			<div class="qcs qcsw" onclick="pC('#ffffff');" style="background-color:#ffffff;"></div>
+-			<div class="qcs qcsb" onclick="pC('#000000');" style="background-color:#000000;"></div><br>
+-			<div class="qcs" onclick="pC('#ff00ff');" style="background-color:#ff00ff;"></div>
+-			<div class="qcs" onclick="pC('#0000ff');" style="background-color:#0000ff;"></div>
+-			<div class="qcs" onclick="pC('#00ffc8');" style="background-color:#00ffc8;"></div>
+-			<div class="qcs" onclick="pC('#08ff00');" style="background-color:#08ff00;"></div>
+-			<div class="qcs" onclick="pC('rnd');" title="Random" style="background:linear-gradient(to right, red, orange, yellow, green, blue, purple);transform: translateY(-11px);">R</div>
+-		</div>
+-		<div id="csl">
+-			<button id="csl0" title="Select slot" class="btn" onclick="selectSlot(0);" data-r="0" data-g="0" data-b="0" data-w="0">1</button>
+-			<button id="csl1" title="Select slot" class="btn" onclick="selectSlot(1);" data-r="0" data-g="0" data-b="0" data-w="0">2</button>
+-			<button id="csl2" title="Select slot" class="btn" onclick="selectSlot(2);" data-r="0" data-g="0" data-b="0" data-w="0">3</button>
+-		</div>
+-		<p class="labels h" id="cslLabel"></p>
+-		<div id="hexw">
+-			<i class="icons sel-icon" onclick="tglRgb()">&#xe22d;</i>
+-			<input id="hexc" title="Hex RGB" type="text" class="noslide" onkeydown="hexEnter()" autocomplete="off" maxlength="8" />
+-			<button id="hexcnf" class="btn btn-xs" onclick="fromHex();"><i class="icons btn-icon">&#xe390;</i></button>
+-		</div>
+-		<div style="padding: 8px 0;" id="btns">
+-			<button class="btn btn-xs" title="File editor" type="button" id="edit" onclick="window.location.href=getURL('/edit')"><i class="icons btn-icon">&#xe2c6;</i></button>
+-			<button class="btn btn-xs" title="PixelForge" type="button" onclick="window.location.href=getURL('/pixelforge.htm')"><i class="icons btn-icon">&#xe410;</i></button>
+-			<button class="btn btn-xs" title="Add custom palette" type="button" id="adPal" onclick="window.location.href=getURL('/cpal.htm')"><i class="icons btn-icon">&#xe18a;</i></button>
+-			<button class="btn btn-xs" title="Remove last custom palette" type="button" id="rmPal" onclick="palettesData=null;localStorage.removeItem('wledPalx');requestJson({rmcpal:true});setTimeout(loadPalettes,250,loadPalettesData);"><i class="icons btn-icon">&#xe037;</i></button>
+-		</div>
+-		<p class="labels hd" id="pall"><i class="icons sel-icon" onclick="tglHex()">&#xe2b3;</i> Color palette</p>
+-		<div id="palw" class="il">
+-			<div class="staytop fnd">
+-				<input type="text" placeholder="Search" oninput="search(this,'pallist')" onfocus="search(this,'pallist')" />
+-				<i class="icons clear-icon" onclick="clean(this)">&#xe38f;</i>
+-				<i class="icons search-icon">&#xe0a1;</i>
+-			</div>
+-			<div id="pallist" class="list">
+-				<div class="lstI">
+-					<label class="radio schkl" onclick="loadPalettes()">
+-						<div class="lstIcontent">
+-							<span class="lstIname">
+-								Loading...
+-							</span>
+-						</div>
+-					</label>
+-				</div>
+-			</div>
+-		</div>
+-	</div>
++      // --- Fetch all palette colors from paginated API at startup ---
++      async function fetchAllPaletteColors() {
++        // index.js style palette loader with localStorage cache and recursive fetch
++        const lsKey = "wledPalx";
++        let lsPalData = localStorage.getItem(lsKey);
++        if (lsPalData) {
++          try {
++            let d = JSON.parse(lsPalData);
++            if (d && d.p) {
++              window._allPaletteColors = d.p;
++              window._allPaletteColorsLastError = null;
++              return;
++            }
++          } catch (e) {}
++        }
++        let allColors = {};
++        let retry = false;
++        function getPalettesData(page, maxPage, done) {
++          let url = `/json/palx?page=${page}`;
++          wledApiFetch(url, { method: "get" })
++            .then((res) => {
++              if (!res.ok)
++                throw new Error("Failed to fetch palette page " + page);
++              return res.json();
++            })
++            .then((json) => {
++              retry = false;
++              if (json && json.p)
++                allColors = Object.assign({}, allColors, json.p);
++              if (page === 0 && typeof json.m === "number") maxPage = json.m;
++              if (maxPage !== undefined && page < maxPage) {
++                setTimeout(() => {
++                  getPalettesData(page + 1, maxPage, done);
++                }, 75);
++              } else {
++                window._allPaletteColors = allColors;
++                window._allPaletteColorsLastError = null;
++                localStorage.setItem(lsKey, JSON.stringify({ p: allColors }));
++                if (done) done();
++              }
++            })
++            .catch((e) => {
++              if (!retry) {
++                retry = true;
++                setTimeout(() => {
++                  getPalettesData(page, maxPage, done);
++                }, 500);
++              }
++              window._allPaletteColorsLastError = e;
++            });
++        }
++        return new Promise((resolve) => getPalettesData(0, undefined, resolve));
++      }
+ 
+-	<div id="Effects" class="tabcontent">
+-		<div id="fx">
+-			<p class="labels hd" id="modeLabel">Effect mode</p>
+-			<div class="staytop fnd" id="fxFind" onmousedown="preventBlur(event);">
+-				<input type="text" placeholder="Search" oninput="search(this,'fxlist')" onfocus="filterFocus(event);search(this,'fxlist');" onblur="filterFocus(event);">
+-				<i class="icons clear-icon" onclick="clean(this);">&#xe38f;</i>
+-				<i class="icons search-icon" style="cursor:pointer;">&#xe0a1;</i>
+-				<div id="filters" class="filter fade">
+-					<label id="filterPal" title="Uses palette" class="check fchkl">&#x1F3A8;
+-						<input type="checkbox" data-flt="&#x1F3A8;" onchange="filterFx();">
+-						<span class="checkmark"></span>
+-					</label>
+-					<label id="filter0D" title="Single pixel" class="check fchkl">&#8226;
+-						<input type="checkbox" data-flt="&#8226;" onchange="filterFx();">
+-						<span class="checkmark"></span>
+-					</label>
+-					<label id="filter1D" title="1D" class="check fchkl">&#8942;
+-						<input type="checkbox" data-flt="&#8942;" onchange="filterFx();">
+-						<span class="checkmark"></span>
+-					</label>
+-					<label id="filter2D" title="2D" class="check fchkl">&#9638;
+-						<input type="checkbox" data-flt="&#9638;" onchange="filterFx();">
+-						<span class="checkmark"></span>
+-					</label>
+-					<label id="filterVol" title="Volume" class="check fchkl">&#9834;
+-						<input type="checkbox" data-flt="&#9834;" onchange="filterFx();">
+-						<span class="checkmark"></span>
+-					</label>
+-					<label id="filterFreq" title="Frequency" class="check fchkl">&#9835;
+-						<input type="checkbox" data-flt="&#9835;" onchange="filterFx();">
+-						<span class="checkmark"></span>
+-					</label>
+-				</div>
+-			</div>
+-			<div id="fxlist" class="list">
+-				<div class="lstI">
+-					<label class="radio schkl" onclick="loadFX()">
+-						<div class="lstIcontent">
+-							<span class="lstIname">
+-								Loading...
+-							</span>
+-						</div>
+-					</label>
+-				</div>
+-			</div>
+-		</div>
+-		<div id="sliders">
+-			<div id="slider0" class="slider">
+-				<i class="icons slider-icon" title="Freeze" onclick="tglFreeze()">&#xe325;</i>
+-				<div title="Effect speed" class="sliderwrap il">
+-					<input id="sliderSpeed" class="noslide" onchange="setSpeed()" oninput="updateTrail(this)" max="255" min="0" type="range" value="128" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-				<output class="sliderbubble"></output>
+-			</div>
+-			<div id="slider1" class="slider">
+-				<i class="icons slider-icon" title="Toggle labels" onclick="tglLabels()">&#xe409;</i>
+-				<div title="Effect intensity" class="sliderwrap il">
+-					<input id="sliderIntensity" class="noslide" onchange="setIntensity()" oninput="updateTrail(this)" max="255" min="0" type="range" value="128" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-				<output class="sliderbubble"></output>
+-			</div>
+-			<div id="slider2" class="slider hide">
+-				<i class="icons slider-icon">&#xe410;</i>
+-				<div title="Custom 1" class="sliderwrap il">
+-					<input id="sliderC1" class="noslide" onchange="setCustom(1)" oninput="updateTrail(this)" max="255" min="0" type="range" value="0" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-				<output class="sliderbubble"></output>
+-			</div>
+-			<div id="slider3" class="slider hide">
+-				<i class="icons slider-icon">&#xe0a2;</i>
+-				<div title="Custom 2" class="sliderwrap il">
+-					<input id="sliderC2" class="noslide" onchange="setCustom(2)" oninput="updateTrail(this)" max="255" min="0" type="range" value="0" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-				<output class="sliderbubble"></output>
+-			</div>
+-			<div id="slider4" class="slider hide">
+-				<i class="icons slider-icon">&#xe0e8;</i>
+-				<div title="Custom 3" class="sliderwrap il">
+-					<input id="sliderC3" class="noslide" onchange="setCustom(3)" oninput="updateTrail(this)" max="31" min="0" type="range" value="0" />
+-					<div class="sliderdisplay"></div>
+-				</div>
+-				<output class="sliderbubble"></output>
+-			</div>
+-			<div id="fxopt" class="option fade">
+-				<label id="opt0" title="Check 1" class="check ochkl hide"><i class="icons">&#xe2b3;</i>
+-					<input id="checkO1" type="checkbox" onchange="setOption(1, this.checked)">
+-					<span class="checkmark"></span>
+-				</label>
+-				<label id="opt1" title="Check 2" class="check ochkl hide"><i class="icons">&#xe34b;</i>
+-					<input id="checkO2" type="checkbox" onchange="setOption(2, this.checked)">
+-					<span class="checkmark"></span>
+-				</label>
+-				<label id="opt2" title="Check 3" class="check ochkl hide"><i class="icons">&#xe04c;</i>
+-					<input id="checkO3" type="checkbox" onchange="setOption(3, this.checked)">
+-					<span class="checkmark"></span>
+-				</label>
+-			</div>
+-		</div>
+-	</div>
++      // --- Aquarium palette IDs (example: update as needed) ---
+ 
+-	<div id="Segments" class="tabcontent">
+-		<p class="labels hd" id="segLabel">Segments</p>
+-		<div id="segcont">
+-			Loading...
+-		</div>
+-		<div id="segutil" class="staybot">
+-		</div>
+-		<div id="segutil2">
+-			<button class="btn btn-s" id="rsbtn" onclick="rSegs()">Reset segments</button>
+-		</div>
+-		<p>Transition: <input id="tt" type="number" min="0" max="65.5" step="0.1" value="0.7" onchange="parseFloat(this.value)===0?gId('bsp').classList.add('hide'):gId('bsp').classList.remove('hide');">&nbsp;s</p>
+-		<div id="bsp" class="sel-p"><select id="bs" class="sel-ple" onchange="requestJson({'bs':parseInt(this.value)})">
+-			<option value="0">Fade</option>
+-			<option value="1">Fairy Dust</option>
+-			<option value="2">Swipe right</option>
+-			<option value="3">Swipe left</option>
+-			<option value="16">Push right</option>
+-			<option value="17">Push left</option>
+-			<option value="4">Outside-in</option>
+-			<option value="5">Inside-out</option>
+-			<option value="6" data-type="2D">Swipe up</option>
+-			<option value="7" data-type="2D">Swipe down</option>
+-			<option value="8" data-type="2D">Open H</option>
+-			<option value="9" data-type="2D">Open V</option>
+-			<option value="18" data-type="2D">Push up</option>
+-			<option value="19" data-type="2D">Push down</option>
+-			<option value="10" data-type="2D">Swipe TL</option>
+-			<option value="11" data-type="2D">Swipe TR</option>
+-			<option value="12" data-type="2D">Swipe BR</option>
+-			<option value="13" data-type="2D">Swipe BL</option>
+-			<option value="14" data-type="2D">Circular Out</option>
+-			<option value="15" data-type="2D">Circular In</option>
+-		</select></div>
+-		<p id="ledmap" class="hide"></p>
+-	</div>
++      // Preload all effect defaults at startup (must be after effects[] is defined)
++      // (moved below effects definition)
++      // --- Effect Lane ---
++      // --- Effect Lane: dynamically load effect metadata from /json/effects ---
++      // Effects fallback for initial render and error cases
++      // Effects array with icon only for known effects (no hardcoded names)
++      let effects = [
++        { id: 0, icon: "🟩" },
++        { id: 28, icon: "➡️" },
++        { id: 38, icon: "🌌" },
++        { id: 45, icon: "🔥" }, // Fire Flicker
++        { id: 57, icon: "⚡" },
++        { id: 79, icon: "💧" },
++        { id: 110, icon: "🌊" },
++        { id: 113, icon: "🌀" },
++        { id: 187, icon: "🐟" },
++        { id: 219, icon: "🌊" },
++        { id: 220, icon: "🌅" },
++        { id: 221, icon: "🪸" },
++        { id: 222, icon: "🌊" },
++        { id: 223, icon: "🌙" },
++      ];
++      async function fetchEffectsMeta() {
++        try {
++          const resp = await wledApiFetch("/json/effects");
++          if (!resp.ok) throw new Error("Failed to fetch /json/effects");
++          const meta = await resp.json();
++          // meta is an array of {id, name, ui, desc, ...}
++          // Integrate icon directly into each effect object
++          effects = meta.map(e => {
++            // Try to find icon from default list
++            const found = effects.find(x => x.id === e.id);
++            return {
++              ...e,
++              icon: found ? found.icon : "🎭"
++            };
++          });
++        } catch (e) {
++          // fallback: keep static list
++        }
++      }
++      // Now preload effect defaults
++      preloadAllEffectDefaults();
++      // Updated aquarium-related palettes based on device palette list
++      // Ocean, Atlantica, Aqua Flash, Fairy Reaf, Red Reaf, Semi Blue, Toxy Reaf, Aurora, Aurora 2, April Night, Orangery
++      const aquariumPaletteIds = [
++        0, 2, 9, 11, 15, 19, 22, 35, 50, 51, 55, 46, 47, 59, 58, 62, 60, 63,
++      ];
+ 
+-	<div id="Presets" class="tabcontent">
+-		<div id="pql">
+-		</div>
+-		<p class="labels hd">Presets</p>
+-		<div class="staytop fnd" id="psFind">
+-			<input type="text" placeholder="Search" oninput="search(this,'pcont')" onfocus="search(this,'pcont')" />
+-			<i class="icons clear-icon" onclick="clean(this);">&#xe38f;</i>
+-			<i class="icons search-icon">&#xe0a1;</i>
+-		</div>
+-		<div id="pcont" class="list">
+-			<span onclick="loadPresets()">Loading...</span>
+-		</div>
+-		<div id="putil" class="staybot">
+-		</div>
+-	</div>
+-</div>
++      // --- Fetch and filter palettes from API ---
++      // Strict single-fetch for /json/pal
++      let _cachedPal = null;
++      let _palFetchPromise = null;
++      async function getPal() {
++        if (_cachedPal) return _cachedPal;
++        if (_palFetchPromise) return _palFetchPromise;
++        _palFetchPromise = wledApiFetch("/json/pal")
++          .then(async (r) => {
++            if (r.ok) {
++              _cachedPal = await r.json();
++              return _cachedPal;
++            } else {
++              throw new Error("Failed to fetch /json/pal");
++            }
++          })
++          .finally(() => {
++            _palFetchPromise = null;
++          });
++        return _palFetchPromise;
++      }
++      // Fetch palettes with real IDs and names from /json/palx and /json/pal
++      async function fetchAquariumPalettes() {
++        try {
++          // Always ensure both color and name data are loaded
++          await fetchAllPaletteColors();
++          const palData = await getPal();
++          let names = Array.isArray(palData)
++            ? palData
++            : Array.isArray(palData.pal)
++              ? palData.pal
++              : [];
++          const allColors = window._allPaletteColors || {};
++          let palettes = [];
++          if (Object.keys(allColors).length > 0) {
++            palettes = Object.keys(allColors).map((id) => {
++              const numId = Number(id);
++              return {
++                id: numId,
++                n: names[numId] || `Palette ${numId}`,
++                colors: allColors[id],
++              };
++            });
++          } else if (names.length > 0) {
++            palettes = names.map((n, i) => ({ id: i, n, colors: [] }));
++          }
++          // Filter to aquariumPaletteIds if needed
++          const filtered = palettes.filter((p) =>
++            aquariumPaletteIds.includes(p.id),
++          );
++          return filtered;
++        } catch (e) {
++          return [];
++        }
++      }
+ 
+-<div class="tab bot" id="bot">
+-	<button class="tablinks" onclick="openTab(0)"><i class="icons">&#xe2b3;</i><p class="tab-label">Colors</p></button>
+-	<button class="tablinks" onclick="openTab(1)"><i class="icons">&#xe23d;</i><p class="tab-label">Effects</p></button>
+-	<button class="tablinks" onclick="openTab(2)"><i class="icons">&#xe34b;</i><p class="tab-label">Segments</p></button>
+-	<button class="tablinks" onclick="openTab(3)"><i class="icons">&#xe04c;</i><p class="tab-label">Presets</p></button>
+-</div>
++      // --- Update palette dropdown and bar with aquarium palettes ---
++      async function updateAquariumPaletteUI(selectedId, effectId) {
++        // Ensure palette colors are loaded before fetching palettes
++        let paletteWasMissing = false;
++        if (
++          !window._allPaletteColors ||
++          Object.keys(window._allPaletteColors).length === 0
++        ) {
++          paletteWasMissing = true;
++          if (typeof fetchAllPaletteColors === "function") {
++            await fetchAllPaletteColors();
++          }
++        }
++        // Only call recursively after initial palette load, not on every call
++        if (
++          paletteWasMissing &&
++          typeof window._lastBackendState === "object" &&
++          !window._paletteComboInitDone
++        ) {
++          window._paletteComboInitDone = true;
++          const { pal, fx } = window._lastBackendState;
++          setTimeout(() => updateAquariumPaletteUI(pal, fx), 0);
++          return;
++        }
++        const palettes = await fetchAquariumPalettes();
++        const palSel = gId("pal");
++        // --- Palette list caching (IDs and names) ---
++        const newList = [
++          -1,
++          ...palettes.map((p) => `${p.id}:${p.n || ""}`),
++        ].join(",");
++        if (!window._lastPaletteListStr) window._lastPaletteListStr = "";
++        // Only rebuild combo if palette list (IDs or names) changes
++        if (window._lastPaletteListStr !== newList) {
++          palSel.innerHTML = "";
++          const solidOpt = document.createElement("option");
++          solidOpt.value = -1;
++          solidOpt.textContent = "Solid";
++          palSel.appendChild(solidOpt);
++          palettes.forEach((p) => {
++            const opt = document.createElement("option");
++            opt.value = p.id;
++            opt.textContent = p.n || `Palette ${p.id}`;
++            palSel.appendChild(opt);
++          });
++          window._lastPaletteListStr = newList;
++        }
++        // --- Always update selection from backend state ---
++        // Always use the latest values from WebSocket state only
+ 
+-<div id="connind"></div>
+-<div id="toast" onclick="clearErrorToast(100);"></div>
+-<div id="namelabel" onclick="toggleNodes()"></div>
+-<div id="info" class="modal">
+-	<button class="btn btn-xs close" onclick="toggleInfo()"><i class="icons rot45">&#xe18a;</i></button>
+-	<div id="imgw">
+-		<img class="wi" alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB0AAAAFCAYAAAC5Fuf5AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAABbSURBVChTlY9bDoAwDMNW7n9nwCipytQN4Z8tbrTHmDmF4oPzyldwRqp1SSdnV/NuZuzqerAByxXznBw3igkeFEfXyUuhK/yFM0CxJfyqXZEOc6/Sr9/bf7uIC5Nwd7orMvAPAAAAAElFTkSuQmCC" />
+-	</div>
+-	<div id="kv">Loading...</div><br>
+-	<div>
+-		<button class="btn ibtn" onclick="requestJson()">Refresh</button>
+-		<button class="btn ibtn" onclick="toggleNodes()">Instance List</button>
+-		<button class="btn ibtn" onclick="window.open(getURL('/update'),'_self');" id="updBt">Update WLED</button>
+-		<button class="btn ibtn" id="resetbtn" onclick="cnfReset()">Reboot WLED</button>
+-	</div>
+-	<br>
+-	<span class="h">Made with&#32;<span id="heart">&#10084;&#xFE0E;</span>&#32;by&#32;<a href="https://github.com/Aircoookie/" target="_blank">Aircoookie</a>&#32;and the&#32;<a href="https://wled.discourse.group/" target="_blank">WLED community</a></span>
+-</div>
++        let wsColor = undefined;
++        // Try to get the color from the latest WS state if available
++        if (
++          window._lastWSState &&
++          window._lastWSState.seg &&
++          window._lastWSState.seg[0] &&
++          window._lastWSState.seg[0].col &&
++          window._lastWSState.seg[0].col[0]
++        ) {
++          const colArr = window._lastWSState.seg[0].col[0];
++          if (Array.isArray(colArr) && colArr.length >= 3) {
++            wsColor =
++              "#" +
++              colArr
++                .slice(0, 3)
++                .map((x) => x.toString(16).padStart(2, "0"))
++                .join("")
++                .toUpperCase();
++          }
++        }
++        if (effectId === 0) {
++          // If effect is Solid, always show 'Solid' in palette dropdown
++          if (palSel.value !== "-1") palSel.value = "-1";
++        } else if (typeof selectedId !== "undefined") {
++          let selStr = String(selectedId);
++          // Remove any previous temporary options
++          Array.from(palSel.querySelectorAll("option")).forEach((opt) => {
++            if (opt.dataset && opt.dataset.temp === "1")
++              palSel.removeChild(opt);
++          });
++          let opt = palSel.querySelector(`[value="${selStr}"]`);
++          if (!opt) {
++            // Palette not in list, add it as a temporary option
++            const tempOpt = document.createElement("option");
++            tempOpt.value = selStr;
++            tempOpt.textContent = `Palette ${selStr} (WS)`;
++            tempOpt.dataset.temp = "1";
++            palSel.appendChild(tempOpt);
++            opt = tempOpt;
++          }
++          if (palSel.value !== selStr) {
++            palSel.value = selStr;
++          }
++        }
++        // Update palette bar
++        const bar = gId("palette-bar");
++        bar.innerHTML = "";
++        if (palSel.value == -1) {
++          // Solid: show single color bar (use color from latest WS message if available)
++          let color = wsColor;
++          if (!color) {
++            if (window._lastBackendStateColor) {
++              color = window._lastBackendStateColor;
++            } else if (window.selectedColor) {
++              color = window.selectedColor;
++            } else {
++              color = "#FFFFFF";
++            }
++          }
++          const line = document.createElement("div");
++          line.style.width = "100%";
++          line.style.height = "18px";
++          line.style.borderRadius = "8px";
++          line.style.background = color;
++          line.style.boxShadow = "0 2px 8px #0003";
++          line.style.display = "block";
++          line.style.margin = "0";
++          bar.appendChild(line);
++        } else if (palSel.value && palettes.length) {
++          window._lastPaletteColors =
++            palettes.find((p) => p.id == palSel.value)?.colors || [];
++          updatePaletteBar(Number(palSel.value));
++        } else {
++          // Always render a placeholder bar to keep layout stable
++          const line = document.createElement("div");
++          line.style.width = "100%";
++          line.style.height = "18px";
++          line.style.borderRadius = "8px";
++          line.style.background = "#222";
++          line.style.boxShadow = "0 2px 8px #0003";
++          line.style.display = "block";
++          line.style.margin = "0";
++          bar.appendChild(line);
++        }
++      }
+ 
+-<div id="nodes" class="modal">
+-	<button class="btn btn-xs close" onclick="toggleNodes()"><i class="icons rot45">&#xe18a;</i></button>
+-	<div id="ndlt">WLED instances</div>
+-	<div id="kn">Loading...</div>
+-	<div style="position:sticky;bottom:0;">
+-		<button class="btn ibtn" onclick="loadNodes()">Refresh</button>
+-	</div>
+-</div>
++      let selectedEffect = 0;
++      async function renderEffectLane(selectedId) {
++        // Wait for effects to be loaded if fetchEffectsMeta is running
++        if (!effects || effects.length === 0) {
++          await fetchEffectsMeta();
++        }
++        const lane = gId("effect-lane");
++        lane.innerHTML = "";
++        effects.forEach((e) => {
++          const card = document.createElement("div");
++          card.className =
++            "preset-card" + (e.id === selectedId ? " active" : "");
++          card.style.cursor = "pointer";
++          card.onclick = async () => {
++            selectedEffect = e.id;
++            // Set cs/ci/pal from effectDefaultsCache if available
++            const def =
++              effectDefaultsCache && effectDefaultsCache[e.id]
++                ? effectDefaultsCache[e.id]
++                : { sx: 128, ix: 128, pal: 0 };
++            cs = def.sx;
++            ci = def.ix;
++            // Update sliders to match new effect defaults
++            if (gId("sx-slider")) {
++              gId("sx-slider").value = cs;
++              gId("sv").textContent = cs;
++            }
++            if (gId("ix-slider")) {
++              gId("ix-slider").value = ci;
++              gId("iv").textContent = ci;
++            }
++            // Update palette combo to match effect default
++            const palCombo = gId("pal");
++            if (palCombo && typeof def.pal === "number" && !isNaN(def.pal)) {
++              palCombo.value = def.pal;
++            }
++            renderEffectLane(selectedEffect);
++            applyFx(selectedEffect);
++          };
++          // Show effect name, icon, and description if available
++          card.innerHTML = `<div style="font-size:2em">${e.icon}</div><div class="preset-name">${e.name || "Effect " + e.id}</div>${e.desc ? `<div class='preset-info' style='margin-top:4px;font-size:0.9em;opacity:0.7'>${e.desc}</div>` : ""}`;
++          lane.appendChild(card);
++        });
++        // Update sliders to match current state
++        if (typeof cs !== "undefined")
++          ((gId("sx-slider").value = cs), (gId("sv").textContent = cs));
++        if (typeof ci !== "undefined")
++          ((gId("ix-slider").value = ci), (gId("iv").textContent = ci));
++      }
++      // Render on load
++      // Do not select any effect on load; only update from backend state via WS
++      function setEffectFromState(id) {
++        selectedEffect = id;
++        renderEffectLane(selectedEffect);
++        // No palette combo update here; only update from backend state in checkConn
++      }
+ 
+-<div id="mlv2D" class="modal">
+-	<div id="klv2D" style="width:100%; height:100%">Loading...</div>
+-</div>
++      // --- Effect default values for preloading (palette, speed, intensity, color) ---
++      // Preload all effect defaults at once and store as an object
++      var effectDefaultsCache = {};
++      // Fetch all effect defaults from backend at startup
++      async function preloadAllEffectDefaults() {
++        try {
++          // Use the global effects array for IDs
++          const effectIds = Array.isArray(effects)
++            ? effects.map((e) => e.id)
++            : [];
++          // Fetch /json/eff first
++          const effRes = await wledApiFetch("/json/eff");
++          const eff = await effRes.json(); // Array of effect names
++          // Add a delay before fetching /json/fxdata
++          await new Promise((resolve) => setTimeout(resolve, 400));
++          const fxdataRes = await wledApiFetch("/json/fxdata");
++          let fxdata = await fxdataRes.json(); // Array of effect param strings
++          // Align fxdata as in main UI
++          fxdata.shift();
++          fxdata.unshift(";!;");
++          effectDefaultsCache = {};
++          // Optionally update the global effects array with names/params
++          if (Array.isArray(effects)) {
++            effects.forEach((e) => {
++              e.name = eff[e.id] || e.name;
++              e.params = fxdata[e.id] || "";
++            });
++          }
++          // Populate effectDefaultsCache for all global effect IDs
++          effectIds.forEach((id) => {
++            const entry = fxdata[id];
++            if (!entry) return;
++            const paramMatch = entry.match(/([a-z]+=[^,;]*)/g);
++            let sx,
++              ix,
++              pal,
++              hasPal = false;
++            if (paramMatch) {
++              paramMatch.forEach((p) => {
++                if (p.startsWith("sx=")) sx = parseInt(p.slice(3));
++                else if (p.startsWith("ix=")) ix = parseInt(p.slice(3));
++                else if (p.startsWith("pal=")) {
++                  pal = parseInt(p.slice(4));
++                  hasPal = true;
++                }
++              });
++            }
++            const cacheEntry = {
++              sx: sx !== undefined ? sx : 128,
++              ix: ix !== undefined ? ix : 128,
++              col: "#00BFFF",
++              name: eff[id] || "",
++              params: entry,
++            };
++            if (hasPal) cacheEntry.pal = pal;
++            effectDefaultsCache[id] = cacheEntry;
++          });
++        } catch (e) {
++          console.error(
++            "[PRELOAD ALL EFFECT DEFAULTS] Failed to load from backend",
++            e,
++          );
++        }
++        // Always re-render effect lane after updating effect names
++        if (typeof renderEffectLane === "function") {
++          renderEffectLane(selectedEffect);
++        }
++      }
+ 
+-<div id="rover" class="modal">
+-	<i class="icons huge">&#xe410;</i><br>
+-	<div id="lv">?</div><br><br>
+-	To use built-in effects, use an override button below.<br>
+-	You can return to realtime mode by pressing the star in the top left corner.<br>
+-	<button class="btn ibtn" onclick="setLor(1)">Override once</button>
+-	<button class="btn ibtn" onclick="setLor(2)">Override until reboot</button><br>
+-	<span class="h">For best performance, it is recommended to turn off the streaming source when not in use.</span>
+-</div>
++      // updateEffectDefaultsUI is now fully removed. Use effectDefaultsCache directly for effect defaults.
+ 
+-<i id="roverstar" class="icons huge" onclick="setLor(0)">&#xe410;</i><br>
++      // Patch applyFx to preload defaults before sending
++      async function applyFx(id) {
++        ce = typeof id === "number" ? id : 0;
++        let pal = undefined;
++        // Prefer palette from UI combo if available, else from effectDefaultsCache
++        const palCombo = gId("pal");
++        if (
++          palCombo &&
++          palCombo.value &&
++          !isNaN(Number(palCombo.value)) &&
++          Number(palCombo.value) >= 0
++        ) {
++          pal = Number(palCombo.value);
++        } else if (
++          effectDefaultsCache[ce] &&
++          typeof effectDefaultsCache[ce].pal === "number"
++        ) {
++          pal = effectDefaultsCache[ce].pal;
++        }
++        // Only send pal if it is set in fxdata/effect defaults (not undefined/null/empty)
++        let includePal = false;
++        if (
++          effectDefaultsCache[ce] &&
++          Object.prototype.hasOwnProperty.call(effectDefaultsCache[ce], "pal")
++        ) {
++          if (
++            typeof effectDefaultsCache[ce].pal === "number" &&
++            !isNaN(effectDefaultsCache[ce].pal)
++          ) {
++            includePal = true;
++          }
++        }
++        // Always use the slider value for transition (seconds), convert to deciseconds for backend
++        let sliderTr = gId("min_tr") ? parseInt(gId("min_tr").value) : 10;
++        if (isNaN(sliderTr) || sliderTr < 1) sliderTr = 10;
++        await wledPostState({ transition: sliderTr * 10 });
++        // Now send the effect change (fx, sx, ix, pal) without transition
++        const segPayload = { fx: ce, sx: cs, ix: ci };
++        if (includePal && typeof pal === "number" && !isNaN(pal))
++          segPayload.pal = pal;
++        const payload = { seg: segPayload };
++        await wledPostState(payload);
++        // Restore original transition if available and not minTr
++        let origTr = undefined;
++        const trElem = gId("tr");
++        if (trElem) origTr = parseInt(trElem.value);
++        if (typeof origTr === "number" && typeof minTr === "number" && origTr !== minTr) {
++          await wledPostState({ transition: origTr * 10 });
++          if (gId("tr")) {
++            gId("tr").value = origTr;
++            gId("tv").textContent = origTr + "s";
++          }
++        }
++      }
++      // --- Aquarium color choices ---
++      const aquariumColors = [
++        { hex: "#00BFFF", name: "Blue" },
++        { hex: "#1E90FF", name: "Ocean" },
++        { hex: "#FFD700", name: "Sun" },
++        { hex: "#FF8C00", name: "Coral" },
++        { hex: "#FF6347", name: "Reef" },
++        { hex: "#20B2AA", name: "Teal" },
++        { hex: "#228B22", name: "Plant" },
++        { hex: "#FFFFFF", name: "White" },
++        { hex: "#191970", name: "Deep" },
++        { hex: "#A0522D", name: "Sand" },
++      ];
++      let selectedColor = aquariumColors[0].hex;
++      // Render the primary color bar and wire up real-time color change
++      function renderPrimaryColorBar(selectedHex) {
++        const bar = gId("primary-color-bar");
++        bar.innerHTML = "";
++        aquariumColors.forEach((c) => {
++          const d = document.createElement("div");
++          d.title = c.name;
++          d.className =
++            "primary-color-circle" +
++            (c.hex.toUpperCase() === selectedHex.toUpperCase()
++              ? " selected"
++              : "");
++          d.style.background = c.hex;
++          d.onclick = async () => {
++            // On click, update color immediately in UI and backend
++            selectedColor = c.hex;
++            renderPrimaryColorBar(selectedColor);
++            await applyCol(selectedColor); // send to backend in real time
++          };
++          bar.appendChild(d);
++        });
++      }
++      // When the actual primary color changes (from backend), update UI highlight
++      function setPrimaryColorFromState(hex) {
++        selectedColor = hex;
++        window._lastBackendStateColor = hex;
++        renderPrimaryColorBar(selectedColor);
++      }
++      // Render on load
++      window.addEventListener("DOMContentLoaded", async () => {
++        // Preload all effect defaults from backend at startup
++        if (typeof preloadEffectDefaults === "function") {
++          await preloadEffectDefaults();
++        }
++        // Only update UI if we have defaults or fallback
++        if (typeof updateEffectDefaultsUI === "function") {
++          await updateEffectDefaultsUI(selectedEffect);
++        } else {
++          renderPrimaryColorBar(selectedColor);
++        }
++      });
++      // --- Palette color bar rendering ---
++      function updatePaletteBar(palIdx) {
++        const bar = gId("palette-bar");
++        bar.innerHTML = "";
++        // Only use loaded palette color data if available
++        if (window._allPaletteColors && window._allPaletteColors[palIdx]) {
++          const colors = window._allPaletteColors[palIdx];
++          if (Array.isArray(colors) && colors.length > 0) {
++            // Each color is [ix, r, g, b]
++            const grad = `linear-gradient(to right, ${colors.map((rgb) => `rgb(${rgb[1]},${rgb[2]},${rgb[3]})`).join(",")})`;
++            const line = document.createElement("div");
++            line.style.width = "100%";
++            line.style.height = "18px";
++            line.style.borderRadius = "8px";
++            line.style.background = grad;
++            line.style.boxShadow = "0 2px 8px #0003";
++            bar.appendChild(line);
++            return;
++          }
++        }
++        // If no palette data, show nothing
++      }
++      // --- Peek Bar: Live LED Color Strip ---
++      let ws,
++        ledCount = 60,
++        ledColors = [];
++      function renderPeekBar() {
++        const bar = document.getElementById("peek-bar");
++        bar.innerHTML = "";
++        const rgbRow = document.createElement("div");
++        rgbRow.style.display = "flex";
++        rgbRow.style.alignItems = "center";
++        rgbRow.style.width = "100%";
++        rgbRow.style.flex = "1 1 0";
++        for (let i = 0; i < ledCount; i++) {
++          const c = ledColors[i] || [0, 0, 0];
++          const d = document.createElement("div");
++          d.className = "peek-led";
++          d.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
++          d.style.width = "18px";
++          d.style.height = "16px";
++          d.style.margin = "0 1px";
++          d.style.borderRadius = "4px";
++          d.title = `LED ${i + 1} RGB: rgb(${c[0]},${c[1]},${c[2]})`;
++          rgbRow.appendChild(d);
++        }
++        bar.appendChild(rgbRow);
++        // debug suppressed
++      }
+ 
+-<!-- 
+-	If you want to load iro.js and rangetouch.js as consecutive requests, you can do it like it was done in 0.14.0:
+-	https://github.com/wled/WLED/blob/v0.14.0/wled00/data/index.htm
+--->
+-<script src="iro.js"></script>
+-<script src="rangetouch.js"></script>
+-<script src="index.js"></script>
+-</body>
++      function connectPeekWS() {
++        if (ws)
++          try {
++            ws.close();
++          } catch (e) {}
++        const wsUrl = wledWsUrl();
++        ws = new WebSocket(wsUrl);
++        ws.onopen = () => {
++          updateStatus(true);
++          ws.send('{"lv":true}');
++        };
++        ws.onmessage = (e) => {
++          // Only suppress logging for binary blobs, log everything else
++          if (
++            e.data instanceof Blob &&
++            (!e.data.type || !e.data.type.startsWith("text"))
++          ) {
++            // Suppress logging for binary blobs
++          } else {
++            console.debug("[WS] Message:", e.data);
++          }
++          let handleState = async (data) => {
++            // Force preset highlight from backend state on every WS message
++            if (typeof data.ps === "number") {
++              const presetCards = document.querySelectorAll(
++                "#preset-list .preset-card",
++              );
++              if (data.ps > 0) {
++                lastPresetId = data.ps;
++                presetCards.forEach((card) => {
++                  if (
++                    parseInt(card.getAttribute("data-preset-id")) === data.ps
++                  ) {
++                    card.classList.add("active");
++                  } else {
++                    card.classList.remove("active");
++                  }
++                });
++                // If not found, observe for preset list changes and re-apply highlight
++                if (
++                  !document.querySelector(
++                    `#preset-list .preset-card[data-preset-id="${data.ps}"]`,
++                  )
++                ) {
++                  const observer = new MutationObserver(() => {
++                    const presetCards = document.querySelectorAll(
++                      "#preset-list .preset-card",
++                    );
++                    presetCards.forEach((card) => {
++                      if (
++                        parseInt(card.getAttribute("data-preset-id")) ===
++                        data.ps
++                      ) {
++                        card.classList.add("active");
++                      } else {
++                        card.classList.remove("active");
++                      }
++                    });
++                    if (
++                      document.querySelector(
++                        `#preset-list .preset-card[data-preset-id="${data.ps}"]`,
++                      )
++                    ) {
++                      observer.disconnect();
++                    }
++                  });
++                  observer.observe(document.getElementById("preset-list"), {
++                    childList: true,
++                    subtree: true,
++                  });
++                }
++              } else if (data.ps === -1) {
++                lastPresetId = null;
++                presetCards.forEach((card) => card.classList.remove("active"));
++              }
++            }
++            // Ensure preset highlight is always correct after preset list is rendered
++            const presetList = document.getElementById("preset-list");
++            if (presetList) {
++              const observer = new MutationObserver(() => {
++                const presetCards = document.querySelectorAll(
++                  "#preset-list .preset-card",
++                );
++                if (lastPresetId) {
++                  presetCards.forEach((card) => {
++                    if (
++                      parseInt(card.getAttribute("data-preset-id")) ===
++                      lastPresetId
++                    ) {
++                      card.classList.add("active");
++                    } else {
++                      card.classList.remove("active");
++                    }
++                  });
++                } else {
++                  // If lastPresetId is null (ps = -1), remove all active classes
++                  presetCards.forEach((card) => card.classList.remove("active"));
++                }
++              });
++              observer.observe(presetList, { childList: true, subtree: true });
++            }
++            // Highlight the effect card matching the WS fx value
++            if (typeof data.seg?.[0]?.fx === "number") {
++              selectedEffect = data.seg[0].fx;
++              renderEffectLane(selectedEffect);
++            }
++            // Sync speed (sx) and intensity (ix) sliders from WS state
++            if (data.seg && data.seg[0]) {
++              if (typeof data.seg[0].sx === "number") {
++                cs = data.seg[0].sx;
++                if (gId("sx-slider")) {
++                  gId("sx-slider").value = cs;
++                  gId("sv").textContent = cs;
++                }
++              }
++              if (typeof data.seg[0].ix === "number") {
++                ci = data.seg[0].ix;
++                if (gId("ix-slider")) {
++                  gId("ix-slider").value = ci;
++                  gId("iv").textContent = ci;
++                }
++              }
++            }
++            // Update Primary Color bar to match WS color (always, not just on user interaction)
++            if (
++              data.seg &&
++              data.seg[0] &&
++              data.seg[0].col &&
++              data.seg[0].col[0]
++            ) {
++              const colArr = data.seg[0].col[0];
++              if (Array.isArray(colArr) && colArr.length >= 3) {
++                const hex =
++                  "#" +
++                  colArr
++                    .slice(0, 3)
++                    .map((x) => x.toString(16).padStart(2, "0"))
++                    .join("")
++                    .toUpperCase();
++                setPrimaryColorFromState(hex);
++              }
++            }
++            // Store the latest WS state globally for color bar use
++            window._lastWSState = data;
++            // Always update palette combo and bar according to WS state
++            let palIdx =
++              typeof data.seg?.[0]?.pal === "number"
++                ? data.seg[0].pal
++                : undefined;
++            let fxIdx =
++              typeof data.seg?.[0]?.fx === "number"
++                ? data.seg[0].fx
++                : undefined;
++            await updateAquariumPaletteUI(palIdx, fxIdx);
++            // Always update brightness and transition sliders from WS state
++            if (typeof data.bri !== "undefined") {
++              cb = data.bri;
++              if (gId("bri")) {
++                gId("bri").value = cb;
++                gId("bv").textContent = cb;
++              }
++            }
++            let trVal;
++            // Use transition from state if available, convert deciseconds to seconds
++            if (typeof data.transition !== "undefined") {
++              trVal = Math.round(data.transition / 10);
++            } else if (
++              data.state &&
++              typeof data.state.transition !== "undefined"
++            ) {
++              trVal = Math.round(data.state.transition / 10);
++            }
++            // If transition is present in segment, prefer that
++            if (data.seg && data.seg[0] && typeof data.seg[0].transition !== "undefined") {
++              trVal = Math.round(data.seg[0].transition / 10);
++            }
++            if (typeof trVal === "undefined" || isNaN(trVal)) trVal = 10;
++            if (gId("tr")) {
++              gId("tr").value = trVal;
++              gId("tv").textContent = trVal + "s";
++            }
++            // Color update
++            if (
++              data.seg &&
++              data.seg[0] &&
++              data.seg[0].col &&
++              data.seg[0].col[0]
++            ) {
++              const colArr = data.seg[0].col[0];
++              if (Array.isArray(colArr) && colArr.length >= 3) {
++                const hex =
++                  "#" +
++                  colArr
++                    .slice(0, 3)
++                    .map((x) => x.toString(16).padStart(2, "0"))
++                    .join("")
++                    .toUpperCase();
++                window._lastBackendStateColor = hex;
++                setPrimaryColorFromState(hex);
++              }
++            }
++            // Palette state tracking
++            if (typeof palIdx !== "undefined") {
++              if (
++                typeof data.ps !== "undefined" &&
++                data.ps !== -1 &&
++                data.ps !== null
++              ) {
++                window._lastBackendState = {
++                  pal: palIdx,
++                  fx: fxIdx,
++                  ps: data.ps,
++                };
++                window._lastValidPreset = data.ps;
++              } else if (
++                window._lastBackendState &&
++                typeof window._lastBackendState.ps !== "undefined"
++              ) {
++                window._lastBackendState = {
++                  pal: palIdx,
++                  fx: fxIdx,
++                  ps: window._lastBackendState.ps,
++                };
++              } else if (typeof window._lastValidPreset === "number") {
++                window._lastBackendState = {
++                  pal: palIdx,
++                  fx: fxIdx,
++                  ps: window._lastValidPreset,
++                };
++              } else {
++                window._lastBackendState = { pal: palIdx, fx: fxIdx };
++              }
++            } else if (
++              typeof data.ps !== "undefined" &&
++              data.ps !== -1 &&
++              data.ps !== null
++            ) {
++              window._lastBackendState = window._lastBackendState || {};
++              window._lastBackendState.ps = data.ps;
++              window._lastValidPreset = data.ps;
++            }
++            if (typeof loadPresetList === "function") {
++              if (
++                window._pendingPreset !== undefined &&
++                window._lastBackendState &&
++                window._lastBackendState.ps == window._pendingPreset
++              ) {
++                window._pendingPreset = null;
++              }
++              loadPresetList();
++            }
++            const b = gId("pb");
++            let ps =
++              typeof data.on !== "undefined"
++                ? data.on
++                : data.state && typeof data.state.on !== "undefined"
++                  ? data.state.on
++                  : undefined;
++            if (ps) {
++              b.classList.remove("off");
++              b.classList.add("on");
++              b.textContent = "Turn Off";
++            } else {
++              b.classList.remove("on");
++              b.classList.add("off");
++              b.textContent = "Turn On";
++            }
++          };
++          if (typeof e.data === "string") {
++            try {
++              const data = JSON.parse(e.data);
++              // Mark the schedule event row for this preset
++              if (typeof updateScheduleActiveRow === "function")
++                updateScheduleActiveRow(data.ps);
++              // If not found, observe for preset list changes and re-apply highlight
++              if (data && (data.state || data.seg)) {
++                // Prefer .state if present (WLED API)
++                if (data.state && data.state.seg) {
++                  handleState(data.state);
++                } else {
++                  handleState(data);
++                }
++              }
++            } catch (err) {}
++          } else if (e.data instanceof Blob) {
++            if (e.data.type && e.data.type.startsWith("text")) {
++              const reader = new FileReader();
++              reader.onload = function () {
++                try {
++                  const data = JSON.parse(reader.result);
++                  if (data && (data.state || data.seg)) {
++                    if (data.state && data.state.seg) {
++                      handleState(data.state);
++                    } else {
++                      handleState(data);
++                    }
++                  }
++                } catch (err) {}
++              };
++              reader.readAsText(e.data);
++            } else {
++              const reader = new FileReader();
++              reader.onload = function () {
++                try {
++                  const buf = new Uint8Array(reader.result);
++                  window._peekRawBuf = buf;
++                  let n = Math.floor((buf.length - 2) / 3);
++                  let arr = [],
++                    arrGRB = [];
++                  for (let i = 0; i < n; i++) {
++                    arr.push([
++                      buf[2 + i * 3],
++                      buf[2 + i * 3 + 1],
++                      buf[2 + i * 3 + 2],
++                    ]);
++                    arrGRB.push([
++                      buf[2 + i * 3 + 1],
++                      buf[2 + i * 3],
++                      buf[2 + i * 3 + 2],
++                    ]);
++                  }
++                  ledColors = arr;
++                  ledColorsGRB = arrGRB;
++                  ledCount = arr.length;
++                  renderPeekBar();
++                } catch (err) {}
++              };
++              reader.readAsArrayBuffer(e.data);
++            }
++          }
++        };
++        // --- Highlight the active schedule row based on current preset (ps) ---
++        function updateScheduleActiveRow(currentPreset) {
++          const tbody = document.getElementById("schedule-body");
++          if (!tbody) return;
++          const rows = Array.from(tbody.querySelectorAll("tr"));
++          let now = new Date();
++          let currentMinutes = now.getHours() * 60 + now.getMinutes();
++          let activeIdx = -1;
++          let maxPastMin = -1;
++          rows.forEach((row, idx) => {
++            const timeInput = row.querySelector('input[type="time"]');
++            if (timeInput) {
++              const [h, m] = timeInput.value.split(":");
++              const tMin = parseInt(h) * 60 + parseInt(m);
++              if (tMin <= currentMinutes && tMin > maxPastMin) {
++                maxPastMin = tMin;
++                activeIdx = idx;
++              }
++            }
++          });
++          rows.forEach((row, idx) => {
++            if (idx === activeIdx) {
++              row.style.background = "rgba(0,191,255,0.15)";
++            } else {
++              row.style.background = "";
++            }
++          });
++        }
++        // (removed redundant empty error handler)
++        ws.onerror = (err) => {
++          updateStatus(false);
++        };
++        ws.onclose = (ev) => {
++          updateStatus(false);
++          setTimeout(connectPeekWS, 2000);
++        };
++      }
++      async function saveSchedule() {
++        // Collect all rows from the schedule table
++        const tbody = gId("schedule-body");
++        const rows = Array.from(tbody.querySelectorAll("tr"));
++        let timers = [];
++        rows.forEach((row) => {
++          const timeInput = row.querySelector('input[type="time"]');
++          const presetSelect = row.querySelector("select");
++          if (timeInput && presetSelect) {
++            const [h, m] = timeInput.value.split(":");
++            const macro = parseInt(presetSelect.value);
++            // Only save valid macros
++            if (macro > 0) {
++              timers.push({
++                hour: parseInt(h),
++                min: parseInt(m),
++                macro: macro,
++                dow: 127, // All days enabled (bitmask)
++                en: 1,
++                start: { mon: 1, day: 1 },
++                end: { mon: 12, day: 31 },
++              });
++            }
++          }
++        });
++        // Always send 8 timers, fill unused with disabled objects
++        while (timers.length < 8) {
++          timers.push({ en: 0, hour: 0, min: 0, macro: 0, dow: 127 });
++        }
++        const cfg = { timers: { ins: timers } };
++        try {
++          await wledFetchConfig({ method: "POST", body: cfg });
++          // Invalidate config cache and fetch promise after save to force fresh fetches
++          _cachedConfig = null;
++          _configFetchPromise = null;
++          await populateScheduleTable();
++        } catch (e) {}
++      }
++      let ps = true,
++        cb = 128,
++        ct = 7,
++        ce = 0,
++        cs = 128,
++        ci = 128,
++        cp = 0;
++      let presetOptions = [];
++      let _cachedPresets = null;
++      let _presetsFetchPromise = null;
++
++      // Strict single-fetch for presets.json
++      async function getPresets(forceRefresh = false) {
++        if (_cachedPresets && !forceRefresh) return _cachedPresets;
++        if (_presetsFetchPromise && !forceRefresh) return _presetsFetchPromise;
++        _presetsFetchPromise = wledApiFetch("/presets.json")
++          .then(async (r) => {
++            if (r.ok) {
++              _cachedPresets = await r.json();
++              return _cachedPresets;
++            } else {
++              throw new Error("Failed to fetch presets.json");
++            }
++          })
++          .finally(() => {
++            _presetsFetchPromise = null;
++          });
++        return _presetsFetchPromise;
++      }
++      let _cachedConfig = null;
++      let _configFetchPromise = null;
++      let _configForceFetchPromise = null;
++
++      // Centralized config fetcher
++      async function wledFetchConfig({
++        forceRefresh = false,
++        method = "GET",
++        body = null,
++      } = {}) {
++        if (method === "GET") {
++          if (!forceRefresh) {
++            if (_cachedConfig) return _cachedConfig;
++            if (_configFetchPromise) return _configFetchPromise;
++            _configFetchPromise = fetch("/json/cfg")
++              .then(async (r) => {
++                if (r.ok) {
++                  _cachedConfig = await r.json();
++                  window._cachedConfig = _cachedConfig;
++                  return _cachedConfig;
++                } else {
++                  throw new Error("Failed to fetch /json/cfg");
++                }
++              })
++              .finally(() => {
++                _configFetchPromise = null;
++              });
++            return _configFetchPromise;
++          } else {
++            if (_configForceFetchPromise) return _configForceFetchPromise;
++            _configForceFetchPromise = fetch("/json/cfg")
++              .then(async (r) => {
++                if (r.ok) {
++                  const cfg = await r.json();
++                  window._cachedConfig = cfg;
++                  return cfg;
++                } else {
++                  throw new Error("Failed to fetch /json/cfg");
++                }
++              })
++              .finally(() => {
++                _configForceFetchPromise = null;
++              });
++            return _configForceFetchPromise;
++          }
++        } else if (method === "POST") {
++          // POST: always send, never deduplicate
++          return fetch("/json/cfg", {
++            method: "POST",
++            headers: { "Content-Type": "application/json" },
++            body: body ? JSON.stringify(body) : undefined,
++          });
++        }
++        // Only GET is deduplicated; POST always goes through
++        if (method === "GET") {
++          if (!forceRefresh) {
++            if (_cachedConfig) return _cachedConfig;
++            if (_configFetchPromise) return _configFetchPromise;
++            _configFetchPromise = fetch("/json/cfg")
++              .then(async (r) => {
++                if (r.ok) {
++                  _cachedConfig = await r.json();
++                  return _cachedConfig;
++                } else {
++                  throw new Error("Failed to fetch /json/cfg");
++                }
++              })
++              .finally(() => {
++                _configFetchPromise = null;
++              });
++            return _configFetchPromise;
++          } else {
++            if (_configForceFetchPromise) return _configForceFetchPromise;
++            _configForceFetchPromise = fetch("/json/cfg")
++              .then(async (r) => {
++                if (r.ok) {
++                  return await r.json();
++                } else {
++                  throw new Error("Failed to fetch /json/cfg");
++                }
++              })
++              .finally(() => {
++                _configForceFetchPromise = null;
++              });
++            return _configForceFetchPromise;
++          }
++        } else if (method === "POST") {
++          // POST: always send, never deduplicate
++          return fetch("/json/cfg", {
++            method: "POST",
++            headers: { "Content-Type": "application/json" },
++            body: body ? JSON.stringify(body) : undefined,
++          });
++        }
++      }
++
++      // getConfig now always uses the centralized fetcher
++      async function getConfig(forceRefresh = false) {
++        return wledFetchConfig({ forceRefresh });
++      }
++      let eventPresets = [1, 2, 3, 4, 5, 6, 7]; // Default preset for each event
++
++      function addScheduleEvent() {
++        const tbody = gId("schedule-body");
++        // Only allow up to 8 events
++        if (tbody.querySelectorAll("tr").length >= 8) return;
++        // Always use the latest presetOptions (clear and repopulate if needed)
++        // Default time: next hour, default preset: first available
++        const now = new Date();
++        let h = (now.getHours() + 1) % 24;
++        let m = 0;
++        let macro = presetOptions.length ? presetOptions[0].id : 1;
++        // Create new row
++        const tr = document.createElement("tr");
++        // Time input
++        const tdTime = document.createElement("td");
++        const timeInput = document.createElement("input");
++        timeInput.type = "time";
++        timeInput.value = `${pad(h)}:${pad(m)}`;
++        timeInput.style = "width:120px;padding:8px";
++        tdTime.appendChild(timeInput);
++        // Preset select
++        const tdPreset = document.createElement("td");
++        const sel = document.createElement("select");
++        sel.style = "width:180px;padding:8px";
++        sel.innerHTML = "";
++        // Only add unique options
++        const seen = new Set();
++        presetOptions.forEach((opt) => {
++          if (!seen.has(opt.id)) {
++            seen.add(opt.id);
++            const o = document.createElement("option");
++            o.value = opt.id;
++            o.textContent = opt.name;
++            sel.appendChild(o);
++          }
++        });
++        tdPreset.appendChild(sel);
++        // Actions
++        const tdAct = document.createElement("td");
++        const btn = document.createElement("button");
++        btn.className = "btn";
++        btn.textContent = "Test";
++        btn.style = "padding:5px 12px;font-size:0.85em";
++        btn.onclick = () => testEvent(parseInt(sel.value));
++        tdAct.appendChild(btn);
++        // Delete
++        const tdDel = document.createElement("td");
++        const delBtn = document.createElement("button");
++        delBtn.className = "btn";
++        delBtn.textContent = "🗑️";
++        delBtn.style =
++          "padding:5px 12px;font-size:0.85em;background:#ff4444;color:white";
++        delBtn.onclick = () => {
++          tr.remove();
++          updateAddEventBtn();
++        };
++        tdDel.appendChild(delBtn);
++        tr.appendChild(tdTime);
++        tr.appendChild(tdPreset);
++        tr.appendChild(tdAct);
++        tr.appendChild(tdDel);
++        tbody.appendChild(tr);
++        updateAddEventBtn();
++      }
++
++      function updateAddEventBtn() {
++        const tbody = gId("schedule-body");
++        const btn = gId("add-event-btn");
++        btn.disabled = tbody.querySelectorAll("tr").length >= 8;
++      }
++
++      async function populateScheduleTable() {
++        // Use cached presets for dropdowns
++        presetOptions = [];
++        let presets = await getPresets();
++        if (presets) {
++          for (let i = 1; i <= 16; i++) {
++            const p = presets[i.toString()];
++            if (p) presetOptions.push({ id: i, name: p.n || `Preset ${i}` });
++          }
++        }
++
++        // Load timers (schedule)
++        let timers = [];
++        // Always force config reload after save
++        let force = populateScheduleTable._forceNext || false;
++        if (force) await new Promise((r) => setTimeout(r, 6000));
++        let cfg = await getConfig(force);
++        populateScheduleTable._forceNext = false;
++        if (cfg) {
++          timers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
++          timers = timers.filter((t) => t.en && t.macro && t.macro > 0);
++        }
++
++        // Render table
++        const tbody = gId("schedule-body");
++        tbody.innerHTML = "";
++        if (!timers.length) {
++          tbody.innerHTML =
++            '<tr><td colspan="4" style="text-align:center;opacity:0.6">No schedule timers found.</td></tr>';
++          updateAddEventBtn();
++          // Always update highlight after rendering
++          if (typeof window._lastValidPreset !== "undefined") {
++            updateScheduleActiveRow(window._lastValidPreset);
++          }
++          return;
++        }
++
++        // Find the currently active event (timer)
++        const now = new Date();
++        const currentMinutes = now.getHours() * 60 + now.getMinutes();
++        let activeIdx = -1;
++        let maxPastMin = -1;
++        timers.forEach((t, idx) => {
++          const tMin = t.hour * 60 + t.min;
++          if (tMin <= currentMinutes && tMin > maxPastMin) {
++            maxPastMin = tMin;
++            activeIdx = idx;
++          }
++        });
++        if (activeIdx === -1 && timers.length > 0)
++          activeIdx = timers.length - 1;
++
++        timers.forEach((t, idx) => {
++          const tr = document.createElement("tr");
++          // Highlight active event
++          if (idx === activeIdx) {
++            tr.style.background = "rgba(0,191,255,0.15)";
++          }
++          // Time input
++          const tdTime = document.createElement("td");
++          const time = `${pad(t.hour)}:${pad(t.min)}`;
++          const timeInput = document.createElement("input");
++          timeInput.type = "time";
++          timeInput.value = time;
++          timeInput.style = "width:120px;padding:8px";
++          // Only update UI, not save
++          timeInput.onchange = () => {
++            /* Removed updateTimer call: only update UI, not save */
++          };
++          tdTime.appendChild(timeInput);
++          // Preset select
++          const tdPreset = document.createElement("td");
++          const sel = document.createElement("select");
++          sel.style = "width:180px;padding:8px";
++          // Clear any existing options (should be empty, but for safety)
++          sel.innerHTML = "";
++          presetOptions.forEach((opt) => {
++            const o = document.createElement("option");
++            o.value = opt.id;
++            o.textContent = opt.name;
++            if (t.macro == opt.id) o.selected = true;
++            sel.appendChild(o);
++          });
++          // Only update UI, not save
++          sel.onchange = () => {
++            /* Removed updateTimer call: only update UI, not save */
++          };
++          tdPreset.appendChild(sel);
++          // Actions
++          const tdAct = document.createElement("td");
++          const btn = document.createElement("button");
++          btn.className = "btn";
++          btn.textContent = "Test";
++          btn.style = "padding:5px 12px;font-size:0.85em";
++          btn.onclick = () => testEvent(t.macro);
++          tdAct.appendChild(btn);
++          // Delete
++          const tdDel = document.createElement("td");
++          const delBtn = document.createElement("button");
++          delBtn.className = "btn";
++          delBtn.textContent = "🗑️";
++          delBtn.style =
++            "padding:5px 12px;font-size:0.85em;background:#ff4444;color:white";
++          delBtn.onclick = () => {
++            deleteTimer(idx);
++          };
++          tdDel.appendChild(delBtn);
++          tr.appendChild(tdTime);
++          tr.appendChild(tdPreset);
++          tr.appendChild(tdAct);
++          tr.appendChild(tdDel);
++          tbody.appendChild(tr);
++        });
++        updateAddEventBtn();
++      }
++
++      async function deleteTimer(idx) {
++        // Fetch all timers (unfiltered)
++        let allTimers = [];
++        let filteredTimers = [];
++        try {
++          const cfg = await getConfig();
++          allTimers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
++          // Filter: only enabled timers with macro > 0 (same as populateScheduleTable)
++          filteredTimers = allTimers
++            .map((t, i) => ({ ...t, _idx: i }))
++            .filter((t) => t.en && t.macro && t.macro > 0);
++        } catch (e) {
++          return;
++        }
++        if (!filteredTimers[idx]) return;
++        // Find the timer in allTimers by its index (preserves duplicates)
++        const toDelete = filteredTimers[idx];
++        const delIdx = toDelete._idx;
++        if (delIdx === undefined || !allTimers[delIdx]) return;
++        // Instead of removing, set en=0, hour=255, min=0, macro=0 (WLED disables timer this way)
++        // Overwrite with a minimal disabled timer (no extra fields, hour: 0)
++        allTimers[delIdx] = { en: 0, hour: 0, min: 0, macro: 0, dow: 127 };
++        // Save updated timers
++        const cfg = { timers: { ins: allTimers } };
++        try {
++          await wledFetchConfig({ method: "POST", body: cfg });
++          // Force reload after a short delay to ensure config is updated
++          setTimeout(populateScheduleTable, 300);
++        } catch (e) {}
++      }
++
++      async function updateTimer(idx, newTime, newPreset) {
++        // Fetch current timers
++        let timers = [];
++        try {
++          const cfg = await getConfig();
++          timers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
++        } catch (e) {
++          return;
++        }
++        if (!timers[idx]) return;
++        if (newTime) {
++          const [h, m] = newTime.split(":");
++          timers[idx].hour = parseInt(h);
++          timers[idx].min = parseInt(m);
++        }
++        if (newPreset) {
++          timers[idx].macro = newPreset;
++        }
++        // Save updated timers
++        const cfg = { timers: { ins: timers } };
++        try {
++          await wledFetchConfig({ method: "POST", body: cfg });
++          await populateScheduleTable();
++        } catch (e) {}
++      }
++
++      window.addEventListener("DOMContentLoaded", () => {
++        populateScheduleTable();
++        if (typeof loadPresetList === "function") loadPresetList();
++      });
++      // Update active event indicator every minute
++      setInterval(populateScheduleTable, 60000);
++      async function send(d) {
++        try {
++          await wledPostState(d);
++          populateScheduleTable._forceNext = true;
++          setTimeout(() => {
++            populateScheduleTable();
++          }, 400);
++        } catch (e) {}
++      }
++      async function togglePower() {
++        const b = gId("pb");
++        b.disabled = true;
++        const prevPs = ps;
++        ps = !ps;
++        // Optimistically update UI
++        if (ps) {
++          b.classList.remove("off");
++          b.classList.add("on");
++          b.textContent = "Turn Off";
++        } else {
++          b.classList.remove("on");
++          b.classList.add("off");
++          b.textContent = "Turn On";
++        }
++        try {
++          // Send instant on/off with transition:0 and segment 0
++          const req = {
++            on: ps,
++            transition: 0,
++            seg: [{ id: 0, on: ps, transition: 0 }],
++          };
++          const resp = await send(req);
++          // Optionally, check resp for confirmation
++          if (resp && typeof resp.on === "boolean") {
++            ps = resp.on;
++            if (ps) {
++              b.classList.remove("off");
++              b.classList.add("on");
++              b.textContent = "Turn Off";
++            } else {
++              b.classList.remove("on");
++              b.classList.add("off");
++              b.textContent = "Turn On";
++            }
++          }
++        } catch (e) {
++          // Revert UI on error
++          ps = prevPs;
++          if (ps) {
++            b.classList.remove("off");
++            b.classList.add("on");
++            b.textContent = "Turn Off";
++          } else {
++            b.classList.remove("on");
++            b.classList.add("off");
++            b.textContent = "Turn On";
++          }
++          updateStatus(false);
++        } finally {
++          b.disabled = false;
++        }
++      }
++      function updateBriLocal(v) {
++        cb = parseInt(v);
++        gId("bv").textContent = v;
++      }
++      async function updateBri(v) {
++        cb = parseInt(v);
++        gId("bv").textContent = v;
++        await wledPostState({ bri: cb });
++      }
++      function updateTrLocal(v) {
++        ct = parseInt(v) * 10;
++        gId("tv").textContent = v + "s";
++      }
++      async function updateTr(v) {
++        ct = parseInt(v) * 10;
++        gId("tv").textContent = v + "s";
++        await wledPostState({ transition: ct });
++
++        // If the AquariumController usermod config is present, update minTransitionTime in the cache
++        if (
++          window._cachedConfig &&
++          window._cachedConfig.um &&
++          (window._cachedConfig.um.AquariumController || window._cachedConfig.um['AquariumController'])
++        ) {
++          const ac = window._cachedConfig.um.AquariumController || window._cachedConfig.um['AquariumController'];
++          if (ac.safety) {
++            // Update the cached value to match the new slider value (in seconds)
++            ac.safety.minTransitionTime = parseInt(v);
++            // Also update the global cache reference
++            _cachedConfig = window._cachedConfig;
++
++          }
++        }
++      }
++      async function loadPreset(p, fastTransition = false) {
++        // Set pending preset for instant UI feedback
++        window._pendingPreset = p;
++        // Remove all active classes and mark the pending one as active
++        const presetCards = document.querySelectorAll(
++          "#preset-list .preset-card",
++        );
++        presetCards.forEach((card) => {
++          if (parseInt(card.getAttribute("data-preset-id")) === p) {
++            card.classList.add("active");
++          } else {
++            card.classList.remove("active");
++          }
++        });
++        try {
++          const presets = await getPresets();
++          const preset = presets[p.toString()];
++          if (preset) {
++            // Remove read-only fields if present
++            const { n, _ps, ...presetData } = preset;
++            if (fastTransition) presetData.transition = 50;
++            await send(presetData);
++            // After sending, update backend state
++            window._lastBackendState = window._lastBackendState || {};
++            window._lastBackendState.ps = p;
++            return;
++          }
++          // fallback: just activate preset by number
++          await send({ ps: p });
++          window._lastBackendState = window._lastBackendState || {};
++          window._lastBackendState.ps = p;
++        } catch (e) {
++          await send({ ps: p });
++          window._lastBackendState = window._lastBackendState || {};
++          window._lastBackendState.ps = p;
++        }
++      }
++      async function updateSp(v) {
++        cs = parseInt(v);
++        gId("sv").textContent = v;
++        await wledPostState({ seg: { sx: cs } });
++      }
++      async function updateIx(v) {
++        ci = parseInt(v);
++        gId("iv").textContent = v;
++        await wledPostState({ seg: { ix: ci } });
++      }
++      async function applyPal() {
++        cp = parseInt(gId("pal").value);
++        updatePaletteBar(cp);
++        await wledPostState({ seg: { pal: cp } });
++      }
++      // Apply color: accepts a hex string (e.g. #RRGGBB)
++      async function applyCol(hex) {
++        let c = hex;
++        if (!c) {
++          // fallback: try to get from color input if present
++          const inp = gId("c1");
++          if (inp) c = inp.value;
++          else return;
++        }
++        c = c.replace("#", "");
++        const r = parseInt(c.substr(0, 2), 16);
++        const g = parseInt(c.substr(2, 2), 16);
++        const b = parseInt(c.substr(4, 2), 16);
++        await wledPostState({ seg: { col: [[r, g, b]] } });
++      }
++      async function loadCfg() {
++        try {
++          let cfg = await getConfig();
++          if (cfg) {
++            // Load WLED timers (time-controlled presets)
++            const timers = cfg.timers?.ins || [];
++            // Find our 4 timers (for presets 1-4)
++            const schedules = { sr: null, md: null, ss: null, ml: null };
++            timers.forEach((t) => {
++              if (t.macro === 1) schedules.sr = t;
++              else if (t.macro === 2) schedules.md = t;
++              else if (t.macro === 3) schedules.ss = t;
++              else if (t.macro === 4) schedules.ml = t;
++            });
++            // Set schedule enabled if any timer is active
++            const anyEnabled = timers.some(
++              (t) => t.en && t.macro >= 1 && t.macro <= 4,
++            );
++            gId("sch_en").checked = anyEnabled;
++            // Load aquarium controller settings (no enable toggle)
++            const um = cfg.um;
++            const minTrGroup = gId("min-tr-group");
++            const maxBriGroup = gId("max-bri-group");
++            if (um && um.AquariumController) {
++              const ac = um.AquariumController;
++              const safety = ac.safety || {};
++              let minTr = safety.minTransitionTime;
++              // Convert deciseconds to seconds for display and slider
++              if (typeof minTr === "number" && !isNaN(minTr)) {
++                if (minTr === 1) minTr = 100; // legacy fallback
++                const minTrSec = Math.round(minTr / 10);
++                minTrGroup.innerHTML = `
++                  <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">${minTrSec}s</span></label>
++                  <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"${minTrSec}\" oninput=\"gId('min_tr_v').textContent = this.value + 's'\" onchange=\"updateAqSettings()\" />
++                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
++                `;
++              } else {
++                // Show skeleton if not available
++                minTrGroup.innerHTML = `
++                  <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">&nbsp;</span></label>
++                  <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"10\" disabled style=\"opacity:0.5;pointer-events:none;\" />
++                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
++                `;
++              }
++              const maxBri = safety.maxBrightness;
++              if (typeof maxBri === "number" && !isNaN(maxBri)) {
++                maxBriGroup.innerHTML = `
++                  <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">${maxBri}</span></label>
++                  <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"${maxBri}\" oninput=\"gId('max_bri_v').textContent = this.value\" onchange=\"updateAqSettings()\" />
++                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
++                `;
++              } else {
++                // Show skeleton if not available
++                maxBriGroup.innerHTML = `
++                  <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">&nbsp;</span></label>
++                  <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"200\" disabled style=\"opacity:0.5;pointer-events:none;\" />
++                  <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
++                `;
++              }
++            } else {
++              // Show skeleton if not available
++              minTrGroup.innerHTML = `
++                <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">&nbsp;</span></label>
++                <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"10\" disabled style=\"opacity:0.5;pointer-events:none;\" />
++                <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
++              `;
++              maxBriGroup.innerHTML = `
++                <label>Max Brightness: <span class=\"value-display\" id=\"max_bri_v\">&nbsp;</span></label>
++                <input type=\"range\" id=\"max_bri\" min=\"50\" max=\"255\" value=\"200\" disabled style=\"opacity:0.5;pointer-events:none;\" />
++                <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Safety limit to protect fish from sudden brightness</p>
++              `;
++            }
++          }
++        } catch (e) {
++          // Show skeleton if error
++          const minTrGroup = gId("min-tr-group");
++          minTrGroup.innerHTML = `
++            <label>Min Transition Time: <span class=\"value-display\" id=\"min_tr_v\">&nbsp;</span></label>
++            <input type=\"range\" id=\"min_tr\" min=\"5\" max=\"60\" value=\"10\" disabled style=\"opacity:0.5;pointer-events:none;\" />
++            <p style=\"margin-top: 5px; opacity: 0.7; font-size: 0.85em\">Minimum safe transition for fish (prevents stress)</p>
++          `;
++        }
++        // Load presets
++        await loadPresetList();
++        // Update active event indicator is now handled in populateScheduleTable
++      }
++      // Removed updateActiveEvent static logic. All schedule highlighting is now handled dynamically in the schedule table if needed.
++      async function loadPresetList() {
++        try {
++          let presets = await getPresets();
++          const container = gId("preset-list");
++          container.innerHTML = "";
++          let found = false;
++          let lastActivePreset = null;
++          // Find the currently active preset from backend state if available
++          if (
++            window._lastBackendState &&
++            typeof window._lastBackendState.ps === "number"
++          ) {
++            lastActivePreset = window._lastBackendState.ps;
++          }
++          // If ps === -1, do not highlight any preset
++          if (lastActivePreset === -1) lastActivePreset = null;
++          for (let i = 1; i <= 16; i++) {
++            const p = presets && presets[i.toString()];
++            if (p) {
++              found = true;
++              const card = document.createElement("div");
++              card.className = "preset-card";
++              card.setAttribute("data-preset-id", i);
++              card.onclick = async () => {
++                try {
++                  await wledPostState({ ps: i });
++                } catch (e) {}
++              };
++              const name = p.n || `Preset ${i}`;
++              const bri = p.bri !== undefined ? p.bri : 128;
++              const on = p.on !== false;
++              const fxName = p.seg?.fx !== undefined ? `FX:${p.seg.fx}` : "";
++              card.innerHTML = `
++<div class="preset-name">${name}</div>
++<div class="preset-info">${on ? "ON" : "OFF"}</div>
++<div class="preset-brightness">💡 ${bri}</div>
++${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
++`;
++              // Highlight active preset, but only if lastActivePreset is not null
++              if (lastActivePreset !== null && lastActivePreset === i) card.classList.add("active");
++              container.appendChild(card);
++            }
++          }
++          if (!found) {
++            container.innerHTML =
++              '<div style="text-align:center;opacity:0.6;padding:20px;grid-column:1/-1">No presets saved yet. Enable schedule to create presets 1-4.</div>';
++          }
++        } catch (e) {
++          gId("preset-list").innerHTML =
++            '<div style="text-align:center;opacity:0.6;padding:20px;grid-column:1/-1">Error loading presets</div>';
++        }
++      }
++      async function updateAqSettings() {
++        const cfg = {
++          um: {
++            AquariumController: {
++              safety: {
++                minTransitionTime: parseInt(gId("min_tr").value) * 10,
++                maxBrightness: parseInt(gId("max_bri").value),
++              },
++            },
++          },
++        };
++        try {
++          const r = await wledFetchConfig({ method: "POST", body: cfg });
++          if (r.ok) {
++            // Invalidate config cache so next fetch gets updated value
++            _cachedConfig = null;
++            _configFetchPromise = null;
++            // Optionally, reload config immediately
++            await getConfig(true);
++          }
++        } catch (e) {}
++      }
++      async function testSchedule(e) {
++        let btn;
++        if (e && e.target) btn = e.target;
++        else btn = document.querySelector("button[onclick*='testSchedule']");
++        if (!btn) btn = document.querySelector(".btn"); // fallback
++        btn.disabled = true;
++        btn.textContent = "⏳ Running...";
++
++        // Show timeline
++        const timeline = document.getElementById("timeline-container");
++        const timelineBar = document.getElementById("timeline-bar");
++        const timelineDot = document.getElementById("timeline-dot");
++        const timelineLabel = document.getElementById("timeline-label");
++        timeline.style.display = "block";
++        timelineBar.style.width = "0%";
++        timelineDot.style.transform = "translateX(0)";
++        timelineLabel.textContent = "Test Progress: 00:00";
++        try {
++          // Fetch timers (schedule)
++          const cfg = await getConfig(true);
++          let timers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
++          timers = timers.filter((t) => t.en && t.macro && t.macro > 0);
++          // Sort by time
++          timers.sort((a, b) => a.hour * 60 + a.min - (b.hour * 60 + b.min));
++          if (!timers.length)
++            throw new Error("No enabled schedule timers found");
++          // Find which event would be active at 00:00
++          let lastIdx = -1,
++            lastMin = -1;
++          timers.forEach((t, idx) => {
++            const tMin = t.hour * 60 + t.min;
++            if (tMin <= 0 && tMin > lastMin) {
++              lastMin = tMin;
++              lastIdx = idx;
++            }
++          });
++          if (lastIdx === -1 && timers.length > 0) lastIdx = timers.length - 1;
++          const startPreset = timers[lastIdx]?.macro;
++          // --- SMOOTH TIMELINE ANIMATION ---
++          const totalMinutes = 24 * 60;
++          const scale = 1000 / 60; // 1 minute real = 1 second test
++          // Build event list: include 00:00 start and all timer events
++          let eventList = [{ min: 0, macro: startPreset }];
++          timers.forEach((t) =>
++            eventList.push({ min: t.hour * 60 + t.min, macro: t.macro }),
++          );
++          // Remove duplicate macros at 00:00 if present
++          if (eventList.length > 1 && eventList[0].macro === eventList[1].macro)
++            eventList.shift();
++          // Animate timeline from 0 to 1440 minutes
++          let currentMacro = eventList[0].macro;
++          await loadPreset(currentMacro, true);
++          let eventIdx = 1;
++          let lastEventMin = eventList[0].min;
++          let nextEventMin = eventList[eventIdx]?.min ?? totalMinutes;
++          let nextMacro = eventList[eventIdx]?.macro ?? currentMacro;
++          const testDuration = totalMinutes * scale; // ms
++          const steps = Math.floor(testDuration / 20); // 50 fps
++          for (let s = 0; s <= steps; s++) {
++            const frac = s / steps;
++            const simMin = Math.round(frac * totalMinutes);
++            const percent = (simMin / totalMinutes) * 100;
++            const dotPx = percent * 6;
++            timelineBar.style.width = percent + "%";
++            timelineDot.style.transform = `translateX(${dotPx}px)`;
++            timelineLabel.textContent = `Test Progress: ${pad(Math.floor(simMin / 60))}:${pad(simMin % 60)}`;
++            // If we reach the next event, trigger preset
++            if (simMin >= nextEventMin && eventIdx < eventList.length) {
++              if (nextMacro !== currentMacro) {
++                await loadPreset(nextMacro, true);
++                currentMacro = nextMacro;
++              }
++              eventIdx++;
++              lastEventMin = nextEventMin;
++              nextEventMin = eventList[eventIdx]?.min ?? totalMinutes;
++              nextMacro = eventList[eventIdx]?.macro ?? currentMacro;
++            }
++            await new Promise((res) => setTimeout(res, testDuration / steps));
++          }
++          // After simulation, restore the preset for the current time
++          const now = new Date();
++          const currentMinutes = now.getHours() * 60 + now.getMinutes();
++          let activeIdx = -1,
++            maxPastMin = -1;
++          timers.forEach((t, idx) => {
++            const tMin = t.hour * 60 + t.min;
++            if (tMin <= currentMinutes && tMin > maxPastMin) {
++              maxPastMin = tMin;
++              activeIdx = idx;
++            }
++          });
++          if (activeIdx === -1 && timers.length > 0)
++            activeIdx = timers.length - 1;
++          const restorePreset = timers[activeIdx]?.macro;
++          if (restorePreset) {
++            btn.textContent = `🔙 Restoring Preset ${restorePreset}`;
++            timelineBar.style.width = "100%";
++            timelineDot.style.transform = "translateX(600px)";
++            timelineLabel.textContent = `Test Progress: 00:00`;
++            await loadPreset(restorePreset);
++            await new Promise((res) => setTimeout(res, 500));
++          }
++          btn.textContent = "🔄 Test Schedule (Simulate Day)";
++          btn.disabled = false;
++          timeline.style.display = "none";
++        } catch (err) {
++          btn.textContent = "🔄 Test Schedule (Simulate Day)";
++          btn.disabled = false;
++        }
++      }
++      async function testEvent(presetId) {
++        const names = ["", "Sunrise", "Midday", "Sunset", "Moonlight"];
++
++        await loadPreset(presetId);
++      }
++      function pad(n) {
++        return n < 10 ? "0" + n : n;
++      }
++      function updateStatus(ok) {
++        const i = gId("si"),
++          t = gId("st");
++        if (ok) {
++          i.classList.remove("disconnected");
++          i.classList.add("connected");
++          t.textContent = "Connected";
++        } else {
++          i.classList.remove("connected");
++          i.classList.add("disconnected");
++          t.textContent = "Disconnected";
++        }
++      }
++      async function checkConn() {
++        // Only update connection status, no state fetch
++        updateStatus(ws && ws.readyState === 1);
++      }
++      async function initOnLoad() {
++        await checkConn(); // Only once on load, now only updates status
++        await loadCfg();
++        await fetchAllPaletteColors();
++        await getPal();
++        // Always build palette combo after both are loaded
++        await updateAquariumPaletteUI();
++        connectPeekWS();
++      }
++      function gId(i) {
++        return document.getElementById(i);
++      }
++      window.addEventListener("load", initOnLoad);
++      // No periodic checkConn: state is now updated only via WebSocket events
++    </script>
++  </head>
++  <body>
++    <div class="container" style="margin-top: 42px">
++      <header>
++        <h1>🐠 Aquarium Backlight Control</h1>
++        <p class="subtitle">Smart Lighting System</p>
++      </header>
++      <div class="status-bar">
++        <div>
++          <span class="status-indicator connected" id="si"></span
++          ><span id="st">Connected</span>
++        </div>
++        <div>
++          <button class="btn" onclick="location.href = '/settings'">
++            ⚙️ Config
++          </button>
++        </div>
++      </div>
++      <div id="peek-bar"></div>
++      <style>
++        #peek-bar {
++          width: 100%;
++          min-width: 0;
++          background: rgba(0, 0, 0, 0.7);
++          padding: 0 25px;
++          margin: 0 auto 10px auto;
++          display: flex;
++          align-items: center;
++          height: 32px;
++          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
++          border-radius: 10px;
++          overflow-x: auto;
++        }
++        #peek-bar > div {
++          display: flex;
++          flex: 1 1 0;
++          min-width: 0;
++        }
++        #peek-bar .peek-led {
++          flex: 1 1 0;
++          min-width: 0;
++          max-width: 100%;
++          box-sizing: border-box;
++        }
++      </style>
++      <div class="control-grid">
++        <div class="card">
++          <h2>⚡ Power</h2>
++          <button class="power-btn on" id="pb" onclick="togglePower()">
++            Turn Off
++          </button>
++        </div>
++        <div class="card">
++          <h2>💡 Brightness</h2>
++          <div class="control-group">
++            <label>Level: <span class="value-display" id="bv">128</span></label>
++            <input
++              type="range"
++              id="bri"
++              min="0"
++              max="255"
++              value="128"
++              oninput="updateBriLocal(this.value)"
++              onmouseup="updateBri(this.value)"
++              ontouchend="updateBri(this.value)"
++            />
++          </div>
++          <div class="control-group">
++            <label
++              >Transition: <span class="value-display" id="tv">50s</span></label
++            >
++            <input
++              type="range"
++              id="tr"
++              min="0"
++              max="100"
++              value="50"
++              oninput="updateTrLocal(this.value)"
++              onmouseup="updateTr(this.value)"
++              ontouchend="updateTr(this.value)"
++            />
++          </div>
++        </div>
++        <div class="card">
++          <h2>🎨 Colors</h2>
++          <div class="control-group">
++            <label>Palette</label>
++            <select id="pal" onchange="applyPal()"></select>
++            <div
++              id="palette-bar"
++              style="
++                display: flex;
++                gap: 6px;
++                margin: 10px 0 0 0;
++                min-height: 32px;
++                align-items: center;
++              "
++            ></div>
++          </div>
++          <div class="control-group">
++            <label>Primary Color</label>
++            <div
++              id="primary-color-bar"
++              style="
++                display: flex;
++                gap: 10px;
++                margin: 8px 0;
++                align-items: center;
++              "
++            ></div>
++          </div>
++        </div>
++        <div class="card" style="grid-column: 1/-1">
++          <h2>🎭 Effects</h2>
++          <div
++            id="effect-lane"
++            class="preset-grid"
++            style="margin-bottom: 0"
++          ></div>
++          <div
++            style="
++              display: flex;
++              gap: 30px;
++              align-items: center;
++              margin-top: 18px;
++              flex-wrap: wrap;
++            "
++          >
++            <div class="control-group" style="flex: 1; min-width: 220px">
++              <label for="sx-slider"
++                >Speed: <span class="value-display" id="sv">128</span></label
++              >
++              <input
++                type="range"
++                id="sx-slider"
++                min="0"
++                max="255"
++                value="128"
++                oninput="gId('sv').textContent = this.value"
++                onmouseup="updateSp(this.value)"
++                ontouchend="updateSp(this.value)"
++              />
++            </div>
++            <div class="control-group" style="flex: 1; min-width: 220px">
++              <label for="ix-slider"
++                >Intensity:
++                <span class="value-display" id="iv">128</span></label
++              >
++              <input
++                type="range"
++                id="ix-slider"
++                min="0"
++                max="255"
++                value="128"
++                oninput="gId('iv').textContent = this.value"
++                onmouseup="updateIx(this.value)"
++                ontouchend="updateIx(this.value)"
++              />
++            </div>
++          </div>
++        </div>
++        <div class="card" style="grid-column: 1/-1">
++          <h2>💾 Presets</h2>
++          <div
++            id="preset-list"
++            style="
++              display: grid;
++              grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
++              gap: 15px;
++            "
++          >
++            <div
++              style="
++                text-align: center;
++                opacity: 0.6;
++                padding: 20px;
++                grid-column: 1/-1;
++              "
++            >
++              Loading presets...
++            </div>
++          </div>
++        </div>
++        <div class="card" style="grid-column: 1/-1">
++          <h2>⏰ Daily Schedule</h2>
++          <div class="control-group">
++            <label
++              ><input type="checkbox" id="sch_en" onchange="updateSch()" /> Auto
++              Schedule Enabled</label
++            >
++            <button
++              class="btn"
++              onclick="testSchedule()"
++              style="margin-left: 15px"
++            >
++              🔄 Test Schedule (Simulate Day)
++            </button>
++          </div>
++          <div
++            id="timeline-container"
++            style="
++              width: 100%;
++              max-width: 600px;
++              margin: 18px auto 10px auto;
++              display: none;
++            "
++          >
++            <div
++              id="timeline-label"
++              style="
++                text-align: center;
++                font-size: 1em;
++                margin-bottom: 6px;
++                color: #00bfff;
++              "
++            ></div>
++            <div
++              style="
++                background: rgba(255, 255, 255, 0.08);
++                border-radius: 8px;
++                height: 18px;
++                position: relative;
++                width: 100%;
++              "
++            >
++              <div
++                id="timeline-bar"
++                style="
++                  height: 100%;
++                  background: linear-gradient(90deg, #0080ff 0%, #00bfff 100%);
++                  border-radius: 8px;
++                  width: 0%;
++                  transition: width 0.3s;
++                "
++              ></div>
++              <div
++                id="timeline-dot"
++                style="
++                  position: absolute;
++                  top: 0;
++                  left: 0;
++                  width: 18px;
++                  height: 18px;
++                  border-radius: 50%;
++                  background: #00bfff;
++                  box-shadow: 0 0 8px #00bfff;
++                  transform: translateX(0);
++                "
++              ></div>
++            </div>
++          </div>
++          <div
++            id="sch_status"
++            style="
++              padding: 8px;
++              margin: 10px 0;
++              border-radius: 6px;
++              display: none;
++              background: rgba(0, 191, 255, 0.2);
++              border: 1px solid rgba(0, 191, 255, 0.5);
++            "
++          ></div>
++          <table class="schedule-table">
++            <thead>
++              <tr>
++                <th>Time</th>
++                <th>Preset</th>
++                <th>Actions</th>
++                <th>Delete</th>
++              </tr>
++            </thead>
++            <tbody id="schedule-body">
++              <tr>
++                <td colspan="4" style="text-align: center; opacity: 0.6">
++                  Loading schedule...
++                </td>
++              </tr>
++            </tbody>
++          </table>
++          <div
++            style="
++              display: flex;
++              justify-content: space-between;
++              align-items: center;
++              margin-top: 10px;
++            "
++          >
++            <button class="btn" id="add-event-btn" onclick="addScheduleEvent()">
++              ➕ Add Event
++            </button>
++            <button class="btn" id="save-schedule-btn" onclick="saveSchedule()">
++              💾 Save Schedule
++            </button>
++          </div>
++        </div>
++      </div>
++      <div class="card" style="grid-column: 1/-1">
++        <h2>⚙️ Safety & Settings</h2>
++        <div
++          style="
++            display: grid;
++            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
++            gap: 20px;
++          "
++        >
++          <!-- Aquarium Mode enable toggle removed -->
++          <div class="control-group" id="min-tr-group">
++            <label>Min Transition Time: <span class="value-display" id="min_tr_v">&nbsp;</span></label>
++            <input type="range" id="min_tr" min="5" max="60" value="10" disabled style="opacity:0.5;pointer-events:none;" />
++            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Minimum safe transition for fish (prevents stress)</p>
++          </div>
++          <div class="control-group" id="max-bri-group">
++            <label>Max Brightness: <span class="value-display" id="max_bri_v">&nbsp;</span></label>
++            <input type="range" id="max_bri" min="50" max="255" value="200" disabled style="opacity:0.5;pointer-events:none;" />
++            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Safety limit to protect fish from sudden brightness</p>
++            </p>
++          </div>
++        </div>
++        <p style="margin-top: 15px; opacity: 0.7; font-size: 0.9em">
++          🛡️ Safety features ensure gradual transitions and brightness limits
++          for fish health. Changes save automatically.
++        </p>
++      </div>
++    </div>
++  </body>
+ </html>
+diff --git a/wled00/data/welcome.htm b/wled00/data/welcome.htm
+index 671212a3..07c4e86c 100644
+--- a/wled00/data/welcome.htm
++++ b/wled00/data/welcome.htm
+@@ -4,7 +4,7 @@
+ 		<meta charset="utf-8">
+ 		<meta content='width=device-width' name='viewport'>
+ 		<meta name="theme-color" content="#222222">
+-		<title>Welcome!</title>
++		<title>Welcome to AquariumWLED!</title>
+ 		<style>
+ 			body {
+ 				font-family: Verdana, Helvetica, sans-serif;
+@@ -49,15 +49,18 @@
+ 		</style>
+ 	</head>
+ 	<body>
+-		<img alt="" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAG0AAAAfCAMAAADazLOuAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAABLUExURQAAAAB81gCU/zKq///mo7sWMN8bO+ZIYtZaAP9rAP+HMsCiG+TAIOnMS0KqNU7KPnLUZOrq6v///4CAgGhoaL+/v6CgoExMTAAAAAlm4O8AAAAZdFJOU////////////////////////////////wABNAq3AAAACXBIWXMAAA7DAAAOwwHHb6hkAAACN0lEQVRIS73VjVLCMBAEYIr8CYKkrdj3f1J37zaXFCpTO+piaDgbPq9px9VQ0qyrvKj4q6m0Zr1h+M7xF1zRmnWzqV9/0d2jttGotO1uv9dUObwej5oqp7fzWVPl8n69aprzoOUUbbvdIbV3OLwitXc6vSG1d7m8I3feSEN0j2CeNbOY4MxigjOLCc4sZsTV2l1cCyy4wIILLLjAxtykltq2rbTU+qi01N5rXNO2leaFORoija2l5MM5a02ac9Ya16Sk5tgaPrUpjZub0BL6YqSxKwbH77XUUmSkJXSl8QtaMuyJhq5maL5nTKVpZC13VmtMpTFT2g4vJjTuGfMzzXftiUZnhdtgb1xofvypRon5TjNnxYN9zJo6K5ruSIzQtGuVZn0x91rKvdHBvm39E7SyZ4y06Gz8BDBFKzsXmhcwyfsGZ9VpbhoiCinaxPNmGWmWWrNU2jB0q6HvOhN1JUtCixQtp2g51ZVUXIPS2RMAD++T2nY/DrDjOMDO4wC7jmNYj3d73nrXug8Yt9uNB8xNU1cKNXWlUFNXCjV1pZhGTE83m2vWfYf/NGj4Bg1zu5JD3/MnH5ZWfLOksbmGWGjgXMN5/C2GXYGFFW9Nmtle6Xut0Gm+JsayCj8z0nhjGvYJzVf4aSzmNYsr+u7Q2JIdoX3YOQjOslmsW1jJ3120nE9gfo79hTaNdcsqVR610lvO47pllae9ReZ805zKo2a3iaY5c75pTmVCA6dJ5H7N0sr/asPwBehb7ifEhusRAAAAAElFTkSuQmCC">
++		<!-- You can replace the src below with your aquarium logo if available -->
++		<img alt="AquariumWLED" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAG0AAAAfCAMAAADazLOuAAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAABLUExURQAAAAB81gCU/zKq///mo7sWMN8bO+ZIYtZaAP9rAP+HMsCiG+TAIOnMS0KqNU7KPnLUZOrq6v///4CAgGhoaL+/v6CgoExMTAAAAAlm4O8AAAAZdFJOU////////////////////////////////wABNAq3AAAACXBIWXMAAA7DAAAOwwHHb6hkAAACN0lEQVRIS73VjVLCMBAEYIr8CYKkrdj3f1J37zaXFCpTO+piaDgbPq9px9VQ0qyrvKj4q6m0Zr1h+M7xF1zRmnWzqV9/0d2jttGotO1uv9dUObwej5oqp7fzWVPl8n69aprzoOUUbbvdIbV3OLwitXc6vSG1d7m8I3feSEN0j2CeNbOY4MxigjOLCc4sZsTV2l1cCyy4wIILLLjAxtykltq2rbTU+qi01N5rXNO2leaFORoija2l5MM5a02ac9Ya16Sk5tgaPrUpjZub0BL6YqSxKwbH77XUUmSkJXSl8QtaMuyJhq5maL5nTKVpZC13VmtMpTFT2g4vJjTuGfMzzXftiUZnhdtgb1xofvypRon5TjNnxYN9zJo6K5ruSIzQtGuVZn0x91rKvdHBvm39E7SyZ4y06Gz8BDBFKzsXmhcwyfsGZ9VpbhoiCinaxPNmGWmWWrNU2jB0q6HvOhN1JUtCixQtp2g51ZVUXIPS2RMAD++T2nY/DrDjOMDO4wC7jmNYj3d73nrXug8Yt9uNB8xNU1cKNXWlUFNXCjV1pZhGTE83m2vWfYf/NGj4Bg1zu5JD3/MnH5ZWfLOksbmGWGjgXMN5/C2GXYGFFW9Nmtle6Xut0Gm+JsayCj8z0nhjGvYJzVf4aSzmNYsr+u7Q2JIdoX3YOQjOslmsW1jJ3120nE9gfo79hTaNdcsqVR610lvO47pllae9ReZ805zKo2a3iaY5c75pTmVCA6dJ5H7N0sr/asPwBehb7ifEhusRAAAAAElFTkSuQmCC">
+ 		<div class="main">
+-			<h1>Welcome to WLED!</h1>
+-			<h3>Thank you for installing my application!</h3>
+-			<b>Next steps:</b><br><br>
+-			Connect the module to your local WiFi here!<br>
+-			<button onclick="window.location.href='./settings/wifi'">WiFi settings</button><br>
+-			<i>Just trying this out in AP mode?</i><br>
+-			<button onclick="window.location.href='./?sliders'">To the controls!</button><br>
++			<h1>Welcome to AquariumWLED!</h1>
++			<h3>Your Smart Aquarium Lighting Controller</h3>
++			<b>Get Started:</b><br><br>
++			Connect your AquariumWLED module to your local WiFi network:<br>
++			<button onclick="window.location.href='./settings/wifi'">WiFi Settings</button><br>
++			<i>Or explore the lighting controls in Access Point mode:</i><br>
++			<button onclick="window.location.href='./?sliders'">Open Lighting Controls</button><br>
++			<br>
++			<b>Need help?</b> See the documentation or visit our community for support.<br>
+ 		</div>
+ 	</body>
+-</html>
+\ No newline at end of file
++</html>
+diff --git a/wled00/playlist.cpp b/wled00/playlist.cpp
+index 2e51503e..b80fca01 100644
+--- a/wled00/playlist.cpp
++++ b/wled00/playlist.cpp
+@@ -7,7 +7,7 @@
+ typedef struct PlaylistEntry {
+   uint8_t preset; //ID of the preset to apply
+   uint16_t dur;   //Duration of the entry (in tenths of seconds)
+-  uint16_t tr;    //Duration of the transition TO this entry (in tenths of seconds)
++  uint32_t tr;    //Duration of the transition TO this entry (in tenths of seconds)
+ } ple;
+ 
+ static byte           playlistRepeat = 1;        //how many times to repeat the playlist (0 = infinitely)
+diff --git a/wled00/wled.h b/wled00/wled.h
+index 66b33740..acf19bbd 100644
+--- a/wled00/wled.h
++++ b/wled00/wled.h
+@@ -605,8 +605,8 @@ WLED_GLOBAL uint8_t paletteBlend _INIT(0);        // determines blending and wra
+ // transitions
+ WLED_GLOBAL uint8_t       blendingStyle            _INIT(0);      // effect blending/transitionig style
+ WLED_GLOBAL bool          transitionActive         _INIT(false);
+-WLED_GLOBAL uint16_t      transitionDelay          _INIT(750);    // global transition duration
+-WLED_GLOBAL uint16_t      transitionDelayDefault   _INIT(750);    // default transition time (stored in cfg.json)
++WLED_GLOBAL uint32_t      transitionDelay          _INIT(750);    // global transition duration
++WLED_GLOBAL uint32_t      transitionDelayDefault   _INIT(750);    // default transition time (stored in cfg.json)
+ WLED_GLOBAL unsigned long transitionStartTime;
+ WLED_GLOBAL bool          jsonTransitionOnce       _INIT(false);  // flag to override transitionDelay (playlist, JSON API: "live" & "seg":{"i"} & "tt")
+ WLED_GLOBAL uint8_t       randomPaletteChangeTime  _INIT(5);      // amount of time [s] between random palette changes (min: 1s, max: 255s)
