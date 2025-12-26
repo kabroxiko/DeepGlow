@@ -963,7 +963,8 @@
       // --- Peek Bar: Live LED Color Strip ---
       let ws,
         ledCount = 60,
-        ledColors = [];
+        ledColors = [],
+        wsReconnectPending = false;
       function renderPeekBar() {
         const bar = document.getElementById("peek-bar");
         bar.innerHTML = "";
@@ -997,6 +998,7 @@
         ws = new WebSocket(wsUrl);
         ws.onopen = () => {
           updateStatus(true);
+          wsReconnectPending = false;
           ws.send('{"lv":true}');
         };
         ws.onmessage = (e) => {
@@ -1259,6 +1261,16 @@
           if (typeof e.data === "string") {
             try {
               const data = JSON.parse(e.data);
+              // Handle error:3 (e.g., authentication or invalid request)
+              if (data && data.error === 3) {
+                // Attempt to reconnect after a short delay, only if not already pending
+                if (!wsReconnectPending) {
+                  wsReconnectPending = true;
+                  try { ws.close(); } catch (e) {}
+                  setTimeout(connectPeekWS, 2000);
+                }
+                return;
+              }
               // Mark the schedule event row for this preset
               if (typeof updateScheduleActiveRow === "function")
                 updateScheduleActiveRow(data.ps);
@@ -1353,7 +1365,11 @@
         };
         ws.onclose = (ev) => {
           updateStatus(false);
-          setTimeout(connectPeekWS, 2000);
+          // Only reconnect if not already pending
+          if (!wsReconnectPending) {
+            wsReconnectPending = true;
+            setTimeout(connectPeekWS, 2000);
+          }
         };
       }
       async function saveSchedule() {
