@@ -30,7 +30,9 @@ static uint16_t mode_aquarium_ripple(void) {
 
   return FRAMETIME;
 }
-static const char _data_FX_MODE_AQUARIUM_RIPPLE[] PROGMEM = "Aquarium Ripple@Speed,Intensity;,;Color;;1;pal=2";
+// pal=15 means palette index 15 in gGradientPalettes (see palettes.cpp)
+// Example: pal=15 -> gr65_hult_gp
+static const char _data_FX_MODE_AQUARIUM_RIPPLE[] PROGMEM = "Aquarium Ripple@Speed,Intensity;,;Color;;1;pal=15";
 
 // Gentle Wave Effect - smooth flowing waves
 static uint16_t mode_aquarium_gentle_wave(void) {
@@ -50,7 +52,9 @@ static uint16_t mode_aquarium_gentle_wave(void) {
 
   return FRAMETIME;
 }
-static const char _data_FX_MODE_AQUARIUM_GENTLE_WAVE[] PROGMEM = "Aquarium Gentle Wave@Speed,Intensity;,;Color;;1;pal=2";
+// pal=15 means palette index 15 in gGradientPalettes (see palettes.cpp)
+// Example: pal=15 -> gr65_hult_gp
+static const char _data_FX_MODE_AQUARIUM_GENTLE_WAVE[] PROGMEM = "Aquarium Gentle Wave@Speed,Intensity;,;Color;;1;pal=15";
 
 // Sunrise/Sunset Simulation - gradual color shift from orange to blue
 static uint16_t mode_aquarium_sunrise(void) {
@@ -105,7 +109,9 @@ static uint16_t mode_aquarium_sunrise(void) {
 
   return FRAMETIME;
 }
-static const char _data_FX_MODE_AQUARIUM_SUNRISE[] PROGMEM = "Aquarium Sunrise@Speed,Brightness;;;1";
+// pal=13 means palette index 13 in gGradientPalettes (see palettes.cpp)
+// Example: pal=13 -> Sunset_Real_gp ("Sunset")
+static const char _data_FX_MODE_AQUARIUM_SUNRISE[] PROGMEM = "Aquarium Sunrise@Speed,Brightness;;;1;pal=13";
 
 // Coral Shimmer - gentle twinkling effect for reef tanks
 static uint16_t mode_aquarium_coral_shimmer(void) {
@@ -129,6 +135,8 @@ static uint16_t mode_aquarium_coral_shimmer(void) {
 
   return FRAMETIME;
 }
+// pal=35 means palette index 35 in gGradientPalettes (see palettes.cpp)
+// Example: pal=35 -> lava_gp ("Fire")
 static const char _data_FX_MODE_AQUARIUM_CORAL_SHIMMER[] PROGMEM = "Coral Shimmer@Speed,Intensity;,;Color;;1;pal=35";
 
 // Deep Ocean - slow, dark blue pulsing effect
@@ -155,7 +163,9 @@ static uint16_t mode_aquarium_deep_ocean(void) {
 
   return FRAMETIME;
 }
-static const char _data_FX_MODE_AQUARIUM_DEEP_OCEAN[] PROGMEM = "Deep Ocean@Speed,Brightness;;;1";
+// pal=15 means palette index 15 in gGradientPalettes (see palettes.cpp)
+// Example: pal=15 -> gr65_hult_gp
+static const char _data_FX_MODE_AQUARIUM_DEEP_OCEAN[] PROGMEM = "Deep Ocean@Speed,Brightness;;;1;pal=15";
 
 // Moonlight - ultra-dim blue for nighttime
 static uint16_t mode_aquarium_moonlight(void) {
@@ -186,4 +196,6 @@ static uint16_t mode_aquarium_moonlight(void) {
 
   return FRAMETIME;
 }
-static const char _data_FX_MODE_AQUARIUM_MOONLIGHT[] PROGMEM = "Moonlight@Speed,Brightness;;;1";
+// pal=60 means palette index 60 in gGradientPalettes (see palettes.cpp)
+// Example: pal=60 -> semi_blue_gp ("Semi Blue")
+static const char _data_FX_MODE_AQUARIUM_MOONLIGHT[] PROGMEM = "Moonlight@Speed,Brightness;;;1;pal=60";
