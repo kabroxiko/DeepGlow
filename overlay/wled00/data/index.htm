@@ -466,7 +466,7 @@
       // --- Effect Lane: dynamically load effect metadata from /json/effects ---
       // Effects fallback for initial render and error cases
       // Effects array with icon only for known effects (no hardcoded names)
-      let effects = [
+      window.effects = [
         { id: 0, icon: "🟩" },
         { id: 28, icon: "➡️" },
         { id: 38, icon: "🌌" },
@@ -2047,6 +2047,7 @@
               const card = document.createElement("div");
               card.className = "preset-card";
               card.setAttribute("data-preset-id", i);
+              card.style.position = "relative";
               card.onclick = async () => {
                 try {
                   await wledPostState({ ps: i });
@@ -2057,10 +2058,15 @@
               const on = p.on !== false;
               const fxName = p.seg?.fx !== undefined ? `FX:${p.seg.fx}` : "";
               card.innerHTML = `
-<div class="preset-name">${name}</div>
-<div class="preset-info">${on ? "ON" : "OFF"}</div>
-<div class="preset-brightness">💡 ${bri}</div>
-${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
+            <span style="position:absolute;top:8px;right:12px;cursor:pointer;width:22px;height:22px;z-index:2;" title="Edit preset" onclick="event.stopPropagation();openEditPresetModal(${i});">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="18" height="18" style="display:block;">
+                <path fill="#1976d2" d="M402.6 83.2l90.2 90.2c3.8 3.8 3.8 10 0 13.8L274.4 405.6l-92.8 10.3c-12.4 1.4-22.9-9.1-21.5-21.5l10.3-92.8L388.8 83.2c3.8-3.8 10-3.8 13.8 0zm162-22.9l-48.8-48.8c-15.2-15.2-39.9-15.2-55.2 0l-35.4 35.4c-3.8 3.8-3.8 10 0 13.8l90.2 90.2c3.8 3.8 10 3.8 13.8 0l35.4-35.4c15.2-15.3 15.2-40 0-55.2zM384 346.2V448H64V128h229.8c3.2 0 6.2-1.3 8.5-3.5l40-40c7.6-7.6 2.2-20.5-8.5-20.5H48C21.5 64 0 85.5 0 112v352c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V306.2c0-10.7-12.9-16-20.5-8.5l-40 40c-2.2 2.3-3.5 5.3-3.5 8.5z"/>
+              </svg>
+            </span>
+            <div class="preset-name">${name}</div>
+            <div class="preset-info">${on ? "ON" : "OFF"}</div>
+            <div class="preset-brightness">💡 ${bri}</div>
+            ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
 `;
               // Highlight active preset, but only if lastActivePreset is not null
               if (lastActivePreset !== null && lastActivePreset === i) card.classList.add("active");
@@ -2074,6 +2080,193 @@ ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
         } catch (e) {
           gId("preset-list").innerHTML =
             '<div style="text-align:center;opacity:0.6;padding:20px;grid-column:1/-1">Error loading presets</div>';
+        }
+        // Add modal container if not present
+        if (!document.getElementById('edit-preset-modal')) {
+          const modal = document.createElement('div');
+          modal.id = 'edit-preset-modal';
+          modal.style = 'display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;';
+          modal.innerHTML = `<div id="edit-preset-modal-content" style="background:#222;padding:32px 24px 24px 24px;border-radius:12px;min-width:320px;max-width:90vw;box-shadow:0 8px 32px #000a;color:#fff;position:relative;"></div>`;
+          document.body.appendChild(modal);
+        }
+      }
+      // Modal logic for editing presets
+      window.openEditPresetModal = async function(presetId) {
+        const modal = document.getElementById('edit-preset-modal');
+        const content = document.getElementById('edit-preset-modal-content');
+        modal.style.display = 'flex';
+        // Fetch preset data
+        const presets = await getPresets();
+        const p = presets && presets[presetId.toString()];
+        if (!p) {
+          content.innerHTML = '<div>Preset not found.</div>';
+          return;
+        }
+        // Extract fields
+        const name = p.n || '';
+        const bri = p.bri !== undefined ? p.bri : 128;
+        const fx = p.seg?.fx !== undefined ? p.seg.fx : 0;
+        const tr = p.transition !== undefined ? Math.round(p.transition/10) : 10;
+        const col = p.seg?.col && p.seg.col[0] ? p.seg.col[0] : [0,0,0];
+        const colHex = '#' + col.map(x => x.toString(16).padStart(2,'0')).join('').toUpperCase();
+        content.innerHTML = `
+          <button onclick="closeEditPresetModal()" style="position:absolute;top:10px;right:10px;background:none;border:none;font-size:1.5em;color:#fff;cursor:pointer;">&times;</button>
+          <div style="margin-bottom:16px;">
+            <input id="edit-preset-name" value="${name}" style="width:90%;font-size:1.3em;font-weight:bold;padding:6px 8px;margin:0 auto;display:block;text-align:center;border-radius:4px;border:1px solid #ccc;">
+          </div>
+          <!-- Brightness and Transition sliders will be at the bottom -->
+          <div style="margin-bottom:10px;">
+            <label>Effect:
+              <select id="edit-preset-fx" style="width:180px;padding:4px;margin-left:4px;">
+                ${Array.isArray(window.effects) ? window.effects.map(e => `<option value="${e.id}"${e.id===fx?" selected":""}>${e.icon ? e.icon + ' ' : ''}${e.name || ('Effect ' + e.id)}</option>`).join('') : ''}
+              </select>
+            </label>
+          </div>
+          <!-- Transition slider will be at the bottom -->
+          <div id="edit-preset-color-row" style="margin-bottom:10px;${fx !== 0 ? 'display:none;' : ''}">
+            <label>Color: <input id="edit-preset-col" type="color" value="${colHex}" style="width:48px;height:32px;padding:0;margin-left:4px;vertical-align:middle;"></label>
+          </div>
+          <div id="edit-preset-palette-row" style="margin-bottom:10px;${fx === 0 ? 'display:none;' : ''}">
+            <label>Palette:
+              <select id="edit-preset-pal" style="width:180px;padding:4px;margin-left:4px;"></select>
+            </label>
+          </div>
+          <div style="margin:18px 0 10px 0;">
+            <label style="display:block;margin-bottom:8px;">Brightness:
+              <input id="edit-preset-bri" type="range" min="0" max="255" value="${bri}" style="width:80%;vertical-align:middle;">
+              <span id="edit-preset-bri-val" style="margin-left:8px;font-weight:bold;">${Math.round(bri/255*100)}%</span>
+            </label>
+            <label style="display:block;margin-bottom:8px;">Transition:
+              <input id="edit-preset-tr" type="range" min="0" max="300" value="${tr}" style="width:80%;vertical-align:middle;">
+              <span id="edit-preset-tr-val" style="margin-left:8px;font-weight:bold;">${tr}</span> s
+            </label>
+          </div>
+          <button class="btn" onclick="saveEditPreset(${presetId})" style="margin-top:10px;">💾 Save</button>
+        `;
+        // Slider value display logic
+        const briSlider = document.getElementById('edit-preset-bri');
+        const briVal = document.getElementById('edit-preset-bri-val');
+        if (briSlider && briVal) {
+          briSlider.addEventListener('input', function() {
+            briVal.textContent = Math.round(this.value/255*100) + '%';
+          });
+        }
+        const trSlider = document.getElementById('edit-preset-tr');
+        const trVal = document.getElementById('edit-preset-tr-val');
+        if (trSlider && trVal) {
+          trSlider.addEventListener('input', function() {
+            trVal.textContent = this.value;
+          });
+        }
+        // Palette combo population logic
+        async function fillPaletteCombo(selectedPal) {
+          const palSel = document.getElementById('edit-preset-pal');
+          if (!palSel) return;
+          palSel.innerHTML = '';
+          let palettes = [];
+          if (typeof fetchAquariumPalettes === 'function') {
+            palettes = await fetchAquariumPalettes();
+          }
+          palettes.forEach(p => {
+            const opt = document.createElement('option');
+            opt.value = p.id;
+            opt.textContent = p.n || `Palette ${p.id}`;
+            if (selectedPal !== undefined && Number(selectedPal) === Number(p.id)) opt.selected = true;
+            palSel.appendChild(opt);
+          });
+        }
+
+        // Initial palette combo fill if not solid
+        if (fx !== 0) {
+          let pal = (p.seg && p.seg[0] && typeof p.seg[0].pal === 'number') ? p.seg[0].pal : undefined;
+          await fillPaletteCombo(pal);
+        }
+
+        // Effect change handler to toggle color/palette
+        document.getElementById('edit-preset-fx').addEventListener('change', async function(e) {
+          const fxVal = Number(this.value);
+          document.getElementById('edit-preset-color-row').style.display = fxVal === 0 ? '' : 'none';
+          document.getElementById('edit-preset-palette-row').style.display = fxVal === 0 ? 'none' : '';
+          if (fxVal !== 0) {
+            // Try to use pal from effectDefaultsCache if available, else undefined
+            let pal = undefined;
+            if (typeof effectDefaultsCache === 'object' && effectDefaultsCache[fxVal] && typeof effectDefaultsCache[fxVal].pal === 'number') {
+              pal = effectDefaultsCache[fxVal].pal;
+            }
+            await fillPaletteCombo(pal);
+          }
+        });
+      }
+
+      window.closeEditPresetModal = function() {
+        const modal = document.getElementById('edit-preset-modal');
+        if (modal) modal.style.display = 'none';
+        document.removeEventListener('keydown', escListener, true);
+        if (modal) modal.removeEventListener('mousedown', outsideListener, true);
+      }
+
+      // ESC key and outside click listeners
+      function escListener(e) {
+        if (e.key === 'Escape') {
+          window.closeEditPresetModal();
+        }
+      }
+      function outsideListener(e) {
+        const modal = document.getElementById('edit-preset-modal');
+        if (!modal) return;
+        const content = modal.querySelector('.modal-content, [style*="background"], [style*="padding"]');
+        if (content && !content.contains(e.target)) {
+          window.closeEditPresetModal();
+        }
+      }
+
+      // Patch openEditPresetModal to add listeners
+      const origOpenEditPresetModal = window.openEditPresetModal;
+      window.openEditPresetModal = function(...args) {
+        setTimeout(() => {
+          document.addEventListener('keydown', escListener, true);
+          const modal = document.getElementById('edit-preset-modal');
+          if (modal) modal.addEventListener('mousedown', outsideListener, true);
+        }, 0);
+        return origOpenEditPresetModal.apply(this, args);
+      }
+
+      window.saveEditPreset = async function(presetId) {
+        const name = document.getElementById('edit-preset-name').value;
+        const bri = parseInt(document.getElementById('edit-preset-bri').value);
+        const fx = parseInt(document.getElementById('edit-preset-fx').value);
+        const tr = parseInt(document.getElementById('edit-preset-tr').value);
+        let seg = { fx: fx };
+        if (fx === 0) {
+          const colHex = document.getElementById('edit-preset-col').value.replace('#','');
+          const r = parseInt(colHex.substr(0,2),16);
+          const g = parseInt(colHex.substr(2,2),16);
+          const b = parseInt(colHex.substr(4,2),16);
+          seg.col = [[r,g,b]];
+        } else {
+          const palSel = document.getElementById('edit-preset-pal');
+          if (palSel && palSel.value) seg.pal = Number(palSel.value);
+        }
+        try {
+          // 1. Get current presets.json
+          let presets = await getPresets(true);
+          // 2. Update the selected preset
+          presets[presetId] = {
+            n: name,
+            bri: bri,
+            transition: tr*10,
+            seg: [seg]
+          };
+          // 3. Create a Blob and FormData for upload
+          const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+          const form = new FormData();
+          form.append('data', blob, 'presets.json');
+          // 4. Upload to /upload
+          await fetch('/upload', { method: 'POST', body: form });
+          closeEditPresetModal();
+          await loadPresetList();
+        } catch (e) {
+          alert('Failed to save preset.');
         }
       }
       async function updateAqSettings() {
