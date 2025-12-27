@@ -1605,6 +1605,13 @@
         const sel = document.createElement("select");
         sel.style = "width:180px;padding:8px";
         sel.innerHTML = "";
+        // Add 'Turn Off' option (id 100) only if preset 100 exists and has a name
+        if (typeof getPresets === 'function' && window._cachedPresets && window._cachedPresets["100"] && window._cachedPresets["100"].n) {
+          const turnOffOpt = document.createElement("option");
+          turnOffOpt.value = 100;
+          turnOffOpt.textContent = window._cachedPresets["100"].n;
+          sel.appendChild(turnOffOpt);
+        }
         // Only add unique options
         const seen = new Set();
         presetOptions.forEach((opt) => {
@@ -1674,7 +1681,7 @@
           timers = timers.filter((t) => t.en && t.macro && t.macro > 0);
         }
 
-        // Render table
+        // Render table in time order
         const tbody = gId("schedule-body");
         tbody.innerHTML = "";
         if (!timers.length) {
@@ -1687,6 +1694,13 @@
           }
           return;
         }
+
+        // Sort timers by time (hour, min)
+        timers.sort((a, b) => {
+          const aMin = a.hour * 60 + a.min;
+          const bMin = b.hour * 60 + b.min;
+          return aMin - bMin;
+        });
 
         // Find the currently active event (timer)
         const now = new Date();
@@ -1727,6 +1741,14 @@
           sel.style = "width:180px;padding:8px";
           // Clear any existing options (should be empty, but for safety)
           sel.innerHTML = "";
+          // Add 'Turn Off' option (id 100) only if preset 100 exists and has a name
+          if (presets && presets["100"] && presets["100"].n) {
+            const turnOffOpt = document.createElement("option");
+            turnOffOpt.value = 100;
+            turnOffOpt.textContent = presets["100"].n;
+            if (t.macro == 100) turnOffOpt.selected = true;
+            sel.appendChild(turnOffOpt);
+          }
           presetOptions.forEach((opt) => {
             const o = document.createElement("option");
             o.value = opt.id;
@@ -2753,9 +2775,7 @@
         }
       }
       async function testEvent(presetId) {
-        const names = ["", "Sunrise", "Midday", "Sunset", "Moonlight"];
-
-        await loadPreset(presetId);
+        await wledPostState({ ps: presetId });
       }
       function pad(n) {
         return n < 10 ? "0" + n : n;
