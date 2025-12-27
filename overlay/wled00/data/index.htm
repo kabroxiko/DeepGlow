@@ -626,13 +626,18 @@
         ) {
           const colArr = window._lastWSState.seg[0].col[0];
           if (Array.isArray(colArr) && colArr.length >= 3) {
-            wsColor =
-              "#" +
-              colArr
-                .slice(0, 3)
-                .map((x) => x.toString(16).padStart(2, "0"))
-                .join("")
-                .toUpperCase();
+            // If white channel is present and >0, show white
+            if (colArr.length > 3 && colArr[3] > 0) {
+              wsColor = "#FFFFFF";
+            } else {
+              wsColor =
+                "#" +
+                colArr
+                  .slice(0, 3)
+                  .map((x) => x.toString(16).padStart(2, "0"))
+                  .join("")
+                  .toUpperCase();
+            }
           }
         }
         if (effectId === 0) {
@@ -884,37 +889,38 @@
         }
       }
       // --- Aquarium color choices ---
+      // Add white channel (w) to each color. If w is present and >0, use RGBW for backend and display.
       const aquariumColors = [
-        { hex: "#00BFFF", name: "Blue" },
-        { hex: "#1E90FF", name: "Ocean" },
-        { hex: "#FFD700", name: "Sun" },
-        { hex: "#FF8C00", name: "Coral" },
-        { hex: "#FF6347", name: "Reef" },
-        { hex: "#20B2AA", name: "Teal" },
-        { hex: "#228B22", name: "Plant" },
-        { hex: "#FFFFFF", name: "White" },
-        { hex: "#191970", name: "Deep" },
-        { hex: "#A0522D", name: "Sand" },
+        { hex: "#00BFFF", name: "Blue", w: 0 },
+        { hex: "#1E90FF", name: "Ocean", w: 0 },
+        { hex: "#FFD700", name: "Sun", w: 0 },
+        { hex: "#FF8C00", name: "Coral", w: 0 },
+        { hex: "#FF6347", name: "Reef", w: 0 },
+        { hex: "#20B2AA", name: "Teal", w: 0 },
+        { hex: "#228B22", name: "Plant", w: 0 },
+        { hex: "#FFFFFF", name: "White", w: 255 }, // White channel full
+        { hex: "#191970", name: "Deep", w: 0 },
+        { hex: "#A0522D", name: "Sand", w: 0 },
       ];
-      let selectedColor = aquariumColors[0].hex;
+      // selectedColor now stores an object: {hex, w}
+      let selectedColor = { hex: aquariumColors[0].hex, w: aquariumColors[0].w };
       // Render the primary color bar and wire up real-time color change
-      function renderPrimaryColorBar(selectedHex) {
+      function renderPrimaryColorBar(selected) {
         const bar = gId("primary-color-bar");
         bar.innerHTML = "";
         aquariumColors.forEach((c) => {
           const d = document.createElement("div");
           d.title = c.name;
-          d.className =
-            "primary-color-circle" +
-            (c.hex.toUpperCase() === selectedHex.toUpperCase()
-              ? " selected"
-              : "");
+          const isSelected =
+            c.hex.toUpperCase() === selected.hex.toUpperCase() &&
+            (c.w || 0) === (selected.w || 0);
+          d.className = "primary-color-circle" + (isSelected ? " selected" : "");
           d.style.background = c.hex;
           d.style.width = "28px";
           d.style.height = "28px";
           d.style.borderRadius = "50%";
           d.style.cursor = "pointer";
-          if (c.hex.toUpperCase() === selectedHex.toUpperCase()) {
+          if (isSelected) {
             d.style.border = "4px solid #ff9800";
             d.style.boxShadow = "0 0 0 4px #ff980088, 0 2px 8px #0003";
           } else {
@@ -923,7 +929,7 @@
           }
           d.onclick = async () => {
             // On click, update color immediately in UI and backend
-            selectedColor = c.hex;
+            selectedColor = { hex: c.hex, w: c.w };
             renderPrimaryColorBar(selectedColor);
             await applyCol(selectedColor); // send to backend in real time
           };
@@ -931,9 +937,9 @@
         });
       }
       // When the actual primary color changes (from backend), update UI highlight
-      function setPrimaryColorFromState(hex) {
-        selectedColor = hex;
-        window._lastBackendStateColor = hex;
+      function setPrimaryColorFromState(hex, w = 0) {
+        selectedColor = { hex, w };
+        window._lastBackendStateColor = { hex, w };
         renderPrimaryColorBar(selectedColor);
       }
       // Render on load
@@ -1167,7 +1173,7 @@
                     .map((x) => x.toString(16).padStart(2, "0"))
                     .join("")
                     .toUpperCase();
-                setPrimaryColorFromState(hex);
+                setPrimaryColorFromState(hex, colArr[3] || 0);
               }
             }
             // Store the latest WS state globally for color bar use
@@ -1225,8 +1231,8 @@
                     .map((x) => x.toString(16).padStart(2, "0"))
                     .join("")
                     .toUpperCase();
-                window._lastBackendStateColor = hex;
-                setPrimaryColorFromState(hex);
+                window._lastBackendStateColor = { hex, w: colArr[3] || 0 };
+                setPrimaryColorFromState(hex, colArr[3] || 0);
               }
             }
             // Palette state tracking
@@ -2016,20 +2022,30 @@
         updatePaletteBar(cp);
         await wledPostState({ seg: { pal: cp } });
       }
-      // Apply color: accepts a hex string (e.g. #RRGGBB)
-      async function applyCol(hex) {
-        let c = hex;
-        if (!c) {
+      // Apply color: accepts a hex string (e.g. #RRGGBB) or an object {hex, w}
+      async function applyCol(color) {
+        let hex, w = 0;
+        if (typeof color === "string") {
+          hex = color;
+        } else if (typeof color === "object" && color !== null) {
+          hex = color.hex;
+          w = color.w || 0;
+        } else {
           // fallback: try to get from color input if present
           const inp = gId("c1");
-          if (inp) c = inp.value;
+          if (inp) hex = inp.value;
           else return;
         }
-        c = c.replace("#", "");
-        const r = parseInt(c.substr(0, 2), 16);
-        const g = parseInt(c.substr(2, 2), 16);
-        const b = parseInt(c.substr(4, 2), 16);
-        await wledPostState({ seg: { col: [[r, g, b]] } });
+        hex = hex.replace("#", "");
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        // If w is present and >0, send RGBW, else send RGB
+        if (w && w > 0) {
+          await wledPostState({ seg: { col: [[r, g, b, w]] } });
+        } else {
+          await wledPostState({ seg: { col: [[r, g, b]] } });
+        }
       }
       async function loadCfg() {
         try {
