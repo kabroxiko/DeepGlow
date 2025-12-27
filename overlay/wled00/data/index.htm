@@ -1418,20 +1418,50 @@
           }
         };
       }
+      function validateScheduleTypes() {
+        const tbody = gId("schedule-body");
+        const rows = Array.from(tbody.querySelectorAll("tr"));
+        let sunriseCount = 0;
+        let sunsetCount = 0;
+        rows.forEach((row) => {
+          const checkedRadio = row.querySelector('.schedule-type-radio:checked');
+          if (checkedRadio) {
+            if (checkedRadio.value === "sunrise") sunriseCount++;
+            if (checkedRadio.value === "sunset") sunsetCount++;
+          }
+        });
+        // Disable sunrise/sunset options if limit reached
+        rows.forEach((row) => {
+          const radios = row.querySelectorAll('.schedule-type-radio');
+          radios.forEach((radio) => {
+            if (radio.value === "sunrise" && !radio.checked && sunriseCount >= 1) {
+              radio.disabled = true;
+            } else if (radio.value === "sunset" && !radio.checked && sunsetCount >= 1) {
+              radio.disabled = true;
+            } else if (radio.value === "sunrise" || radio.value === "sunset") {
+              radio.disabled = false;
+            }
+          });
+        });
+      }
       async function saveSchedule() {
         // Collect all rows from the schedule table
         const tbody = gId("schedule-body");
         const rows = Array.from(tbody.querySelectorAll("tr"));
         let timers = [];
+        let sunriseTimer = null;
+        let sunsetTimer = null;
         rows.forEach((row) => {
           const timeInput = row.querySelector('input[type="time"]');
           const presetSelect = row.querySelector("select");
-          if (timeInput && presetSelect) {
-            const [h, m] = timeInput.value.split(":");
+          const typeRadio = row.querySelector('.schedule-type-radio:checked');
+          if (timeInput && presetSelect && typeRadio) {
+            let [h, m] = timeInput.value.split(":");
             const macro = parseInt(presetSelect.value);
+            const type = typeRadio.value;
             // Only save valid macros
             if (macro > 0) {
-              timers.push({
+              let timer = {
                 hour: parseInt(h),
                 min: parseInt(m),
                 macro: macro,
@@ -1439,14 +1469,31 @@
                 en: 1,
                 start: { mon: 1, day: 1 },
                 end: { mon: 12, day: 31 },
-              });
+                type: type,
+              };
+              if (type === "sunrise") {
+                timer.hour = 255;
+                sunriseTimer = timer;
+              } else if (type === "sunset") {
+                timer.hour = 255;
+                sunsetTimer = timer;
+              } else {
+                timers.push(timer);
+              }
             }
           }
         });
-        // Always send 8 timers, fill unused with disabled objects
-        while (timers.length < 8) {
-          timers.push({ en: 0, hour: 0, min: 0, macro: 0, dow: 127 });
+        // Always send 8 timers: first 6 are regular, last 2 are sunrise/sunset
+        // Only send enabled regular events (up to 6)
+        let regularTimers = timers.filter(t => t.type !== "sunrise" && t.type !== "sunset" && t.en).slice(0, 6);
+        while (regularTimers.length < 6) {
+          regularTimers.push({ en: 0, hour: 0, min: 0, macro: 0, dow: 127 });
         }
+        let sunrise = sunriseTimer || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
+        let sunset = sunsetTimer || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
+        sunrise.hour = 255;
+        sunset.hour = 255;
+        timers = [...regularTimers, sunrise, sunset];
         const cfg = { timers: { ins: timers } };
         try {
           await wledFetchConfig({ method: "POST", body: cfg });
@@ -1606,6 +1653,30 @@
         timeInput.value = `${pad(h)}:${pad(m)}`;
         timeInput.style = "width:120px;padding:8px";
         tdTime.appendChild(timeInput);
+        // Type radio buttons
+        const tdType = document.createElement("td");
+        tdType.style = "min-width:140px";
+        const typeGroup = `type-new-${Date.now()}-${Math.random()}`;
+        const types = [
+          { label: "Time", value: "time" },
+          { label: "Sunrise", value: "sunrise" },
+          { label: "Sunset", value: "sunset" },
+        ];
+        types.forEach((t, i) => {
+          const radio = document.createElement("input");
+          radio.type = "radio";
+          radio.name = typeGroup;
+          radio.value = t.value;
+          if (i === 0) radio.checked = true;
+          radio.className = "schedule-type-radio";
+          radio.style = "margin-right:5px";
+          radio.onchange = () => validateScheduleTypes();
+          tdType.appendChild(radio);
+          const lbl = document.createElement("span");
+          lbl.textContent = t.label;
+          lbl.style = "margin-right:10px;font-size:0.9em";
+          tdType.appendChild(lbl);
+        });
         // Preset select
         const tdPreset = document.createElement("td");
         const sel = document.createElement("select");
@@ -1650,12 +1721,14 @@
           updateAddEventBtn();
         };
         tdDel.appendChild(delBtn);
+        tr.appendChild(tdType);
         tr.appendChild(tdTime);
         tr.appendChild(tdPreset);
         tr.appendChild(tdAct);
         tr.appendChild(tdDel);
         tbody.appendChild(tr);
         updateAddEventBtn();
+        validateScheduleTypes();
       }
 
       function updateAddEventBtn() {
@@ -1683,8 +1756,21 @@
         let cfg = await getConfig(force);
         populateScheduleTable._forceNext = false;
         if (cfg) {
-          timers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
-          timers = timers.filter((t) => t.en && t.macro && t.macro > 0);
+          let allTimers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
+          timers = [];
+          let sunrise = null, sunset = null;
+          allTimers.forEach((t) => {
+            if (t.en && t.macro && t.macro > 0) {
+              if (t.hour === 255) {
+                if (!sunrise) sunrise = { ...t, type: "sunrise" };
+                else if (!sunset) sunset = { ...t, type: "sunset" };
+              } else {
+                timers.push({ ...t, type: "time" });
+              }
+            }
+          });
+          if (sunrise) timers.push(sunrise);
+          if (sunset) timers.push(sunset);
         }
 
         // Render table in time order
@@ -1692,7 +1778,7 @@
         tbody.innerHTML = "";
         if (!timers.length) {
           tbody.innerHTML =
-            '<tr><td colspan="4" style="text-align:center;opacity:0.6">No schedule timers found.</td></tr>';
+            '<tr><td colspan="5" style="text-align:center;opacity:0.6">No schedule timers found.</td></tr>';
           updateAddEventBtn();
           // Always update highlight after rendering
           if (typeof window._lastValidPreset !== "undefined") {
@@ -1701,12 +1787,18 @@
           return;
         }
 
-        // Sort timers by time (hour, min)
-        timers.sort((a, b) => {
+        // Sort timers by time (hour, min), but keep sunrise/sunset at end
+        let timeTimers = timers.filter(t => t.type === "time");
+        timeTimers.sort((a, b) => {
           const aMin = a.hour * 60 + a.min;
           const bMin = b.hour * 60 + b.min;
           return aMin - bMin;
         });
+        let sunriseTimer = timers.find(t => t.type === "sunrise" && t.en);
+        let sunsetTimer = timers.find(t => t.type === "sunset" && t.en);
+        timers = [...timeTimers];
+        if (sunriseTimer) timers.push(sunriseTimer);
+        if (sunsetTimer) timers.push(sunsetTimer);
 
         // Find the currently active event (timer)
         const now = new Date();
@@ -1736,11 +1828,48 @@
           timeInput.type = "time";
           timeInput.value = time;
           timeInput.style = "width:120px;padding:8px";
-          // Only update UI, not save
-          timeInput.onchange = () => {
-            /* Removed updateTimer call: only update UI, not save */
-          };
+          if (t.type === "sunrise" || t.type === "sunset") {
+            timeInput.style.display = "none";
+          }
           tdTime.appendChild(timeInput);
+          // Add event listeners to radio buttons to toggle time input
+          setTimeout(() => {
+            const radios = tdType.querySelectorAll('.schedule-type-radio');
+            radios.forEach(radio => {
+              radio.addEventListener('change', () => {
+                if (radio.value === 'time' && radio.checked) {
+                  timeInput.style.display = '';
+                } else if ((radio.value === 'sunrise' && radio.checked) || (radio.value === 'sunset' && radio.checked)) {
+                  timeInput.style.display = 'none';
+                }
+              });
+            });
+          }, 0);
+          // Type radio buttons
+          const tdType = document.createElement("td");
+          tdType.style = "min-width:140px";
+          const typeGroup = `type-${idx}-${Date.now()}`;
+          const types = [
+            { label: "Time", value: "time" },
+            { label: "Sunrise", value: "sunrise" },
+            { label: "Sunset", value: "sunset" },
+          ];
+          let checkedType = t.type || "time";
+          types.forEach((type, i) => {
+            const radio = document.createElement("input");
+            radio.type = "radio";
+            radio.name = typeGroup;
+            radio.value = type.value;
+            radio.className = "schedule-type-radio";
+            radio.style = "margin-right:5px";
+            if (checkedType === type.value) radio.checked = true;
+            radio.onchange = () => validateScheduleTypes();
+            tdType.appendChild(radio);
+            const lbl = document.createElement("span");
+            lbl.textContent = type.label;
+            lbl.style = "margin-right:10px;font-size:0.9em";
+            tdType.appendChild(lbl);
+          });
           // Preset select
           const tdPreset = document.createElement("td");
           const sel = document.createElement("select");
@@ -1786,6 +1915,7 @@
             deleteTimer(idx);
           };
           tdDel.appendChild(delBtn);
+          tr.appendChild(tdType);
           tr.appendChild(tdTime);
           tr.appendChild(tdPreset);
           tr.appendChild(tdAct);
@@ -1793,6 +1923,7 @@
           tbody.appendChild(tr);
         });
         updateAddEventBtn();
+        validateScheduleTypes();
       }
 
       async function deleteTimer(idx) {
@@ -1802,10 +1933,19 @@
         try {
           const cfg = await getConfig();
           allTimers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
-          // Filter: only enabled timers with macro > 0 (same as populateScheduleTable)
+          // Filter: only enabled timers with macro > 0, including type info
           filteredTimers = allTimers
-            .map((t, i) => ({ ...t, _idx: i }))
-            .filter((t) => t.en && t.macro && t.macro > 0);
+            .map((t, i) => {
+              if (i === 6 && t.en && t.macro && t.macro > 0) {
+                return { ...t, _idx: i, type: "sunrise" };
+              } else if (i === 7 && t.en && t.macro && t.macro > 0) {
+                return { ...t, _idx: i, type: "sunset" };
+              } else if (t.en && t.macro && t.macro > 0) {
+                return { ...t, _idx: i, type: "time" };
+              }
+              return null;
+            })
+            .filter((t) => t !== null);
         } catch (e) {
           return;
         }
@@ -1814,8 +1954,7 @@
         const toDelete = filteredTimers[idx];
         const delIdx = toDelete._idx;
         if (delIdx === undefined || !allTimers[delIdx]) return;
-        // Instead of removing, set en=0, hour=255, min=0, macro=0 (WLED disables timer this way)
-        // Overwrite with a minimal disabled timer (no extra fields, hour: 0)
+        // Instead of removing, set en=0, hour=0, min=0, macro=0 (WLED disables timer this way)
         allTimers[delIdx] = { en: 0, hour: 0, min: 0, macro: 0, dow: 127 };
         // Save updated timers
         const cfg = { timers: { ins: allTimers } };
@@ -3060,6 +3199,7 @@
           <table class="schedule-table">
             <thead>
               <tr>
+                <th>Type</th>
                 <th>Time</th>
                 <th>Preset</th>
                 <th>Actions</th>
