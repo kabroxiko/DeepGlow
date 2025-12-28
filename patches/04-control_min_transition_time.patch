@@ -1,0 +1,27 @@
+diff --git a/wled00/json.cpp b/wled00/json.cpp
+index f2308013..09e4aa10 100644
+--- a/wled00/json.cpp
++++ b/wled00/json.cpp
+@@ -396,7 +396,21 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
+   if (!presetId || currentPlaylist < 0) { //do not apply transition time from preset if playlist active, as it would override playlist transition times
+     tr = root[F("transition")] | -1;
+     if (tr >= 0) {
+-      transitionDelay = tr * 100;
++      // Enforce minTransitionTime and maxBrightness if AquariumControllerUsermod is available
++      uint32_t appliedTransition = tr * 100;
++      extern uint32_t aquariumMinTransitionTime;
++      extern uint8_t aquariumMaxBrightness;
++      uint32_t minTransition = aquariumMinTransitionTime;
++      if (minTransition > 0) {
++        if (minTransition == 1) minTransition = 100;
++        if (appliedTransition < minTransition * 100) {
++          appliedTransition = minTransition * 100;
++        }
++      }
++      if (bri > aquariumMaxBrightness) {
++        bri = aquariumMaxBrightness;
++      }
++      transitionDelay = appliedTransition;
+       strip.setTransition(transitionDelay);
+     }
+   }

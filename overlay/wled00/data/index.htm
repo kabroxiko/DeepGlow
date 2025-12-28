@@ -2584,17 +2584,13 @@
           if (palSel && palSel.value) seg.pal = Number(palSel.value);
         }
         // Enforce min transition time and max brightness
-        let minTr = 5; // default 5s
+        // Only clamp brightness, do not enforce min transition
         let maxBri = 255; // default max
         if (window._cachedConfig && window._cachedConfig.um && window._cachedConfig.um.AquariumController && window._cachedConfig.um.AquariumController.safety) {
-          if (typeof window._cachedConfig.um.AquariumController.safety.minTransitionTime === 'number') {
-            minTr = Math.round(window._cachedConfig.um.AquariumController.safety.minTransitionTime / 10);
-          }
           if (typeof window._cachedConfig.um.AquariumController.safety.maxBrightness === 'number') {
             maxBri = window._cachedConfig.um.AquariumController.safety.maxBrightness;
           }
         }
-        if (tr < minTr) tr = minTr;
         if (bri > maxBri) bri = maxBri;
         if (bri < 0) bri = 0;
         try {
@@ -2631,53 +2627,7 @@
           },
         };
         try {
-          const r = await wledFetchConfig({ method: "POST", body: cfg });
-          if (r.ok) {
-            // Invalidate config cache so next fetch gets updated value
-            _cachedConfig = null;
-            _configFetchPromise = null;
-            // Optionally, reload config immediately
-            await getConfig(true);
-
-            // Clamp current brightness if above new max
-            let maxBri = parseInt(gId("max_bri").value);
-            let briSlider = gId("bri");
-            if (briSlider && parseInt(briSlider.value) > maxBri) {
-              briSlider.value = maxBri;
-              cb = maxBri;
-              gId("bv").textContent = Math.round(cb/255*100) + '%';
-              await wledPostState({ bri: cb });
-            }
-
-            // After config is updated, raise all preset transitions below new min and clamp brightness above max
-            let minTr = parseInt(gId("min_tr").value);
-            let presets = await getPresets(true);
-            let changed = false;
-            for (let pid in presets) {
-              if (!presets.hasOwnProperty(pid)) continue;
-              let p = presets[pid];
-              if (typeof p.transition === 'number' && p.transition < minTr * 10) {
-                p.transition = minTr * 10;
-                changed = true;
-              }
-              if (typeof p.bri === 'number' && p.bri > maxBri) {
-                p.bri = maxBri;
-                changed = true;
-              }
-              if (typeof p.bri === 'number' && p.bri < 0) {
-                p.bri = 0;
-                changed = true;
-              }
-            }
-            if (changed) {
-              const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
-              const form = new FormData();
-              form.append('data', blob, 'presets.json');
-              await fetch('/upload', { method: 'POST', body: form });
-              await loadPresetList();
-              showToast('Updated presets below new min transition or above max brightness.');
-            }
-          }
+          await wledFetchConfig({ method: "POST", body: cfg });
         } catch (e) {}
       }
       async function testSchedule(e) {
@@ -2942,7 +2892,7 @@
           </div>
         </div>
         <div class="card">
-          <h2>⚙️ Safety & Settings</h2>
+          <h2>🛡️ Safety</h2>
           <div class="control-group" id="min-tr-group">
             <label>Min Transition Time: <span class="value-display" id="min_tr_v">&nbsp;</span></label>
             <input type="range" id="min_tr" min="5" max="60" value="10" disabled style="opacity:0.5;pointer-events:none;" />
