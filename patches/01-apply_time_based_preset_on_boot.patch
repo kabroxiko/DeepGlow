@@ -1,19 +1,25 @@
 diff --git a/wled00/cfg.cpp b/wled00/cfg.cpp
-index 47ba152c..ab18f4ca 100644
+index e30be759..37228cda 100644
 --- a/wled00/cfg.cpp
 +++ b/wled00/cfg.cpp
-@@ -712,6 +712,9 @@ bool deserializeConfig(JsonObject doc, bool fromFS) {
+@@ -712,6 +712,15 @@ bool deserializeConfig(JsonObject doc, bool fromFS) {
      it++;
    }
  
-+  // Apply the last event preset when the schedule changes
-+  applyTimebasedPreset();
++  // Apply the last event preset only if schedule or ntp settings changed
++  bool timersChanged = false, ntpChanged = false;
++  // Check if timers or ntp were present in the config and changed
++  if (doc.containsKey("timers")) timersChanged = true;
++  if (doc.containsKey("if") && doc["if"].containsKey("ntp")) ntpChanged = true;
++  if (timersChanged || ntpChanged) {
++    applyTimebasedPreset();
++  }
 +
    JsonObject ota = doc["ota"];
    const char* pwd = ota["psk"]; //normally not present due to security
  
 diff --git a/wled00/fcn_declare.h b/wled00/fcn_declare.h
-index 2346ee45..c47e579d 100644
+index 4bbedfac..e28bd375 100644
 --- a/wled00/fcn_declare.h
 +++ b/wled00/fcn_declare.h
 @@ -203,6 +203,7 @@ byte weekdayMondayFirst();
@@ -25,7 +31,7 @@ index 2346ee45..c47e579d 100644
  //overlay.cpp
  void handleOverlayDraw();
 diff --git a/wled00/ntp.cpp b/wled00/ntp.cpp
-index 12b698f4..67c2ab65 100644
+index 12b698f4..f1a9fe3d 100644
 --- a/wled00/ntp.cpp
 +++ b/wled00/ntp.cpp
 @@ -283,6 +283,11 @@ bool checkNTPResponse()
@@ -100,23 +106,11 @@ index 12b698f4..67c2ab65 100644
  void checkTimers()
  {
    if (lastTimerMinute != minute(localTime)) //only check once a new minute begins
-diff --git a/wled00/set.cpp b/wled00/set.cpp
-index 087e9b39..3ebe2078 100644
---- a/wled00/set.cpp
-+++ b/wled00/set.cpp
-@@ -568,6 +568,7 @@ void handleSettingsSet(AsyncWebServerRequest *request, byte subPage)
-         timerDayEnd[i] = request->arg(k).toInt();
-       }
-     }
-+    if (ntpEnabled) applyTimebasedPreset();
-   }
- 
-   //SECURITY
 diff --git a/wled00/wled.h b/wled00/wled.h
-index c76d48bf..2a27d3bd 100644
+index 66b33740..5526ba6b 100644
 --- a/wled00/wled.h
 +++ b/wled00/wled.h
-@@ -874,6 +874,7 @@ WLED_GLOBAL DNSServer dnsServer;
+@@ -871,6 +871,7 @@ WLED_GLOBAL DNSServer dnsServer;
  WLED_GLOBAL bool ntpConnected _INIT(false);
  WLED_GLOBAL time_t localTime _INIT(0);
  WLED_GLOBAL unsigned long ntpLastSyncTime _INIT(NTP_NEVER);
