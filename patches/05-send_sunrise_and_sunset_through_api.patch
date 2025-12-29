@@ -1,0 +1,17 @@
+diff --git a/wled00/json.cpp b/wled00/json.cpp
+index f2308013..1bfcb23d 100644
+--- a/wled00/json.cpp
++++ b/wled00/json.cpp
+@@ -651,6 +661,12 @@ void serializeState(JsonObject root, bool forPreset, bool includeBri, bool segme
+ 
+     UsermodManager::addToJsonState(root);
+ 
++    // Expose sunrise and sunset times (seconds since epoch)
++    extern time_t sunrise;
++    extern time_t sunset;
++    root["sunrise"] = sunrise;
++    root["sunset"] = sunset;
++
+     JsonObject nl = root.createNestedObject("nl");
+     nl["on"] = nightlightActive;
+     nl["dur"] = nightlightDelayMins;

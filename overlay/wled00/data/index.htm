@@ -1546,7 +1546,7 @@
           if (!forceRefresh) {
             if (_cachedConfig) return _cachedConfig;
             if (_configFetchPromise) return _configFetchPromise;
-            _configFetchPromise = fetch("/json/cfg")
+            _configFetchPromise = wledApiFetch("/json/cfg")
               .then(async (r) => {
                 if (r.ok) {
                   _cachedConfig = await r.json();
@@ -1562,7 +1562,7 @@
             return _configFetchPromise;
           } else {
             if (_configForceFetchPromise) return _configForceFetchPromise;
-            _configForceFetchPromise = fetch("/json/cfg")
+            _configForceFetchPromise = wledApiFetch("/json/cfg")
               .then(async (r) => {
                 if (r.ok) {
                   const cfg = await r.json();
@@ -1590,7 +1590,7 @@
           if (!forceRefresh) {
             if (_cachedConfig) return _cachedConfig;
             if (_configFetchPromise) return _configFetchPromise;
-            _configFetchPromise = fetch("/json/cfg")
+            _configFetchPromise = wledApiFetch("/json/cfg")
               .then(async (r) => {
                 if (r.ok) {
                   _cachedConfig = await r.json();
@@ -1605,7 +1605,7 @@
             return _configFetchPromise;
           } else {
             if (_configForceFetchPromise) return _configForceFetchPromise;
-            _configForceFetchPromise = fetch("/json/cfg")
+            _configForceFetchPromise = wledApiFetch("/json/cfg")
               .then(async (r) => {
                 if (r.ok) {
                   return await r.json();
@@ -1755,6 +1755,37 @@
         if (force) await new Promise((r) => setTimeout(r, 6000));
         let cfg = await getConfig(force);
         populateScheduleTable._forceNext = false;
+
+        // --- Fetch global values at start ---
+        let ntpOffset = 0;
+        let sunriseTime = null, sunsetTime = null;
+        // Robustly extract ntpOffset from both cfg.ntp.offset and cfg.if.ntp.offset
+        if (cfg) {
+          if (cfg.ntp && typeof cfg.ntp.offset === 'number') {
+            ntpOffset = cfg.ntp.offset;
+            console.debug('[DEBUG] ntpOffset found at cfg.ntp.offset:', ntpOffset);
+          } else if (cfg.if && cfg.if.ntp && typeof cfg.if.ntp.offset === 'number') {
+            ntpOffset = cfg.if.ntp.offset;
+            console.debug('[DEBUG] ntpOffset found at cfg.if.ntp.offset:', ntpOffset);
+          } else {
+            console.warn('[DEBUG] ntpOffset missing or not a number:', cfg);
+          }
+        } else {
+          console.warn('[DEBUG] cfg is null or undefined:', cfg);
+        }
+        console.debug('[DEBUG] Final ntpOffset value:', ntpOffset, 'cfg:', cfg);
+        try {
+          const resp = await fetch('/json/state');
+          if (resp.ok) {
+            const state = await resp.json();
+            if (state.sunrise) sunriseTime = state.sunrise;
+            if (state.sunset) sunsetTime = state.sunset;
+          }
+        } catch (e) {
+          console.warn('[DEBUG] Error fetching /json/state:', e);
+        }
+
+        // Build timers array
         if (cfg) {
           let allTimers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
           timers = [];
@@ -1806,7 +1837,14 @@
         let activeIdx = -1;
         let maxPastMin = -1;
         timers.forEach((t, idx) => {
-          const tMin = t.hour * 60 + t.min;
+          let tMin;
+          if (t.type === "sunrise" && typeof sunriseTime === "number" && isFinite(sunriseTime)) {
+            tMin = Math.floor((sunriseTime % 86400) / 60);
+          } else if (t.type === "sunset" && typeof sunsetTime === "number" && isFinite(sunsetTime)) {
+            tMin = Math.floor((sunsetTime % 86400) / 60);
+          } else {
+            tMin = t.hour * 60 + t.min;
+          }
           if (tMin <= currentMinutes && tMin > maxPastMin) {
             maxPastMin = tMin;
             activeIdx = idx;
@@ -1821,30 +1859,47 @@
           if (idx === activeIdx) {
             tr.style.background = "rgba(0,191,255,0.15)";
           }
-          // Time input
+          // Time input or sunrise/sunset label
           const tdTime = document.createElement("td");
-          const time = `${pad(t.hour)}:${pad(t.min)}`;
-          const timeInput = document.createElement("input");
-          timeInput.type = "time";
-          timeInput.value = time;
-          timeInput.style = "width:120px;padding:8px";
           if (t.type === "sunrise" || t.type === "sunset") {
-            timeInput.style.display = "none";
-          }
-          tdTime.appendChild(timeInput);
-          // Add event listeners to radio buttons to toggle time input
-          setTimeout(() => {
-            const radios = tdType.querySelectorAll('.schedule-type-radio');
-            radios.forEach(radio => {
-              radio.addEventListener('change', () => {
-                if (radio.value === 'time' && radio.checked) {
-                  timeInput.style.display = '';
-                } else if ((radio.value === 'sunrise' && radio.checked) || (radio.value === 'sunset' && radio.checked)) {
-                  timeInput.style.display = 'none';
-                }
+            // Show only the time in 24h format for sunrise/sunset
+            let sTime = t.type === "sunrise" ? sunriseTime : sunsetTime;
+            let timeStr = "--:--";
+            if (typeof sTime === "number" && isFinite(sTime) && sTime >= 0) {
+              // Clamp to 0-86399 (seconds in a day)
+              sTime = Math.floor(sTime) % 86400;
+              let hours = Math.floor(sTime / 3600);
+              let minutes = Math.floor((sTime % 3600) / 60);
+              // Always pad to two digits
+              timeStr = `${pad(hours)}:${pad(minutes)}`;
+            }
+            let timeSpan = document.createElement("span");
+            timeSpan.style.display = "block";
+            timeSpan.style.fontWeight = "bold";
+            timeSpan.style.color = t.type === "sunrise" ? "#FFA500" : "#1E90FF";
+            timeSpan.textContent = timeStr;
+            tdTime.appendChild(timeSpan);
+          } else {
+            const time = `${pad(t.hour)}:${pad(t.min)}`;
+            const timeInput = document.createElement("input");
+            timeInput.type = "time";
+            timeInput.value = time;
+            timeInput.style = "width:120px;padding:8px";
+            tdTime.appendChild(timeInput);
+            // Add event listeners to radio buttons to toggle time input
+            setTimeout(() => {
+              const radios = tdType.querySelectorAll('.schedule-type-radio');
+              radios.forEach(radio => {
+                radio.addEventListener('change', () => {
+                  if (radio.value === 'time' && radio.checked) {
+                    timeInput.style.display = '';
+                  } else if ((radio.value === 'sunrise' && radio.checked) || (radio.value === 'sunset' && radio.checked)) {
+                    timeInput.style.display = 'none';
+                  }
+                });
               });
-            });
-          }, 0);
+            }, 0);
+          }
           // Type radio buttons
           const tdType = document.createElement("td");
           tdType.style = "min-width:140px";
