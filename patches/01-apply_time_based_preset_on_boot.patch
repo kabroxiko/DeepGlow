@@ -31,26 +31,29 @@ index 4bbedfac..e28bd375 100644
  //overlay.cpp
  void handleOverlayDraw();
 diff --git a/wled00/ntp.cpp b/wled00/ntp.cpp
-index 12b698f4..f1a9fe3d 100644
+index 12b698f4..8f97ecb5 100644
 --- a/wled00/ntp.cpp
 +++ b/wled00/ntp.cpp
-@@ -283,6 +283,11 @@ bool checkNTPResponse()
-   Serial.println(serverDelay);
-   #endif
- 
+@@ -287,6 +287,12 @@ bool checkNTPResponse()
+   // if time changed re-calculate sunrise/sunset
+   updateLocalTime();
+   calculateSunriseAndSunset();
++
 +  if (!ntpInitialSync) {
 +    applyTimebasedPreset();
 +    ntpInitialSync = true;
 +  }
 +
-   if (countdownTime - toki.second() > 0) countdownOverTriggered = false;
-   // if time changed re-calculate sunrise/sunset
-   updateLocalTime();
-@@ -371,6 +376,59 @@ bool isTodayInDateRange(byte monthStart, byte dayStart, byte monthEnd, byte dayE
+   return true;
+ }
+ 
+@@ -371,6 +377,75 @@ bool isTodayInDateRange(byte monthStart, byte dayStart, byte monthEnd, byte dayE
  	return (m == monthStart && d >= dayStart && d <= dayEnd); //just the designated days this month
  }
  
 +void applyTimebasedPreset() {
++
++  DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset] sunrise: %lu, sunset: %lu\n"), (unsigned long)sunrise, (unsigned long)sunset);
 +  if (!ntpEnabled) return; // only run if NTP is enabled
 +
 +  updateLocalTime(); // make sure we have correct local time
@@ -63,6 +66,8 @@ index 12b698f4..f1a9fe3d 100644
 +  int16_t currentMinute = minute(localTime);
 +  long currentTimeInMinutes = (currentWeekday - 1) * 1440 + currentHour * 60 + currentMinute;
 +
++  DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset] Local time: %02d:%02d, weekday: %d, currentTimeInMinutes: %ld\n"), currentHour, currentMinute, currentWeekday, currentTimeInMinutes);
++
 +  for (unsigned i = 0; i < 10; i++) { // 8 timers + sunrise/sunset
 +    if (timerMacro[i] == 0 || !(timerWeekday[i] & 0x01)) continue;
 +
@@ -73,12 +78,17 @@ index 12b698f4..f1a9fe3d 100644
 +      if (!isTodayInDateRange(((timerMonth[i] >> 4) & 0x0F), timerDay[i], timerMonth[i] & 0x0F, timerDayEnd[i])) continue;
 +      timerHour = timerHours[i];
 +      timerMinute = timerMinutes[i];
++      DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset] Timer %u: Regular, hour: %d, min: %d, macro: %d\n"), i, timerHour, timerMinute, timerMacro[i]);
 +    } else { // Sunrise/Sunset
 +      time_t suntime = (i == 8) ? sunrise : sunset;
-+      if (!suntime) continue;
++      if (!suntime) {
++        DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset] Timer %u: %s not set, skipping.\n"), i, (i == 8) ? "Sunrise" : "Sunset");
++        continue;
++      }
 +      time_t tmp = suntime + timerMinutes[i] * 60;
 +      timerHour = hour(tmp);
 +      timerMinute = minute(tmp);
++      DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset] Timer %u: %s, suntime: %lu, offset min: %d, hour: %d, min: %d, macro: %d\n"), i, (i == 8) ? "Sunrise" : "Sunset", (unsigned long)suntime, timerMinutes[i], timerHour, timerMinute, timerMacro[i]);
 +    }
 +
 +    for (int d = 1; d <= 7; d++) { // check all 7 days of the week
@@ -87,25 +97,39 @@ index 12b698f4..f1a9fe3d 100644
 +      long timerTimeInMinutes = (d - 1) * 1440 + timerHour * 60 + timerMinute;
 +      long timeDiff = currentTimeInMinutes - timerTimeInMinutes;
 +
++      DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset]   Day %d: timerTimeInMinutes: %ld, timeDiff: %ld\n"), d, timerTimeInMinutes, timeDiff);
++
 +      if (timeDiff < 0) { // timer is in the future this week
 +        timeDiff += 7 * 1440; // look at last week
++        DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset]   Day %d: Adjusted timeDiff (last week): %ld\n"), d, timeDiff);
 +      }
 +
 +      if (smallestTimeDiff == -1 || timeDiff < smallestTimeDiff) {
 +        smallestTimeDiff = timeDiff;
 +        lastTimer = i;
++        DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset]   New lastTimer: %d (timeDiff: %ld)\n"), lastTimer, smallestTimeDiff);
 +      }
 +    }
 +  }
 +
 +  if (lastTimer != -1) {
++    DEBUG_PRINTF_P(PSTR("[applyTimebasedPreset] Applying macro: %d (timer %d)\n"), timerMacro[lastTimer], lastTimer);
 +    applyPreset(timerMacro[lastTimer]);
++  } else {
++    DEBUG_PRINTLN(F("[applyTimebasedPreset] No valid timer found to apply."));
 +  }
 +}
 +
  void checkTimers()
  {
    if (lastTimerMinute != minute(localTime)) //only check once a new minute begins
+@@ -547,4 +622,4 @@ void setTimeFromAPI(uint32_t timein) {
+     calculateSunriseAndSunset();
+   }
+   if (presetsModifiedTime == 0) presetsModifiedTime = timein;
+-}
+\ No newline at end of file
++}
 diff --git a/wled00/wled.h b/wled00/wled.h
 index 66b33740..5526ba6b 100644
 --- a/wled00/wled.h
