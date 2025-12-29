@@ -77,6 +77,9 @@
         background: linear-gradient(135deg, #ff6b00 0%, #ffa500 100%);
         box-shadow: 0 4px 15px rgba(255, 107, 0, 0.5);
       }
+      .schedule-active-row {
+        background: rgba(0, 191, 255, 0.15) !important;
+      }
       .control-group {
         margin-bottom: 20px;
       }
@@ -489,12 +492,12 @@
           const meta = await resp.json();
           // meta is an array of {id, name, ui, desc, ...}
           // Integrate icon directly into each effect object
-          effects = meta.map(e => {
+          effects = meta.map((e) => {
             // Try to find icon from default list
-            const found = effects.find(x => x.id === e.id);
+            const found = effects.find((x) => x.id === e.id);
             return {
               ...e,
-              icon: found ? found.icon : "🎭"
+              icon: found ? found.icon : "🎭",
             };
           });
         } catch (e) {
@@ -730,16 +733,26 @@
             ci = def.ix;
             // Update sliders to match new effect defaults
             if (gId("sx-slider")) {
-                gId("sx-slider").value = cs;
-                gId("sv").textContent = isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%');
-                gId("sx-slider").setAttribute('value', cs);
-                gId("sx-slider").setAttribute('title', isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%'));
+              gId("sx-slider").value = cs;
+              gId("sv").textContent = isNaN(cs)
+                ? "--%"
+                : Math.round((cs / 255) * 100) + "%";
+              gId("sx-slider").setAttribute("value", cs);
+              gId("sx-slider").setAttribute(
+                "title",
+                isNaN(cs) ? "--%" : Math.round((cs / 255) * 100) + "%",
+              );
             }
             if (gId("ix-slider")) {
-                gId("ix-slider").value = ci;
-                gId("iv").textContent = isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%');
-                gId("ix-slider").setAttribute('value', ci);
-                gId("ix-slider").setAttribute('title', isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%'));
+              gId("ix-slider").value = ci;
+              gId("iv").textContent = isNaN(ci)
+                ? "--%"
+                : Math.round((ci / 255) * 100) + "%";
+              gId("ix-slider").setAttribute("value", ci);
+              gId("ix-slider").setAttribute(
+                "title",
+                isNaN(ci) ? "--%" : Math.round((ci / 255) * 100) + "%",
+              );
             }
             // Update palette combo to match effect default
             const palCombo = gId("pal");
@@ -880,7 +893,11 @@
         let origTr = undefined;
         const trElem = gId("tr");
         if (trElem) origTr = parseInt(trElem.value);
-        if (typeof origTr === "number" && typeof minTr === "number" && origTr !== minTr) {
+        if (
+          typeof origTr === "number" &&
+          typeof minTr === "number" &&
+          origTr !== minTr
+        ) {
           await wledPostState({ transition: origTr * 10 });
           if (gId("tr")) {
             gId("tr").value = origTr;
@@ -903,7 +920,10 @@
         { hex: "#A0522D", name: "Sand", w: 0 },
       ];
       // selectedColor now stores an object: {hex, w}
-      let selectedColor = { hex: aquariumColors[0].hex, w: aquariumColors[0].w };
+      let selectedColor = {
+        hex: aquariumColors[0].hex,
+        w: aquariumColors[0].w,
+      };
       // Render the primary color bar and wire up real-time color change
       function renderPrimaryColorBar(selected) {
         const bar = gId("primary-color-bar");
@@ -914,7 +934,8 @@
           const isSelected =
             c.hex.toUpperCase() === selected.hex.toUpperCase() &&
             (c.w || 0) === (selected.w || 0);
-          d.className = "primary-color-circle" + (isSelected ? " selected" : "");
+          d.className =
+            "primary-color-circle" + (isSelected ? " selected" : "");
           d.style.background = c.hex;
           d.style.width = "28px";
           d.style.height = "28px";
@@ -1003,7 +1024,6 @@
           rgbRow.appendChild(d);
         }
         bar.appendChild(rgbRow);
-        // debug suppressed
       }
 
       let wsConnecting = false;
@@ -1042,11 +1062,10 @@
           ) {
             // Suppress logging for binary blobs
           } else {
-            console.debug("[WS] Message:", e.data);
           }
           // Only set status to connected after receiving {success:true}
           try {
-            const msg = typeof e.data === 'string' ? JSON.parse(e.data) : null;
+            const msg = typeof e.data === "string" ? JSON.parse(e.data) : null;
             if (msg && msg.success === true) {
               updateStatus(true);
             }
@@ -1126,7 +1145,9 @@
                   });
                 } else {
                   // If lastPresetId is null (ps = -1), remove all active classes
-                  presetCards.forEach((card) => card.classList.remove("active"));
+                  presetCards.forEach((card) =>
+                    card.classList.remove("active"),
+                  );
                 }
               });
               observer.observe(presetList, { childList: true, subtree: true });
@@ -1142,18 +1163,28 @@
                 cs = data.seg[0].sx;
                 if (gId("sx-slider")) {
                   gId("sx-slider").value = cs;
-                  gId("sv").textContent = isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%');
-                  gId("sx-slider").setAttribute('value', cs);
-                  gId("sx-slider").setAttribute('title', isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%'));
+                  gId("sv").textContent = isNaN(cs)
+                    ? "--%"
+                    : Math.round((cs / 255) * 100) + "%";
+                  gId("sx-slider").setAttribute("value", cs);
+                  gId("sx-slider").setAttribute(
+                    "title",
+                    isNaN(cs) ? "--%" : Math.round((cs / 255) * 100) + "%",
+                  );
                 }
               }
               if (typeof data.seg[0].ix === "number") {
                 ci = data.seg[0].ix;
                 if (gId("ix-slider")) {
                   gId("ix-slider").value = ci;
-                  gId("iv").textContent = isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%');
-                  gId("ix-slider").setAttribute('value', ci);
-                  gId("ix-slider").setAttribute('title', isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%'));
+                  gId("iv").textContent = isNaN(ci)
+                    ? "--%"
+                    : Math.round((ci / 255) * 100) + "%";
+                  gId("ix-slider").setAttribute("value", ci);
+                  gId("ix-slider").setAttribute(
+                    "title",
+                    isNaN(ci) ? "--%" : Math.round((ci / 255) * 100) + "%",
+                  );
                 }
               }
             }
@@ -1193,7 +1224,9 @@
               cb = data.bri;
               if (gId("bri")) {
                 gId("bri").value = cb;
-                gId("bv").textContent = isNaN(cb) ? '--%' : (Math.round(cb/255*100) + '%');
+                gId("bv").textContent = isNaN(cb)
+                  ? "--%"
+                  : Math.round((cb / 255) * 100) + "%";
               }
             }
             let trVal;
@@ -1207,7 +1240,11 @@
               trVal = Math.round(data.state.transition / 10);
             }
             // If transition is present in segment, prefer that
-            if (data.seg && data.seg[0] && typeof data.seg[0].transition !== "undefined") {
+            if (
+              data.seg &&
+              data.seg[0] &&
+              typeof data.seg[0].transition !== "undefined"
+            ) {
               trVal = Math.round(data.seg[0].transition / 10);
             }
             if (typeof trVal === "undefined" || isNaN(trVal)) trVal = 10;
@@ -1312,14 +1349,14 @@
                 // Attempt to reconnect after a short delay, only if not already pending
                 if (!wsReconnectPending) {
                   wsReconnectPending = true;
-                  try { ws.close(); } catch (e) {}
+                  try {
+                    ws.close();
+                  } catch (e) {}
                   setTimeout(connectPeekWS, 2000);
                 }
                 return;
               }
-              // Mark the schedule event row for this preset
-              if (typeof updateScheduleActiveRow === "function")
-                updateScheduleActiveRow(data.ps);
+              // Schedule row highlighting is now handled only in populateScheduleTable
               // If not found, observe for preset list changes and re-apply highlight
               if (data && (data.state || data.seg)) {
                 // Prefer .state if present (WLED API)
@@ -1378,33 +1415,7 @@
           }
         };
         // --- Highlight the active schedule row based on current preset (ps) ---
-        function updateScheduleActiveRow(currentPreset) {
-          const tbody = document.getElementById("schedule-body");
-          if (!tbody) return;
-          const rows = Array.from(tbody.querySelectorAll("tr"));
-          let now = new Date();
-          let currentMinutes = now.getHours() * 60 + now.getMinutes();
-          let activeIdx = -1;
-          let maxPastMin = -1;
-          rows.forEach((row, idx) => {
-            const timeInput = row.querySelector('input[type="time"]');
-            if (timeInput) {
-              const [h, m] = timeInput.value.split(":");
-              const tMin = parseInt(h) * 60 + parseInt(m);
-              if (tMin <= currentMinutes && tMin > maxPastMin) {
-                maxPastMin = tMin;
-                activeIdx = idx;
-              }
-            }
-          });
-          rows.forEach((row, idx) => {
-            if (idx === activeIdx) {
-              row.style.background = "rgba(0,191,255,0.15)";
-            } else {
-              row.style.background = "";
-            }
-          });
-        }
+        // updateScheduleActiveRow fully removed; schedule row highlighting is now handled only in populateScheduleTable
         // (removed redundant empty error handler)
         ws.onerror = (err) => {
           updateStatus(false);
@@ -1424,7 +1435,9 @@
         let sunriseCount = 0;
         let sunsetCount = 0;
         rows.forEach((row) => {
-          const checkedRadio = row.querySelector('.schedule-type-radio:checked');
+          const checkedRadio = row.querySelector(
+            ".schedule-type-radio:checked",
+          );
           if (checkedRadio) {
             if (checkedRadio.value === "sunrise") sunriseCount++;
             if (checkedRadio.value === "sunset") sunsetCount++;
@@ -1432,11 +1445,19 @@
         });
         // Disable sunrise/sunset options if limit reached
         rows.forEach((row) => {
-          const radios = row.querySelectorAll('.schedule-type-radio');
+          const radios = row.querySelectorAll(".schedule-type-radio");
           radios.forEach((radio) => {
-            if (radio.value === "sunrise" && !radio.checked && sunriseCount >= 1) {
+            if (
+              radio.value === "sunrise" &&
+              !radio.checked &&
+              sunriseCount >= 1
+            ) {
               radio.disabled = true;
-            } else if (radio.value === "sunset" && !radio.checked && sunsetCount >= 1) {
+            } else if (
+              radio.value === "sunset" &&
+              !radio.checked &&
+              sunsetCount >= 1
+            ) {
               radio.disabled = true;
             } else if (radio.value === "sunrise" || radio.value === "sunset") {
               radio.disabled = false;
@@ -1451,10 +1472,19 @@
         let timers = [];
         let sunriseTimer = null;
         let sunsetTimer = null;
+        // Fetch current config to preserve existing sunrise/sunset if not set in UI
+        let currentTimers = [];
+        try {
+          const cfg = await wledFetchConfig({ method: "GET" });
+          currentTimers =
+            cfg && cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
+        } catch (e) {
+          currentTimers = [];
+        }
         rows.forEach((row) => {
           const timeInput = row.querySelector('input[type="time"]');
           const presetSelect = row.querySelector("select");
-          const typeRadio = row.querySelector('.schedule-type-radio:checked');
+          const typeRadio = row.querySelector(".schedule-type-radio:checked");
           if (timeInput && presetSelect && typeRadio) {
             let [h, m] = timeInput.value.split(":");
             const macro = parseInt(presetSelect.value);
@@ -1485,12 +1515,17 @@
         });
         // Always send 8 timers: first 6 are regular, last 2 are sunrise/sunset
         // Only send enabled regular events (up to 6)
-        let regularTimers = timers.filter(t => t.type !== "sunrise" && t.type !== "sunset" && t.en).slice(0, 6);
+        let regularTimers = timers
+          .filter((t) => t.type !== "sunrise" && t.type !== "sunset" && t.en)
+          .slice(0, 6);
         while (regularTimers.length < 6) {
           regularTimers.push({ en: 0, hour: 0, min: 0, macro: 0, dow: 127 });
         }
-        let sunrise = sunriseTimer || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
-        let sunset = sunsetTimer || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
+        // Find existing sunrise/sunset timers from backend config if not set in UI
+        let existingSunrise = currentTimers.find(t => t.hour === 255 && t.en && t.macro > 0);
+        let existingSunset = currentTimers.find(t => t.hour === 255 && t.en && t.macro > 0 && t !== existingSunrise);
+        let sunrise = sunriseTimer || existingSunrise || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
+        let sunset = sunsetTimer || existingSunset || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
         sunrise.hour = 255;
         sunset.hour = 255;
         timers = [...regularTimers, sunrise, sunset];
@@ -1646,13 +1681,34 @@
         let macro = presetOptions.length ? presetOptions[0].id : 1;
         // Create new row
         const tr = document.createElement("tr");
-        // Time input
+        // Time input and sunrise/sunset text, toggle dynamically
         const tdTime = document.createElement("td");
         const timeInput = document.createElement("input");
         timeInput.type = "time";
         timeInput.value = `${pad(h)}:${pad(m)}`;
         timeInput.style = "width:120px;padding:8px";
+        // Use global values set by populateScheduleTable
+        let sunriseHHMM = window._lastSunriseHHMM || "--:--";
+        let sunsetHHMM = window._lastSunsetHHMM || "--:--";
+        const sunriseSpan = document.createElement("span");
+        sunriseSpan.style.display = "block";
+        sunriseSpan.style.fontWeight = "bold";
+        sunriseSpan.style.color = "#FFA500";
+        sunriseSpan.textContent = sunriseHHMM;
+        const sunsetSpan = document.createElement("span");
+        sunsetSpan.style.display = "block";
+        sunsetSpan.style.fontWeight = "bold";
+        sunsetSpan.style.color = "#1E90FF";
+        sunsetSpan.textContent = sunsetHHMM;
         tdTime.appendChild(timeInput);
+        tdTime.appendChild(sunriseSpan);
+        tdTime.appendChild(sunsetSpan);
+        function updateTimeTypeUI(type) {
+          timeInput.style.display = type === "time" ? "" : "none";
+          sunriseSpan.style.display = type === "sunrise" ? "block" : "none";
+          sunsetSpan.style.display = type === "sunset" ? "block" : "none";
+        }
+        updateTimeTypeUI("time");
         // Type radio buttons
         const tdType = document.createElement("td");
         tdType.style = "min-width:140px";
@@ -1670,7 +1726,10 @@
           if (i === 0) radio.checked = true;
           radio.className = "schedule-type-radio";
           radio.style = "margin-right:5px";
-          radio.onchange = () => validateScheduleTypes();
+          radio.onchange = () => {
+            updateTimeTypeUI(radio.value);
+            validateScheduleTypes();
+          };
           tdType.appendChild(radio);
           const lbl = document.createElement("span");
           lbl.textContent = t.label;
@@ -1683,7 +1742,12 @@
         sel.style = "width:180px;padding:8px";
         sel.innerHTML = "";
         // Add 'Turn Off' option (id 100) only if preset 100 exists and has a name
-        if (typeof getPresets === 'function' && window._cachedPresets && window._cachedPresets["100"] && window._cachedPresets["100"].n) {
+        if (
+          typeof getPresets === "function" &&
+          window._cachedPresets &&
+          window._cachedPresets["100"] &&
+          window._cachedPresets["100"].n
+        ) {
           const turnOffOpt = document.createElement("option");
           turnOffOpt.value = 100;
           turnOffOpt.textContent = window._cachedPresets["100"].n;
@@ -1738,168 +1802,131 @@
       }
 
       async function populateScheduleTable() {
-        // Use cached presets for dropdowns
+        if (populateScheduleTable._isRendering) return;
+        populateScheduleTable._isRendering = true;
         presetOptions = [];
         let presets = await getPresets();
-        if (presets) {
-          for (let i = 1; i <= 16; i++) {
-            const p = presets[i.toString()];
-            if (p) presetOptions.push({ id: i, name: p.n || `Preset ${i}` });
-          }
+        for (let i = 1; i <= 16; i++) {
+          const p = presets?.[i.toString()];
+          if (p) presetOptions.push({ id: i, name: p.n || `Preset ${i}` });
         }
-
-        // Load timers (schedule)
-        let timers = [];
-        // Always force config reload after save
         let force = populateScheduleTable._forceNext || false;
         if (force) await new Promise((r) => setTimeout(r, 6000));
-        let cfg = await getConfig(force);
+        let [cfg, state] = await Promise.all([
+          getConfig(force),
+          fetch("/json/state").then((r) => (r.ok ? r.json() : {})),
+        ]);
         populateScheduleTable._forceNext = false;
-
-        // --- Fetch global values at start ---
-        let ntpOffset = 0;
-        let sunriseTime = null, sunsetTime = null;
-        // Robustly extract ntpOffset from both cfg.ntp.offset and cfg.if.ntp.offset
-        if (cfg) {
-          if (cfg.ntp && typeof cfg.ntp.offset === 'number') {
-            ntpOffset = cfg.ntp.offset;
-            console.debug('[DEBUG] ntpOffset found at cfg.ntp.offset:', ntpOffset);
-          } else if (cfg.if && cfg.if.ntp && typeof cfg.if.ntp.offset === 'number') {
-            ntpOffset = cfg.if.ntp.offset;
-            console.debug('[DEBUG] ntpOffset found at cfg.if.ntp.offset:', ntpOffset);
-          } else {
-            console.warn('[DEBUG] ntpOffset missing or not a number:', cfg);
+        let ntpOffset = cfg?.ntp?.offset ?? cfg?.if?.ntp?.offset ?? 0;
+        let sunriseTime = state?.sunrise ?? null;
+        let sunsetTime = state?.sunset ?? null;
+        function applyOffset(sec) {
+          if (typeof sec !== "number" || !isFinite(sec)) return null;
+          if (ntpOffset !== 0 && sec < 86400) {
+            let localSec = sec + ntpOffset * 60;
+            if (localSec < 0) localSec += 86400;
+            if (localSec >= 86400) localSec -= 86400;
+            return localSec;
           }
-        } else {
-          console.warn('[DEBUG] cfg is null or undefined:', cfg);
+          return sec;
         }
-        console.debug('[DEBUG] Final ntpOffset value:', ntpOffset, 'cfg:', cfg);
-        try {
-          const resp = await fetch('/json/state');
-          if (resp.ok) {
-            const state = await resp.json();
-            if (state.sunrise) sunriseTime = state.sunrise;
-            if (state.sunset) sunsetTime = state.sunset;
-          }
-        } catch (e) {
-          console.warn('[DEBUG] Error fetching /json/state:', e);
+        sunriseTime = applyOffset(sunriseTime);
+        sunsetTime = applyOffset(sunsetTime);
+        function secToHHMM(sec) {
+          if (typeof sec !== "number" || !isFinite(sec) || sec < 0)
+            return "--:--";
+          sec = Math.floor(sec) % 86400;
+          let h = Math.floor(sec / 3600);
+          let m = Math.floor((sec % 3600) / 60);
+          return `${pad(h)}:${pad(m)}`;
         }
-
-        // Build timers array
-        if (cfg) {
-          let allTimers = cfg.timers && cfg.timers.ins ? cfg.timers.ins : [];
-          timers = [];
-          let sunrise = null, sunset = null;
-          allTimers.forEach((t) => {
-            if (t.en && t.macro && t.macro > 0) {
-              if (t.hour === 255) {
-                if (!sunrise) sunrise = { ...t, type: "sunrise" };
-                else if (!sunset) sunset = { ...t, type: "sunset" };
-              } else {
-                timers.push({ ...t, type: "time" });
-              }
+        const sunriseHHMM = secToHHMM(sunriseTime);
+        const sunsetHHMM = secToHHMM(sunsetTime);
+        // Store globally for addScheduleEvent
+        window._lastSunriseHHMM = sunriseHHMM;
+        window._lastSunsetHHMM = sunsetHHMM;
+        let timers = [];
+        let allTimers = cfg?.timers?.ins ?? [];
+        let sunrise = null,
+          sunset = null;
+        allTimers.forEach((t, origIdx) => {
+          if (t.en && t.macro && t.macro > 0) {
+            if (t.hour === 255) {
+              if (!sunrise)
+                sunrise = { ...t, type: "sunrise", _origIdx: origIdx };
+              else if (!sunset)
+                sunset = { ...t, type: "sunset", _origIdx: origIdx };
+            } else {
+              timers.push({ ...t, type: "time", _origIdx: origIdx });
             }
-          });
-          if (sunrise) timers.push(sunrise);
-          if (sunset) timers.push(sunset);
-        }
-
-        // Render table in time order
+          }
+        });
+        if (sunrise) timers.push(sunrise);
+        if (sunset) timers.push(sunset);
         const tbody = gId("schedule-body");
         tbody.innerHTML = "";
         if (!timers.length) {
           tbody.innerHTML =
             '<tr><td colspan="5" style="text-align:center;opacity:0.6">No schedule timers found.</td></tr>';
           updateAddEventBtn();
-          // Always update highlight after rendering
-          if (typeof window._lastValidPreset !== "undefined") {
-            updateScheduleActiveRow(window._lastValidPreset);
-          }
+          populateScheduleTable._isRendering = false;
           return;
         }
-
-        // Sort timers by time (hour, min), but keep sunrise/sunset at end
-        let timeTimers = timers.filter(t => t.type === "time");
-        timeTimers.sort((a, b) => {
-          const aMin = a.hour * 60 + a.min;
-          const bMin = b.hour * 60 + b.min;
-          return aMin - bMin;
-        });
-        let sunriseTimer = timers.find(t => t.type === "sunrise" && t.en);
-        let sunsetTimer = timers.find(t => t.type === "sunset" && t.en);
-        timers = [...timeTimers];
-        if (sunriseTimer) timers.push(sunriseTimer);
-        if (sunsetTimer) timers.push(sunsetTimer);
-
-        // Find the currently active event (timer)
+        function getMin(t) {
+          if (t.type === "sunrise") {
+            const [h, m] = sunriseHHMM.split(":");
+            return parseInt(h) * 60 + parseInt(m);
+          } else if (t.type === "sunset") {
+            const [h, m] = sunsetHHMM.split(":");
+            return parseInt(h) * 60 + parseInt(m);
+          } else {
+            return t.hour * 60 + t.min;
+          }
+        }
+        timers.sort((a, b) => getMin(a) - getMin(b));
         const now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
-        let activeIdx = -1;
-        let maxPastMin = -1;
+        let lastIdx = -1,
+          lastTime = -1;
+        let tMinArr = timers.map((t) => getMin(t));
         timers.forEach((t, idx) => {
-          let tMin;
-          if (t.type === "sunrise" && typeof sunriseTime === "number" && isFinite(sunriseTime)) {
-            tMin = Math.floor((sunriseTime % 86400) / 60);
-          } else if (t.type === "sunset" && typeof sunsetTime === "number" && isFinite(sunsetTime)) {
-            tMin = Math.floor((sunsetTime % 86400) / 60);
-          } else {
-            tMin = t.hour * 60 + t.min;
-          }
-          if (tMin <= currentMinutes && tMin > maxPastMin) {
-            maxPastMin = tMin;
-            activeIdx = idx;
+          let tMin = tMinArr[idx];
+          if (tMin <= currentMinutes && tMin > lastTime) {
+            lastTime = tMin;
+            lastIdx = idx;
           }
         });
-        if (activeIdx === -1 && timers.length > 0)
-          activeIdx = timers.length - 1;
-
+        const rowElements = [];
         timers.forEach((t, idx) => {
           const tr = document.createElement("tr");
-          // Highlight active event
-          if (idx === activeIdx) {
-            tr.style.background = "rgba(0,191,255,0.15)";
-          }
-          // Time input or sunrise/sunset label
           const tdTime = document.createElement("td");
-          if (t.type === "sunrise" || t.type === "sunset") {
-            // Show only the time in 24h format for sunrise/sunset
-            let sTime = t.type === "sunrise" ? sunriseTime : sunsetTime;
-            let timeStr = "--:--";
-            if (typeof sTime === "number" && isFinite(sTime) && sTime >= 0) {
-              // Clamp to 0-86399 (seconds in a day)
-              sTime = Math.floor(sTime) % 86400;
-              let hours = Math.floor(sTime / 3600);
-              let minutes = Math.floor((sTime % 3600) / 60);
-              // Always pad to two digits
-              timeStr = `${pad(hours)}:${pad(minutes)}`;
-            }
-            let timeSpan = document.createElement("span");
-            timeSpan.style.display = "block";
-            timeSpan.style.fontWeight = "bold";
-            timeSpan.style.color = t.type === "sunrise" ? "#FFA500" : "#1E90FF";
-            timeSpan.textContent = timeStr;
-            tdTime.appendChild(timeSpan);
-          } else {
-            const time = `${pad(t.hour)}:${pad(t.min)}`;
-            const timeInput = document.createElement("input");
-            timeInput.type = "time";
-            timeInput.value = time;
-            timeInput.style = "width:120px;padding:8px";
-            tdTime.appendChild(timeInput);
-            // Add event listeners to radio buttons to toggle time input
-            setTimeout(() => {
-              const radios = tdType.querySelectorAll('.schedule-type-radio');
-              radios.forEach(radio => {
-                radio.addEventListener('change', () => {
-                  if (radio.value === 'time' && radio.checked) {
-                    timeInput.style.display = '';
-                  } else if ((radio.value === 'sunrise' && radio.checked) || (radio.value === 'sunset' && radio.checked)) {
-                    timeInput.style.display = 'none';
-                  }
-                });
-              });
-            }, 0);
+          // Always create both time input and sunrise/sunset text, toggle visibility dynamically
+          const timeInput = document.createElement("input");
+          timeInput.type = "time";
+          timeInput.value =
+            t.type === "time" ? `${pad(t.hour)}:${pad(t.min)}` : "07:00";
+          timeInput.style = "width:120px;padding:8px";
+          const sunriseSpan = document.createElement("span");
+          sunriseSpan.style.display = "block";
+          sunriseSpan.style.fontWeight = "bold";
+          sunriseSpan.style.color = "#FFA500";
+          sunriseSpan.textContent = sunriseHHMM;
+          const sunsetSpan = document.createElement("span");
+          sunsetSpan.style.display = "block";
+          sunsetSpan.style.fontWeight = "bold";
+          sunsetSpan.style.color = "#1E90FF";
+          sunsetSpan.textContent = sunsetHHMM;
+          // Append all, hide as needed
+          tdTime.appendChild(timeInput);
+          tdTime.appendChild(sunriseSpan);
+          tdTime.appendChild(sunsetSpan);
+          // Helper to update visibility
+          function updateTimeTypeUI(type) {
+            timeInput.style.display = type === "time" ? "" : "none";
+            sunriseSpan.style.display = type === "sunrise" ? "block" : "none";
+            sunsetSpan.style.display = type === "sunset" ? "block" : "none";
           }
+          updateTimeTypeUI(t.type);
           // Type radio buttons
           const tdType = document.createElement("td");
           tdType.style = "min-width:140px";
@@ -1918,21 +1945,21 @@
             radio.className = "schedule-type-radio";
             radio.style = "margin-right:5px";
             if (checkedType === type.value) radio.checked = true;
-            radio.onchange = () => validateScheduleTypes();
+            radio.onchange = (e) => {
+              updateTimeTypeUI(radio.value);
+              validateScheduleTypes();
+            };
             tdType.appendChild(radio);
             const lbl = document.createElement("span");
             lbl.textContent = type.label;
             lbl.style = "margin-right:10px;font-size:0.9em";
             tdType.appendChild(lbl);
           });
-          // Preset select
           const tdPreset = document.createElement("td");
           const sel = document.createElement("select");
           sel.style = "width:180px;padding:8px";
-          // Clear any existing options (should be empty, but for safety)
           sel.innerHTML = "";
-          // Add 'Turn Off' option (id 100) only if preset 100 exists and has a name
-          if (presets && presets["100"] && presets["100"].n) {
+          if (presets?.["100"]?.n) {
             const turnOffOpt = document.createElement("option");
             turnOffOpt.value = 100;
             turnOffOpt.textContent = presets["100"].n;
@@ -1946,12 +1973,8 @@
             if (t.macro == opt.id) o.selected = true;
             sel.appendChild(o);
           });
-          // Only update UI, not save
-          sel.onchange = () => {
-            /* Removed updateTimer call: only update UI, not save */
-          };
+          sel.onchange = () => {};
           tdPreset.appendChild(sel);
-          // Actions
           const tdAct = document.createElement("td");
           const btn = document.createElement("button");
           btn.className = "btn";
@@ -1959,7 +1982,6 @@
           btn.style = "padding:5px 12px;font-size:0.85em";
           btn.onclick = () => testEvent(t.macro);
           tdAct.appendChild(btn);
-          // Delete
           const tdDel = document.createElement("td");
           const delBtn = document.createElement("button");
           delBtn.className = "btn";
@@ -1967,7 +1989,7 @@
           delBtn.style =
             "padding:5px 12px;font-size:0.85em;background:#ff4444;color:white";
           delBtn.onclick = () => {
-            deleteTimer(idx);
+            deleteTimer(t._origIdx);
           };
           tdDel.appendChild(delBtn);
           tr.appendChild(tdType);
@@ -1976,9 +1998,17 @@
           tr.appendChild(tdAct);
           tr.appendChild(tdDel);
           tbody.appendChild(tr);
+          rowElements.push(tr);
         });
+        rowElements.forEach((row) =>
+          row.classList.remove("schedule-active-row"),
+        );
+        if (lastIdx >= 0 && rowElements[lastIdx]) {
+          rowElements[lastIdx].classList.add("schedule-active-row");
+        }
         updateAddEventBtn();
         validateScheduleTypes();
+        populateScheduleTable._isRendering = false;
       }
 
       async function deleteTimer(idx) {
@@ -2048,17 +2078,14 @@
 
       window.addEventListener("DOMContentLoaded", () => {
         populateScheduleTable();
-        if (typeof loadPresetList === "function") loadPresetList();
+        // Only call loadPresetList if needed, but do NOT call populateScheduleTable again inside it
       });
-      // Update active event indicator every minute
-      setInterval(populateScheduleTable, 60000);
+      // Update schedule table every minute (no separate highlight logic)
+      // Removed periodic schedule table refresh to prevent race conditions and redundant calls
       async function send(d) {
         try {
           await wledPostState(d);
-          populateScheduleTable._forceNext = true;
-          setTimeout(() => {
-            populateScheduleTable();
-          }, 400);
+          // Removed schedule table refresh from send()
         } catch (e) {}
       }
       async function togglePower() {
@@ -2118,23 +2145,27 @@
       }
       function updateBriLocal(v) {
         let maxBri = 255;
-        const maxBriSlider = gId('max_bri');
+        const maxBriSlider = gId("max_bri");
         if (maxBriSlider && !maxBriSlider.disabled) {
           maxBri = parseInt(maxBriSlider.value) || 255;
         }
         cb = Math.min(parseInt(v), maxBri);
         gId("bri").value = cb;
-        gId("bv").textContent = isNaN(cb) ? '--%' : (Math.round(cb/255*100) + '%');
+        gId("bv").textContent = isNaN(cb)
+          ? "--%"
+          : Math.round((cb / 255) * 100) + "%";
       }
       async function updateBri(v) {
         let maxBri = 255;
-        const maxBriSlider = gId('max_bri');
+        const maxBriSlider = gId("max_bri");
         if (maxBriSlider && !maxBriSlider.disabled) {
           maxBri = parseInt(maxBriSlider.value) || 255;
         }
         cb = Math.min(parseInt(v), maxBri);
         gId("bri").value = cb;
-        gId("bv").textContent = isNaN(cb) ? '--%' : (Math.round(cb/255*100) + '%');
+        gId("bv").textContent = isNaN(cb)
+          ? "--%"
+          : Math.round((cb / 255) * 100) + "%";
         await wledPostState({ bri: cb });
       }
       function updateTrLocal(v) {
@@ -2150,15 +2181,17 @@
         if (
           window._cachedConfig &&
           window._cachedConfig.um &&
-          (window._cachedConfig.um.AquariumController || window._cachedConfig.um['AquariumController'])
+          (window._cachedConfig.um.AquariumController ||
+            window._cachedConfig.um["AquariumController"])
         ) {
-          const ac = window._cachedConfig.um.AquariumController || window._cachedConfig.um['AquariumController'];
+          const ac =
+            window._cachedConfig.um.AquariumController ||
+            window._cachedConfig.um["AquariumController"];
           if (ac.safety) {
             // Update the cached value to match the new slider value (in seconds)
             ac.safety.minTransitionTime = parseInt(v);
             // Also update the global cache reference
             _cachedConfig = window._cachedConfig;
-
           }
         }
       }
@@ -2202,13 +2235,17 @@
       async function updateSp(v) {
         cs = parseInt(v);
         // Always show percent, never fallback to raw number
-        gId("sv").textContent = isNaN(cs) ? '--%' : (Math.round(cs/255*100) + '%');
+        gId("sv").textContent = isNaN(cs)
+          ? "--%"
+          : Math.round((cs / 255) * 100) + "%";
         await wledPostState({ seg: { sx: cs } });
       }
       async function updateIx(v) {
         ci = parseInt(v);
         // Always show percent, never fallback to raw number
-        gId("iv").textContent = isNaN(ci) ? '--%' : (Math.round(ci/255*100) + '%');
+        gId("iv").textContent = isNaN(ci)
+          ? "--%"
+          : Math.round((ci / 255) * 100) + "%";
         await wledPostState({ seg: { ix: ci } });
       }
       async function applyPal() {
@@ -2218,7 +2255,8 @@
       }
       // Apply color: accepts a hex string (e.g. #RRGGBB) or an object {hex, w}
       async function applyCol(color) {
-        let hex, w = 0;
+        let hex,
+          w = 0;
         if (typeof color === "string") {
           hex = color;
         } else if (typeof color === "object" && color !== null) {
@@ -2367,25 +2405,26 @@
             <span style="position:absolute;top:8px;right:12px;cursor:pointer;width:22px;height:22px;z-index:2;" title="Edit preset" onclick="event.stopPropagation();openEditPresetModal(${i});">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512" width="18" height="18" style="display:block;">
                 <path fill="#1976d2" d="M402.6 83.2l90.2 90.2c3.8 3.8 3.8 10 0 13.8L274.4 405.6l-92.8 10.3c-12.4 1.4-22.9-9.1-21.5-21.5l10.3-92.8L388.8 83.2c3.8-3.8 10-3.8 13.8 0zm162-22.9l-48.8-48.8c-15.2-15.2-39.9-15.2-55.2 0l-35.4 35.4c-3.8 3.8-3.8 10 0 13.8l90.2 90.2c3.8 3.8 10 3.8 13.8 0l35.4-35.4c15.2-15.3 15.2-40 0-55.2zM384 346.2V448H64V128h229.8c3.2 0 6.2-1.3 8.5-3.5l40-40c7.6-7.6 2.2-20.5-8.5-20.5H48C21.5 64 0 85.5 0 112v352c0 26.5 21.5 48 48 48h352c26.5 0 48-21.5 48-48V306.2c0-10.7-12.9-16-20.5-8.5l-40 40c-2.2 2.3-3.5 5.3-3.5 8.5z"/>
-              </svg>
-            </span>
-            <span style="position:absolute;bottom:8px;right:12px;cursor:pointer;width:22px;height:22px;z-index:2;" title="Delete preset" onclick="event.stopPropagation();confirmDeletePreset(${i});">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="22" height="22" style="display:block;">
-                <path fill="#ff4444" d="M262.2 48C248.9 48 236.9 56.3 232.2 68.8L216 112L120 112C106.7 112 96 122.7 96 136C96 149.3 106.7 160 120 160L520 160C533.3 160 544 149.3 544 136C544 122.7 533.3 112 520 112L424 112L407.8 68.8C403.1 56.3 391.2 48 377.8 48L262.2 48zM128 208L128 512C128 547.3 156.7 576 192 576L448 576C483.3 576 512 547.3 512 512L512 208L464 208L464 512C464 520.8 456.8 528 448 528L192 528C183.2 528 176 520.8 176 512L176 208L128 208zM288 280C288 266.7 277.3 256 264 256C250.7 256 240 266.7 240 280L240 456C240 469.3 250.7 480 264 480C277.3 480 288 469.3 288 456L288 280zM400 280C400 266.7 389.3 256 376 256C362.7 256 352 266.7 352 280L352 456C352 469.3 362.7 480 376 480C389.3 480 400 469.3 400 456L400 280z"/>
-              </svg>
-            </span>
-            <div class="preset-name">${name}</div>
-            <div class="preset-info">${on ? "ON" : "OFF"}</div>
-            <div class="preset-brightness">💡 ${briPercent}%</div>
-            ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
+            </svg>
+          </span>
+          <span style="position:absolute;bottom:8px;right:12px;cursor:pointer;width:22px;height:22px;z-index:2;" title="Delete preset" onclick="event.stopPropagation();confirmDeletePreset(${i});">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" width="22" height="22" style="display:block;">
+              <path fill="#ff4444" d="M262.2 48C248.9 48 236.9 56.3 232.2 68.8L216 112L120 112C106.7 112 96 122.7 96 136C96 149.3 106.7 160 120 160L520 160C533.3 160 544 149.3 544 136C544 122.7 533.3 112 520 112L424 112L407.8 68.8C403.1 56.3 391.2 48 377.8 48L262.2 48zM128 208L128 512C128 547.3 156.7 576 192 576L448 576C483.3 576 512 547.3 512 512L512 208L464 208L464 512C464 520.8 456.8 528 448 528L192 528C183.2 528 176 520.8 176 512L176 208L128 208zM288 280C288 266.7 277.3 256 264 256C250.7 256 240 266.7 240 280L240 456C240 469.3 250.7 480 264 480C277.3 480 288 469.3 288 456L288 280zM400 280C400 266.7 389.3 256 376 256C362.7 256 352 266.7 352 280L352 456C352 469.3 362.7 480 376 480C389.3 480 400 469.3 400 456L400 280z"/>
+            </svg>
+          </span>
+          <div class="preset-name">${name}</div>
+          <div class="preset-info">${on ? "ON" : "OFF"}</div>
+          <div class="preset-brightness">💡 ${briPercent}%</div>
+          ${fxName ? `<div class=\"preset-brightness\">${fxName}</div>` : ""}
 `;
               // Confirm delete modal logic
-              window.confirmDeletePreset = function(presetId) {
-                let modal = document.getElementById('delete-preset-modal');
+              window.confirmDeletePreset = function (presetId) {
+                let modal = document.getElementById("delete-preset-modal");
                 if (!modal) {
-                  modal = document.createElement('div');
-                  modal.id = 'delete-preset-modal';
-                  modal.style = 'display:flex;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;';
+                  modal = document.createElement("div");
+                  modal.id = "delete-preset-modal";
+                  modal.style =
+                    "display:flex;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:10000;align-items:center;justify-content:center;";
                   modal.innerHTML = `<div style="background:#222;padding:32px 24px 24px 24px;border-radius:12px;min-width:320px;max-width:90vw;box-shadow:0 8px 32px #000a;color:#fff;position:relative;text-align:center;">
                     <div style="font-size:1.3em;margin-bottom:18px;">Delete this preset?</div>
                     <div style="margin-bottom:24px;opacity:0.8;">This action cannot be undone.</div>
@@ -2394,35 +2433,40 @@
                   </div>`;
                   document.body.appendChild(modal);
                 } else {
-                  modal.style.display = 'flex';
+                  modal.style.display = "flex";
                 }
-                document.getElementById('delete-preset-confirm-btn').onclick = async function() {
-                  await window.deletePreset(presetId);
-                  modal.style.display = 'none';
-                };
-                document.getElementById('delete-preset-cancel-btn').onclick = function() {
-                  modal.style.display = 'none';
-                };
+                document.getElementById("delete-preset-confirm-btn").onclick =
+                  async function () {
+                    await window.deletePreset(presetId);
+                    modal.style.display = "none";
+                  };
+                document.getElementById("delete-preset-cancel-btn").onclick =
+                  function () {
+                    modal.style.display = "none";
+                  };
               };
 
-              window.deletePreset = async function(presetId) {
+              window.deletePreset = async function (presetId) {
                 try {
                   let presets = await getPresets(true);
                   if (presets[presetId]) {
                     delete presets[presetId];
-                    const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+                    const blob = new Blob([JSON.stringify(presets, null, 2)], {
+                      type: "application/json",
+                    });
                     const form = new FormData();
-                    form.append('data', blob, 'presets.json');
-                    await fetch('/upload', { method: 'POST', body: form });
+                    form.append("data", blob, "presets.json");
+                    await fetch("/upload", { method: "POST", body: form });
                     await loadPresetList();
-                    showToast('Preset deleted.');
+                    showToast("Preset deleted.");
                   }
                 } catch (e) {
-                  showToast('Failed to delete preset.');
+                  showToast("Failed to delete preset.");
                 }
               };
               // Highlight active preset, but only if lastActivePreset is not null
-              if (lastActivePreset !== null && lastActivePreset === i) card.classList.add("active");
+              if (lastActivePreset !== null && lastActivePreset === i)
+                card.classList.add("active");
               container.appendChild(card);
             }
           }
@@ -2434,71 +2478,88 @@
           gId("preset-list").innerHTML =
             '<div style="text-align:center;opacity:0.6;padding:20px;grid-column:1/-1">Error loading presets</div>';
         }
-          // Add modal container if not present
-          if (!document.getElementById('edit-preset-modal')) {
-            const modal = document.createElement('div');
-            modal.id = 'edit-preset-modal';
-            modal.style = 'display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;';
-            modal.innerHTML = `<div id="edit-preset-modal-content" style="background:#222;padding:32px 24px 24px 24px;border-radius:12px;min-width:320px;max-width:90vw;box-shadow:0 8px 32px #000a;color:#fff;position:relative;"></div>`;
-            document.body.appendChild(modal);
-          }
+        // Add modal container if not present
+        if (!document.getElementById("edit-preset-modal")) {
+          const modal = document.createElement("div");
+          modal.id = "edit-preset-modal";
+          modal.style =
+            "display:none;position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.5);z-index:9999;align-items:center;justify-content:center;";
+          modal.innerHTML = `<div id="edit-preset-modal-content" style="background:#222;padding:32px 24px 24px 24px;border-radius:12px;min-width:320px;max-width:90vw;box-shadow:0 8px 32px #000a;color:#fff;position:relative;"></div>`;
+          document.body.appendChild(modal);
+        }
 
-          // Add 'Add Preset' button if not present
-          if (!document.getElementById('add-preset-btn')) {
-            const addBtn = document.createElement('button');
-            addBtn.id = 'add-preset-btn';
-            addBtn.className = 'btn';
-            addBtn.textContent = '➕ Add Preset';
-            addBtn.style = 'margin-top:18px;display:block;width:15;';
-            addBtn.onclick = async () => {
-              // Find next available preset slot (1-16)
-              let presets = await getPresets();
-              let nextId = null;
+        // Add 'Add Preset' button if not present
+        if (!document.getElementById("add-preset-btn")) {
+          const addBtn = document.createElement("button");
+          addBtn.id = "add-preset-btn";
+          addBtn.className = "btn";
+          addBtn.textContent = "➕ Add Preset";
+          addBtn.style = "margin-top:18px;display:block;width:15;";
+          addBtn.onclick = async () => {
+            // Find next available preset slot (1-16)
+            let presets = await getPresets();
+            let nextId = null;
 
-              for (let i = 1; i <= 16; i++) {
-                if (!presets[i.toString()]) {
-                  nextId = i;
-                  break;
-                }
+            for (let i = 1; i <= 16; i++) {
+              if (!presets[i.toString()]) {
+                nextId = i;
+                break;
               }
-              if (!nextId) {
-                alert('All preset slots are used.');
-                return;
-              }
-              window.openEditPresetModal(nextId);
-            };
-            const presetList = document.getElementById('preset-list');
-            if (presetList) {
-              presetList.parentNode.appendChild(addBtn);
             }
+            if (!nextId) {
+              alert("All preset slots are used.");
+              return;
+            }
+            window.openEditPresetModal(nextId);
+          };
+          const presetList = document.getElementById("preset-list");
+          if (presetList) {
+            presetList.parentNode.appendChild(addBtn);
           }
+        }
       }
       // Modal logic for editing presets
-      window.openEditPresetModal = async function(presetId) {
-        const modal = document.getElementById('edit-preset-modal');
-        const content = document.getElementById('edit-preset-modal-content');
-        modal.style.display = 'flex';
+      window.openEditPresetModal = async function (presetId) {
+        const modal = document.getElementById("edit-preset-modal");
+        const content = document.getElementById("edit-preset-modal-content");
+        modal.style.display = "flex";
         // Fetch preset data
         const presets = await getPresets();
         const p = presets && presets[presetId.toString()];
         // If preset doesn't exist, create a default blank preset
-        let name = '', bri = 128, fx = 0, tr = 10, sx = 128, ix = 128, col = [0,191,255];
+        let name = "",
+          bri = 128,
+          fx = 0,
+          tr = 10,
+          sx = 128,
+          ix = 128,
+          col = [0, 191, 255];
         if (p) {
-          name = p.n || '';
+          name = p.n || "";
           bri = p.bri !== undefined ? p.bri : 128;
           fx = p.seg?.[0]?.fx !== undefined ? p.seg[0].fx : 0;
-          tr = p.transition !== undefined ? Math.round(p.transition/10) : 10;
+          tr = p.transition !== undefined ? Math.round(p.transition / 10) : 10;
           sx = p.seg?.[0]?.sx !== undefined ? p.seg[0].sx : 128;
           ix = p.seg?.[0]?.ix !== undefined ? p.seg[0].ix : 128;
           if (p.seg) {
-            if (Array.isArray(p.seg) && p.seg[0] && Array.isArray(p.seg[0].col) && p.seg[0].col[0]) {
+            if (
+              Array.isArray(p.seg) &&
+              p.seg[0] &&
+              Array.isArray(p.seg[0].col) &&
+              p.seg[0].col[0]
+            ) {
               col = p.seg[0].col[0];
             } else if (Array.isArray(p.seg.col) && p.seg.col[0]) {
               col = p.seg.col[0];
             }
           }
         }
-        const colHex = '#' + col.map(x => x.toString(16).padStart(2,'0')).join('').toUpperCase();
+        const colHex =
+          "#" +
+          col
+            .map((x) => x.toString(16).padStart(2, "0"))
+            .join("")
+            .toUpperCase();
         content.innerHTML = `
           <button onclick="closeEditPresetModal()" style="position:absolute;top:10px;right:10px;background:none;border:none;font-size:1.5em;color:#fff;cursor:pointer;">&times;</button>
           <div style="margin-bottom:16px;">
@@ -2508,7 +2569,7 @@
           <div style="margin-bottom:10px;">
             <label>Effect:
               <select id="edit-preset-fx" style="width:180px;padding:4px;margin-left:4px;">
-                ${Array.isArray(window.effects) ? window.effects.map(e => `<option value="${e.id}"${e.id===fx?" selected":""}>${e.icon ? e.icon + ' ' : ''}${e.name || ('Effect ' + e.id)}</option>`).join('') : ''}
+                ${Array.isArray(window.effects) ? window.effects.map((e) => `<option value="${e.id}"${e.id === fx ? " selected" : ""}>${e.icon ? e.icon + " " : ""}${e.name || "Effect " + e.id}</option>`).join("") : ""}
               </select>
             </label>
           </div>
@@ -2518,7 +2579,7 @@
               <div id="edit-preset-primary-color-bar" style="display:flex;gap:8px;margin-top:6px;"></div>
             </label>
           </div>
-          <div id="edit-preset-palette-row" style="margin-bottom:10px;${fx === 0 ? 'display:none;' : ''}">
+          <div id="edit-preset-palette-row" style="margin-bottom:10px;${fx === 0 ? "display:none;" : ""}">
             <label>Palette:
               <select id="edit-preset-pal" style="width:180px;padding:4px;margin-left:4px;"></select>
             </label>
@@ -2528,21 +2589,21 @@
               <div style="font-weight:500;margin-bottom:4px;">Brightness</div>
               <div style="display:flex;align-items:center;">
                 <input id="edit-preset-bri" type="range" min="0" max="255" value="${bri}" style="width:80%;vertical-align:middle;">
-                <span id="edit-preset-bri-val" style="margin-left:12px;font-weight:bold;">${Math.round(bri/255*100)}%</span>
+                <span id="edit-preset-bri-val" style="margin-left:12px;font-weight:bold;">${Math.round((bri / 255) * 100)}%</span>
               </div>
             </div>
             <div style="margin-bottom:14px;">
               <div style="font-weight:500;margin-bottom:4px;">Speed</div>
               <div style="display:flex;align-items:center;">
                 <input id="edit-preset-sx" type="range" min="0" max="255" value="${sx}" style="width:80%;vertical-align:middle;">
-                <span id="edit-preset-sx-val" style="margin-left:12px;font-weight:bold;">${Math.round(sx/255*100)}%</span>
+                <span id="edit-preset-sx-val" style="margin-left:12px;font-weight:bold;">${Math.round((sx / 255) * 100)}%</span>
               </div>
             </div>
             <div style="margin-bottom:14px;">
               <div style="font-weight:500;margin-bottom:4px;">Intensity</div>
               <div style="display:flex;align-items:center;">
                 <input id="edit-preset-ix" type="range" min="0" max="255" value="${ix}" style="width:80%;vertical-align:middle;">
-                <span id="edit-preset-ix-val" style="margin-left:12px;font-weight:bold;">${Math.round(ix/255*100)}%</span>
+                <span id="edit-preset-ix-val" style="margin-left:12px;font-weight:bold;">${Math.round((ix / 255) * 100)}%</span>
               </div>
             </div>
             <div style="margin-bottom:14px;">
@@ -2556,164 +2617,185 @@
           <button class="btn" onclick="saveEditPreset(${presetId})" style="margin-top:10px;">💾 Save</button>
         `;
         // Slider value display logic
-                // Render the primary color bar for modal
-                const aquariumColors = [
-                  { hex: "#00BFFF", name: "Blue" },
-                  { hex: "#1E90FF", name: "Ocean" },
-                  { hex: "#FFD700", name: "Sun" },
-                  { hex: "#FF8C00", name: "Coral" },
-                  { hex: "#FF6347", name: "Reef" },
-                  { hex: "#20B2AA", name: "Teal" },
-                  { hex: "#228B22", name: "Plant" },
-                  { hex: "#FFFFFF", name: "White" },
-                  { hex: "#191970", name: "Deep" },
-                  { hex: "#A0522D", name: "Sand" },
-                ];
-                // Find the closest color in aquariumColors to colHex
-                function hexToRgb(hex) {
-                  hex = hex.replace('#', '');
-                  return [
-                    parseInt(hex.substring(0, 2), 16),
-                    parseInt(hex.substring(2, 4), 16),
-                    parseInt(hex.substring(4, 6), 16)
-                  ];
-                }
-                function colorDistance(rgb1, rgb2) {
-                  return Math.sqrt(
-                    Math.pow(rgb1[0] - rgb2[0], 2) +
-                    Math.pow(rgb1[1] - rgb2[1], 2) +
-                    Math.pow(rgb1[2] - rgb2[2], 2)
-                  );
-                }
-                function findClosestColor(hex, colorList) {
-                  const rgb = hexToRgb(hex);
-                  let minDist = Infinity;
-                  let closest = colorList[0].hex;
-                  colorList.forEach(c => {
-                    const dist = colorDistance(rgb, hexToRgb(c.hex));
-                    if (dist < minDist) {
-                      minDist = dist;
-                      closest = c.hex;
-                    }
-                  });
-                  return closest;
-                }
-                let selectedModalColor = findClosestColor(colHex, aquariumColors);
-                window.selectedModalColor = selectedModalColor;
-                function renderEditPresetPrimaryColorBar(selectedHex) {
-                  const bar = document.getElementById("edit-preset-primary-color-bar");
-                  if (!bar) return;
-                  bar.innerHTML = "";
-                  aquariumColors.forEach((c) => {
-                    const d = document.createElement("div");
-                    d.title = c.name;
-                    d.className = "primary-color-circle" + (c.hex.toUpperCase() === selectedHex.toUpperCase() ? " selected" : "");
-                    d.style.background = c.hex;
-                    d.style.width = "32px";
-                    d.style.height = "32px";
-                    d.style.borderRadius = "50%";
-                    d.style.cursor = "pointer";
-                    if (c.hex.toUpperCase() === selectedHex.toUpperCase()) {
-                      d.style.border = "4px solid #ff9800";
-                      d.style.boxShadow = "0 0 0 4px #ff980088, 0 2px 8px #0003";
-                    } else {
-                      d.style.border = "2px solid #fff3";
-                      d.style.boxShadow = "0 2px 8px #0003";
-                    }
-                    d.onclick = () => {
-                      selectedModalColor = c.hex;
-                      window.selectedModalColor = c.hex;
-                      renderEditPresetPrimaryColorBar(selectedModalColor);
-                    };
-                    bar.appendChild(d);
-                  });
-                }
-                renderEditPresetPrimaryColorBar(selectedModalColor);
-        const briSlider = document.getElementById('edit-preset-bri');
-        const briVal = document.getElementById('edit-preset-bri-val');
+        // Render the primary color bar for modal
+        const aquariumColors = [
+          { hex: "#00BFFF", name: "Blue" },
+          { hex: "#1E90FF", name: "Ocean" },
+          { hex: "#FFD700", name: "Sun" },
+          { hex: "#FF8C00", name: "Coral" },
+          { hex: "#FF6347", name: "Reef" },
+          { hex: "#20B2AA", name: "Teal" },
+          { hex: "#228B22", name: "Plant" },
+          { hex: "#FFFFFF", name: "White" },
+          { hex: "#191970", name: "Deep" },
+          { hex: "#A0522D", name: "Sand" },
+        ];
+        // Find the closest color in aquariumColors to colHex
+        function hexToRgb(hex) {
+          hex = hex.replace("#", "");
+          return [
+            parseInt(hex.substring(0, 2), 16),
+            parseInt(hex.substring(2, 4), 16),
+            parseInt(hex.substring(4, 6), 16),
+          ];
+        }
+        function colorDistance(rgb1, rgb2) {
+          return Math.sqrt(
+            Math.pow(rgb1[0] - rgb2[0], 2) +
+              Math.pow(rgb1[1] - rgb2[1], 2) +
+              Math.pow(rgb1[2] - rgb2[2], 2),
+          );
+        }
+        function findClosestColor(hex, colorList) {
+          const rgb = hexToRgb(hex);
+          let minDist = Infinity;
+          let closest = colorList[0].hex;
+          colorList.forEach((c) => {
+            const dist = colorDistance(rgb, hexToRgb(c.hex));
+            if (dist < minDist) {
+              minDist = dist;
+              closest = c.hex;
+            }
+          });
+          return closest;
+        }
+        let selectedModalColor = findClosestColor(colHex, aquariumColors);
+        window.selectedModalColor = selectedModalColor;
+        function renderEditPresetPrimaryColorBar(selectedHex) {
+          const bar = document.getElementById("edit-preset-primary-color-bar");
+          if (!bar) return;
+          bar.innerHTML = "";
+          aquariumColors.forEach((c) => {
+            const d = document.createElement("div");
+            d.title = c.name;
+            d.className =
+              "primary-color-circle" +
+              (c.hex.toUpperCase() === selectedHex.toUpperCase()
+                ? " selected"
+                : "");
+            d.style.background = c.hex;
+            d.style.width = "32px";
+            d.style.height = "32px";
+            d.style.borderRadius = "50%";
+            d.style.cursor = "pointer";
+            if (c.hex.toUpperCase() === selectedHex.toUpperCase()) {
+              d.style.border = "4px solid #ff9800";
+              d.style.boxShadow = "0 0 0 4px #ff980088, 0 2px 8px #0003";
+            } else {
+              d.style.border = "2px solid #fff3";
+              d.style.boxShadow = "0 2px 8px #0003";
+            }
+            d.onclick = () => {
+              selectedModalColor = c.hex;
+              window.selectedModalColor = c.hex;
+              renderEditPresetPrimaryColorBar(selectedModalColor);
+            };
+            bar.appendChild(d);
+          });
+        }
+        renderEditPresetPrimaryColorBar(selectedModalColor);
+        const briSlider = document.getElementById("edit-preset-bri");
+        const briVal = document.getElementById("edit-preset-bri-val");
         if (briSlider && briVal) {
-          briSlider.addEventListener('input', function() {
-            briVal.textContent = Math.round(this.value/255*100) + '%';
+          briSlider.addEventListener("input", function () {
+            briVal.textContent = Math.round((this.value / 255) * 100) + "%";
           });
         }
-        const sxSlider = document.getElementById('edit-preset-sx');
-        const sxVal = document.getElementById('edit-preset-sx-val');
+        const sxSlider = document.getElementById("edit-preset-sx");
+        const sxVal = document.getElementById("edit-preset-sx-val");
         if (sxSlider && sxVal) {
-          sxSlider.addEventListener('input', function() {
-            sxVal.textContent = Math.round(this.value/255*100) + '%';
+          sxSlider.addEventListener("input", function () {
+            sxVal.textContent = Math.round((this.value / 255) * 100) + "%";
           });
         }
-        const ixSlider = document.getElementById('edit-preset-ix');
-        const ixVal = document.getElementById('edit-preset-ix-val');
+        const ixSlider = document.getElementById("edit-preset-ix");
+        const ixVal = document.getElementById("edit-preset-ix-val");
         if (ixSlider && ixVal) {
-          ixSlider.addEventListener('input', function() {
-            ixVal.textContent = Math.round(this.value/255*100) + '%';
+          ixSlider.addEventListener("input", function () {
+            ixVal.textContent = Math.round((this.value / 255) * 100) + "%";
           });
         }
-        const trSlider = document.getElementById('edit-preset-tr');
-        const trVal = document.getElementById('edit-preset-tr-val');
+        const trSlider = document.getElementById("edit-preset-tr");
+        const trVal = document.getElementById("edit-preset-tr-val");
         if (trSlider && trVal) {
-          trSlider.addEventListener('input', function() {
+          trSlider.addEventListener("input", function () {
             trVal.textContent = this.value;
           });
         }
         // Palette combo population logic
         async function fillPaletteCombo(selectedPal) {
-          const palSel = document.getElementById('edit-preset-pal');
+          const palSel = document.getElementById("edit-preset-pal");
           if (!palSel) return;
-          palSel.innerHTML = '';
+          palSel.innerHTML = "";
           let palettes = [];
-          if (typeof fetchAquariumPalettes === 'function') {
+          if (typeof fetchAquariumPalettes === "function") {
             palettes = await fetchAquariumPalettes();
           }
-          palettes.forEach(p => {
-            const opt = document.createElement('option');
+          palettes.forEach((p) => {
+            const opt = document.createElement("option");
             opt.value = p.id;
             opt.textContent = p.n || `Palette ${p.id}`;
-            if (selectedPal !== undefined && Number(selectedPal) === Number(p.id)) opt.selected = true;
+            if (
+              selectedPal !== undefined &&
+              Number(selectedPal) === Number(p.id)
+            )
+              opt.selected = true;
             palSel.appendChild(opt);
           });
         }
 
         // Initial palette combo fill if not solid
         if (fx !== 0) {
-          let pal = (p.seg && p.seg[0] && typeof p.seg[0].pal === 'number') ? p.seg[0].pal : undefined;
+          let pal =
+            p.seg && p.seg[0] && typeof p.seg[0].pal === "number"
+              ? p.seg[0].pal
+              : undefined;
           await fillPaletteCombo(pal);
         }
 
         // Effect change handler to toggle color/palette
-        document.getElementById('edit-preset-fx').addEventListener('change', async function(e) {
-          const fxVal = Number(this.value);
-          document.getElementById('edit-preset-color-row').style.display = '';
-          document.getElementById('edit-preset-palette-row').style.display = fxVal === 0 ? 'none' : '';
-          if (fxVal !== 0) {
-            // Try to use pal from effectDefaultsCache if available, else undefined
-            let pal = undefined;
-            if (typeof effectDefaultsCache === 'object' && effectDefaultsCache[fxVal] && typeof effectDefaultsCache[fxVal].pal === 'number') {
-              pal = effectDefaultsCache[fxVal].pal;
+        document
+          .getElementById("edit-preset-fx")
+          .addEventListener("change", async function (e) {
+            const fxVal = Number(this.value);
+            document.getElementById("edit-preset-color-row").style.display = "";
+            document.getElementById("edit-preset-palette-row").style.display =
+              fxVal === 0 ? "none" : "";
+            if (fxVal !== 0) {
+              // Try to use pal from effectDefaultsCache if available, else undefined
+              let pal = undefined;
+              if (
+                typeof effectDefaultsCache === "object" &&
+                effectDefaultsCache[fxVal] &&
+                typeof effectDefaultsCache[fxVal].pal === "number"
+              ) {
+                pal = effectDefaultsCache[fxVal].pal;
+              }
+              await fillPaletteCombo(pal);
             }
-            await fillPaletteCombo(pal);
-          }
-        });
-      }
+          });
+      };
 
-      window.closeEditPresetModal = function() {
-        const modal = document.getElementById('edit-preset-modal');
-        if (modal) modal.style.display = 'none';
-        document.removeEventListener('keydown', escListener, true);
-        if (modal) modal.removeEventListener('mousedown', outsideListener, true);
-      }
+      window.closeEditPresetModal = function () {
+        const modal = document.getElementById("edit-preset-modal");
+        if (modal) modal.style.display = "none";
+        document.removeEventListener("keydown", escListener, true);
+        if (modal)
+          modal.removeEventListener("mousedown", outsideListener, true);
+      };
 
       // ESC key and outside click listeners
       function escListener(e) {
-        if (e.key === 'Escape') {
+        if (e.key === "Escape") {
           window.closeEditPresetModal();
         }
       }
       function outsideListener(e) {
-        const modal = document.getElementById('edit-preset-modal');
+        const modal = document.getElementById("edit-preset-modal");
         if (!modal) return;
-        const content = modal.querySelector('.modal-content, [style*="background"], [style*="padding"]');
+        const content = modal.querySelector(
+          '.modal-content, [style*="background"], [style*="padding"]',
+        );
         if (content && !content.contains(e.target)) {
           window.closeEditPresetModal();
         }
@@ -2721,42 +2803,43 @@
 
       // Patch openEditPresetModal to add listeners
       const origOpenEditPresetModal = window.openEditPresetModal;
-      window.openEditPresetModal = function(...args) {
+      window.openEditPresetModal = function (...args) {
         setTimeout(() => {
-          document.addEventListener('keydown', escListener, true);
-          const modal = document.getElementById('edit-preset-modal');
-          if (modal) modal.addEventListener('mousedown', outsideListener, true);
+          document.addEventListener("keydown", escListener, true);
+          const modal = document.getElementById("edit-preset-modal");
+          if (modal) modal.addEventListener("mousedown", outsideListener, true);
         }, 0);
         return origOpenEditPresetModal.apply(this, args);
-      }
+      };
 
-      window.saveEditPreset = async function(presetId) {
-        const name = document.getElementById('edit-preset-name').value.trim();
+      window.saveEditPreset = async function (presetId) {
+        const name = document.getElementById("edit-preset-name").value.trim();
         if (!name) {
-          showToast('Preset must have a name.');
-          document.getElementById('edit-preset-name').focus();
+          showToast("Preset must have a name.");
+          document.getElementById("edit-preset-name").focus();
           return;
         }
         // Toast notification helper (global)
-        window.showToast = function(msg) {
-          let toast = document.getElementById('toast-msg');
+        window.showToast = function (msg) {
+          let toast = document.getElementById("toast-msg");
           if (!toast) {
-            toast = document.createElement('div');
-            toast.id = 'toast-msg';
-            toast.style = 'position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:14px 32px;border-radius:8px;font-size:1.1em;box-shadow:0 4px 24px #000a;z-index:99999;opacity:0;transition:opacity 0.3s;pointer-events:none;';
+            toast = document.createElement("div");
+            toast.id = "toast-msg";
+            toast.style =
+              "position:fixed;bottom:32px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:14px 32px;border-radius:8px;font-size:1.1em;box-shadow:0 4px 24px #000a;z-index:99999;opacity:0;transition:opacity 0.3s;pointer-events:none;";
             document.body.appendChild(toast);
           }
           toast.textContent = msg;
-          toast.style.opacity = '1';
+          toast.style.opacity = "1";
           setTimeout(() => {
-            toast.style.opacity = '0';
+            toast.style.opacity = "0";
           }, 2200);
-        }
-        let bri = parseInt(document.getElementById('edit-preset-bri').value);
-        const fx = parseInt(document.getElementById('edit-preset-fx').value);
-        let tr = parseInt(document.getElementById('edit-preset-tr').value);
-        const sx = parseInt(document.getElementById('edit-preset-sx').value);
-        const ix = parseInt(document.getElementById('edit-preset-ix').value);
+        };
+        let bri = parseInt(document.getElementById("edit-preset-bri").value);
+        const fx = parseInt(document.getElementById("edit-preset-fx").value);
+        let tr = parseInt(document.getElementById("edit-preset-tr").value);
+        const sx = parseInt(document.getElementById("edit-preset-sx").value);
+        const ix = parseInt(document.getElementById("edit-preset-ix").value);
         let seg = { fx: fx, sx: sx, ix: ix };
         // Always record color from modal bar
         let colHex = "#00BFFF";
@@ -2768,21 +2851,30 @@
           colHex = selectedModalColor;
         }
         if (!/^#[0-9A-F]{6}$/i.test(colHex)) colHex = "#00BFFF";
-        const r = parseInt(colHex.substr(1,2),16);
-        const g = parseInt(colHex.substr(3,2),16);
-        const b = parseInt(colHex.substr(5,2),16);
-        seg.col = [[r,g,b]];
+        const r = parseInt(colHex.substr(1, 2), 16);
+        const g = parseInt(colHex.substr(3, 2), 16);
+        const b = parseInt(colHex.substr(5, 2), 16);
+        seg.col = [[r, g, b]];
         // Palette only for non-Solid
         if (fx !== 0) {
-          const palSel = document.getElementById('edit-preset-pal');
+          const palSel = document.getElementById("edit-preset-pal");
           if (palSel && palSel.value) seg.pal = Number(palSel.value);
         }
         // Enforce min transition time and max brightness
         // Only clamp brightness, do not enforce min transition
         let maxBri = 255; // default max
-        if (window._cachedConfig && window._cachedConfig.um && window._cachedConfig.um.AquariumController && window._cachedConfig.um.AquariumController.safety) {
-          if (typeof window._cachedConfig.um.AquariumController.safety.maxBrightness === 'number') {
-            maxBri = window._cachedConfig.um.AquariumController.safety.maxBrightness;
+        if (
+          window._cachedConfig &&
+          window._cachedConfig.um &&
+          window._cachedConfig.um.AquariumController &&
+          window._cachedConfig.um.AquariumController.safety
+        ) {
+          if (
+            typeof window._cachedConfig.um.AquariumController.safety
+              .maxBrightness === "number"
+          ) {
+            maxBri =
+              window._cachedConfig.um.AquariumController.safety.maxBrightness;
           }
         }
         if (bri > maxBri) bri = maxBri;
@@ -2794,21 +2886,23 @@
           presets[presetId] = {
             n: name,
             bri: bri,
-            transition: tr*10,
-            seg: [seg]
+            transition: tr * 10,
+            seg: [seg],
           };
           // 3. Create a Blob and FormData for upload
-          const blob = new Blob([JSON.stringify(presets, null, 2)], { type: 'application/json' });
+          const blob = new Blob([JSON.stringify(presets, null, 2)], {
+            type: "application/json",
+          });
           const form = new FormData();
-          form.append('data', blob, 'presets.json');
+          form.append("data", blob, "presets.json");
           // 4. Upload to /upload
-          await fetch('/upload', { method: 'POST', body: form });
+          await fetch("/upload", { method: "POST", body: form });
           closeEditPresetModal();
           await loadPresetList();
         } catch (e) {
-          alert('Failed to save preset.');
+          alert("Failed to save preset.");
         }
-      }
+      };
       async function updateAqSettings() {
         const cfg = {
           um: {
@@ -2948,7 +3042,9 @@
           i.classList.remove("disconnected");
           i.classList.add("connected");
           t.textContent = "Connected";
-          if (pwr) pwr.style.fill = (typeof ps !== 'undefined' && !ps) ? "#e74c3c" : "#00d26a";
+          if (pwr)
+            pwr.style.fill =
+              typeof ps !== "undefined" && !ps ? "#e74c3c" : "#00d26a";
         } else {
           i.classList.remove("connected");
           i.classList.add("disconnected");
@@ -2983,9 +3079,32 @@
         <p class="subtitle">Smart Lighting System</p>
       </header>
       <div class="status-bar">
-        <div style="display: flex; align-items: center; gap: 8px;">
-          <span id="power-icon" style="display:inline-block;width:22px;height:22px;vertical-align:middle;cursor:pointer;" onclick="togglePower()">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" style="width:22px;height:22px;fill:#e74c3c;vertical-align:middle;"><path d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 320C288 337.7 302.3 352 320 352C337.7 352 352 337.7 352 320L352 64zM210.3 162.4C224.8 152.3 228.3 132.3 218.2 117.8C208.1 103.3 188.1 99.8 173.6 109.9C107.4 156.1 64 233 64 320C64 461.4 178.6 576 320 576C461.4 576 576 461.4 576 320C576 233 532.6 156.1 466.3 109.9C451.8 99.8 431.9 103.3 421.7 117.8C411.5 132.3 415.1 152.2 429.6 162.4C479.4 197.2 511.9 254.8 511.9 320C511.9 426 425.9 512 319.9 512C213.9 512 128 426 128 320C128 254.8 160.5 197.1 210.3 162.4z"/></svg>
+        <div style="display: flex; align-items: center; gap: 8px">
+          <span
+            id="power-icon"
+            style="
+              display: inline-block;
+              width: 22px;
+              height: 22px;
+              vertical-align: middle;
+              cursor: pointer;
+            "
+            onclick="togglePower()"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 640 640"
+              style="
+                width: 22px;
+                height: 22px;
+                fill: #e74c3c;
+                vertical-align: middle;
+              "
+            >
+              <path
+                d="M352 64C352 46.3 337.7 32 320 32C302.3 32 288 46.3 288 64L288 320C288 337.7 302.3 352 320 352C337.7 352 352 337.7 352 320L352 64zM210.3 162.4C224.8 152.3 228.3 132.3 218.2 117.8C208.1 103.3 188.1 99.8 173.6 109.9C107.4 156.1 64 233 64 320C64 461.4 178.6 576 320 576C461.4 576 576 461.4 576 320C576 233 532.6 156.1 466.3 109.9C451.8 99.8 431.9 103.3 421.7 117.8C411.5 132.3 415.1 152.2 429.6 162.4C479.4 197.2 511.9 254.8 511.9 320C511.9 426 425.9 512 319.9 512C213.9 512 128 426 128 320C128 254.8 160.5 197.1 210.3 162.4z"
+              />
+            </svg>
           </span>
           <span class="status-indicator disconnected" id="si"></span>
           <span id="st">Disconnected</span>
@@ -3042,8 +3161,8 @@
           </div>
           <div class="control-group">
             <label
-              >Transition: <span class="value-display" id="tv"></span></label
-            >
+              >Transition: <span class="value-display" id="tv"></span
+            ></label>
             <input
               type="range"
               id="tr"
@@ -3088,17 +3207,44 @@
         <div class="card">
           <h2>🛡️ Safety</h2>
           <div class="control-group" id="min-tr-group">
-            <label>Min Transition Time: <span class="value-display" id="min_tr_v">&nbsp;</span></label>
-            <input type="range" id="min_tr" min="5" max="60" value="10" disabled style="opacity:0.5;pointer-events:none;" />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Minimum safe transition for fish (prevents stress)</p>
+            <label
+              >Min Transition Time:
+              <span class="value-display" id="min_tr_v">&nbsp;</span></label
+            >
+            <input
+              type="range"
+              id="min_tr"
+              min="5"
+              max="60"
+              value="10"
+              disabled
+              style="opacity: 0.5; pointer-events: none"
+            />
+            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
+              Minimum safe transition for fish (prevents stress)
+            </p>
           </div>
           <div class="control-group" id="max-bri-group">
-            <label>Max Brightness: <span class="value-display" id="max_bri_v">&nbsp;</span></label>
-            <input type="range" id="max_bri" min="50" max="255" value="200" disabled style="opacity:0.5;pointer-events:none;" />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">Safety limit to protect fish from sudden brightness</p>
+            <label
+              >Max Brightness:
+              <span class="value-display" id="max_bri_v">&nbsp;</span></label
+            >
+            <input
+              type="range"
+              id="max_bri"
+              min="50"
+              max="255"
+              value="200"
+              disabled
+              style="opacity: 0.5; pointer-events: none"
+            />
+            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
+              Safety limit to protect fish from sudden brightness
+            </p>
           </div>
           <p style="margin-top: 15px; opacity: 0.7; font-size: 0.9em">
-            🛡️ Safety features ensure gradual transitions and brightness limits for fish health. Changes save automatically.
+            🛡️ Safety features ensure gradual transitions and brightness limits
+            for fish health. Changes save automatically.
           </p>
         </div>
         <div class="card" style="grid-column: 1/-1">
@@ -3119,31 +3265,36 @@
           >
             <div class="control-group" style="flex: 1; min-width: 220px">
               <label for="sx-slider"
-                >Speed: <span class="value-display" id="sv"></span></label
-              >
+                >Speed: <span class="value-display" id="sv"></span
+              ></label>
               <input
                 type="range"
                 id="sx-slider"
                 min="0"
                 max="255"
                 value="128"
-                oninput="gId('sv').textContent = Math.round(this.value/255*100) + '%'"
+                oninput="
+                  gId('sv').textContent =
+                    Math.round((this.value / 255) * 100) + '%'
+                "
                 onmouseup="updateSp(this.value)"
                 ontouchend="updateSp(this.value)"
               />
             </div>
             <div class="control-group" style="flex: 1; min-width: 220px">
               <label for="ix-slider"
-                >Intensity:
-                <span class="value-display" id="iv"></span></label
-              >
+                >Intensity: <span class="value-display" id="iv"></span
+              ></label>
               <input
                 type="range"
                 id="ix-slider"
                 min="0"
                 max="255"
                 value="128"
-                oninput="gId('iv').textContent = Math.round(this.value/255*100) + '%'"
+                oninput="
+                  gId('iv').textContent =
+                    Math.round((this.value / 255) * 100) + '%'
+                "
                 onmouseup="updateIx(this.value)"
                 ontouchend="updateIx(this.value)"
               />
