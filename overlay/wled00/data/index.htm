@@ -1046,7 +1046,7 @@
           ws.send('{"lv":true}');
         };
         ws.onclose = (ev) => {
-          updateStatus(false);
+          updateStatus(false, ps);
           wsConnecting = false;
           // Only reconnect if not already pending
           if (!wsReconnectPending) {
@@ -1055,25 +1055,34 @@
           }
         };
         ws.onerror = (err) => {
-          updateStatus(false);
+          updateStatus(false, ps);
           wsConnecting = false;
         };
         ws.onmessage = (e) => {
-          // Only suppress logging for binary blobs, log everything else
-          if (
-            e.data instanceof Blob &&
-            (!e.data.type || !e.data.type.startsWith("text"))
-          ) {
-            // Suppress logging for binary blobs
+          // Debug: log all WebSocket messages
+          if (e.data instanceof Blob) {
+            if (e.data.type && e.data.type.startsWith("text")) {
+              const reader = new FileReader();
+              reader.onload = function () {
+                console.debug("WS message (Blob as text):", reader.result);
+              };
+              reader.readAsText(e.data);
+            }
           } else {
+            console.debug("WS message (string):", e.data);
           }
           // Only set status to connected after receiving {success:true}
           try {
             const msg = typeof e.data === "string" ? JSON.parse(e.data) : null;
             if (msg && msg.success === true) {
-              updateStatus(true);
+              updateStatus(true, ps);
             }
-          } catch (err) {}
+            if (msg) {
+              console.debug("WS message (parsed):", msg);
+            }
+          } catch (err) {
+            console.debug("WS message parse error:", err);
+          }
           let handleState = async (data) => {
             // Force preset highlight from backend state on every WS message
             if (typeof data.ps === "number") {
@@ -1350,6 +1359,8 @@
               const data = JSON.parse(e.data);
               // Handle error:3 (e.g., authentication or invalid request)
               if (data && data.error === 3) {
+                // Explicitly show disconnected and power off
+                updateStatus(false, false);
                 // Attempt to reconnect after a short delay, only if not already pending
                 if (!wsReconnectPending) {
                   wsReconnectPending = true;
@@ -1422,10 +1433,10 @@
         // updateScheduleActiveRow fully removed; schedule row highlighting is now handled only in populateScheduleTable
         // (removed redundant empty error handler)
         ws.onerror = (err) => {
-          updateStatus(false);
+          updateStatus(false, ps);
         };
         ws.onclose = (ev) => {
-          updateStatus(false);
+          updateStatus(false, ps);
           // Only reconnect if not already pending
           if (!wsReconnectPending) {
             wsReconnectPending = true;
@@ -2093,21 +2104,11 @@
         } catch (e) {}
       }
       async function togglePower() {
-        const b = gId("pb");
-        b.disabled = true;
         const prevPs = ps;
+        const b = gId("pb");
         ps = !ps;
-        // Optimistically update UI
-        if (ps) {
-          b.classList.remove("off");
-          b.classList.add("on");
-          b.textContent = "Turn Off";
-        } else {
-          b.classList.remove("on");
-          b.classList.add("off");
-          b.textContent = "Turn On";
-        }
-        updateStatus(true);
+        // Optimistically update UI (icon only)
+        updateStatus(true, ps);
         try {
           // Send instant on/off with transition:0 and segment 0
           const req = {
@@ -2119,6 +2120,23 @@
           // Optionally, check resp for confirmation
           if (resp && typeof resp.on === "boolean") {
             ps = resp.on;
+            if (b) {
+              if (ps) {
+                b.classList.remove("off");
+                b.classList.add("on");
+                b.textContent = "Turn Off";
+              } else {
+                b.classList.remove("on");
+                b.classList.add("off");
+                b.textContent = "Turn On";
+              }
+            }
+            updateStatus(true, ps);
+          }
+        } catch (e) {
+          // Revert UI on error
+          ps = prevPs;
+          if (b) {
             if (ps) {
               b.classList.remove("off");
               b.classList.add("on");
@@ -2128,23 +2146,10 @@
               b.classList.add("off");
               b.textContent = "Turn On";
             }
-            updateStatus(true);
           }
-        } catch (e) {
-          // Revert UI on error
-          ps = prevPs;
-          if (ps) {
-            b.classList.remove("off");
-            b.classList.add("on");
-            b.textContent = "Turn Off";
-          } else {
-            b.classList.remove("on");
-            b.classList.add("off");
-            b.textContent = "Turn On";
-          }
-          updateStatus(false);
+          updateStatus(false, ps);
         } finally {
-          b.disabled = false;
+          if (b) b.disabled = false;
         }
       }
       function updateBriLocal(v) {
@@ -3042,13 +3047,14 @@
         const i = gId("si"),
           t = gId("st"),
           pwr = gId("power-icon") && gId("power-icon").querySelector("svg");
+        let powerOn = arguments.length > 1 ? arguments[1] : ps;
         if (ok) {
           i.classList.remove("disconnected");
           i.classList.add("connected");
           t.textContent = "Connected";
           if (pwr)
             pwr.style.fill =
-              typeof ps !== "undefined" && !ps ? "#e74c3c" : "#00d26a";
+              typeof powerOn !== "undefined" && !powerOn ? "#e74c3c" : "#00d26a";
         } else {
           i.classList.remove("connected");
           i.classList.add("disconnected");
@@ -3058,7 +3064,7 @@
       }
       async function checkConn() {
         // Only update connection status, no state fetch
-        updateStatus(ws && ws.readyState === 1);
+        updateStatus(ws && ws.readyState === 1, ps);
       }
       async function initOnLoad() {
         // Do not call checkConn() on load; let WebSocket handlers update status
@@ -3067,6 +3073,20 @@
         await getPal();
         // Always build palette combo after both are loaded
         await updateAquariumPaletteUI();
+        // Fetch current power state and update icon immediately if WS not yet open
+        try {
+          const resp = await wledApiFetch('/json/state', { method: 'get' });
+          if (resp && resp.ok) {
+            const data = await resp.json();
+            if (typeof data.on !== 'undefined') {
+              ps = data.on;
+              // Only update status if WebSocket is not yet open
+              if (!ws || ws.readyState !== 1) {
+                updateStatus(true, ps);
+              }
+            }
+          }
+        } catch (e) {}
         connectPeekWS();
       }
       function gId(i) {
