@@ -2535,14 +2535,15 @@
         // Fetch preset data
         const presets = await getPresets();
         const p = presets && presets[presetId.toString()];
-        // If preset doesn't exist, create a default blank preset
+        // Defaults
         let name = "",
           bri = 128,
           fx = 0,
           tr = 10,
           sx = 128,
-          ix = 128,
-          col = [0, 191, 255];
+          ix = 128;
+        // Determine color selection from preset, fallback to first aquariumColors
+        let selectedModalColorObj = aquariumColors[0];
         if (p) {
           name = p.n || "";
           bri = p.bri !== undefined ? p.bri : 128;
@@ -2550,6 +2551,7 @@
           tr = p.transition !== undefined ? Math.round(p.transition / 10) : 10;
           sx = p.seg?.[0]?.sx !== undefined ? p.seg[0].sx : 128;
           ix = p.seg?.[0]?.ix !== undefined ? p.seg[0].ix : 128;
+          let presetCol = null;
           if (p.seg) {
             if (
               Array.isArray(p.seg) &&
@@ -2557,24 +2559,32 @@
               Array.isArray(p.seg[0].col) &&
               p.seg[0].col[0]
             ) {
-              col = p.seg[0].col[0];
+              presetCol = p.seg[0].col[0];
             } else if (Array.isArray(p.seg.col) && p.seg.col[0]) {
-              col = p.seg.col[0];
+              presetCol = p.seg.col[0];
             }
           }
+          if (presetCol) {
+            // Find matching color in aquariumColors by RGB
+            const presetHex =
+              "#" +
+              presetCol
+                .slice(0, 3)
+                .map((x) => x.toString(16).padStart(2, "0"))
+                .join("")
+                .toUpperCase();
+            const found = aquariumColors.find(
+              (c) => c.hex.toUpperCase() === presetHex,
+            );
+            if (found) selectedModalColorObj = found;
+          }
         }
-        const colHex =
-          "#" +
-          col
-            .map((x) => x.toString(16).padStart(2, "0"))
-            .join("")
-            .toUpperCase();
+        window.selectedModalColorObj = selectedModalColorObj;
         content.innerHTML = `
           <button onclick="closeEditPresetModal()" style="position:absolute;top:10px;right:10px;background:none;border:none;font-size:1.5em;color:#fff;cursor:pointer;">&times;</button>
           <div style="margin-bottom:16px;">
             <input id="edit-preset-name" value="${name}" style="width:90%;font-size:1.3em;font-weight:bold;padding:6px 8px;margin:0 auto;display:block;text-align:center;border-radius:4px;border:1px solid #444;background:#222;color:#fff;">
           </div>
-          <!-- Brightness and Transition sliders will be at the bottom -->
           <div style="margin-bottom:10px;">
             <label>Effect:
               <select id="edit-preset-fx" style="width:180px;padding:4px;margin-left:4px;">
@@ -2582,7 +2592,6 @@
               </select>
             </label>
           </div>
-          <!-- Always show color bar for primary color selection -->
           <div id="edit-preset-color-row" style="margin-bottom:10px;">
             <label>Color:
               <div id="edit-preset-primary-color-bar" style="display:flex;gap:8px;margin-top:6px;"></div>
@@ -2625,52 +2634,8 @@
           </div>
           <button class="btn" onclick="saveEditPreset(${presetId})" style="margin-top:10px;">💾 Save</button>
         `;
-        // Slider value display logic
-        // Render the primary color bar for modal
-        const aquariumColors = [
-          { hex: "#00BFFF", name: "Blue" },
-          { hex: "#1E90FF", name: "Ocean" },
-          { hex: "#FFD700", name: "Sun" },
-          { hex: "#FF8C00", name: "Coral" },
-          { hex: "#FF6347", name: "Reef" },
-          { hex: "#20B2AA", name: "Teal" },
-          { hex: "#228B22", name: "Plant" },
-          { hex: "#FFFFFF", name: "White" },
-          { hex: "#191970", name: "Deep" },
-          { hex: "#A0522D", name: "Sand" },
-        ];
-        // Find the closest color in aquariumColors to colHex
-        function hexToRgb(hex) {
-          hex = hex.replace("#", "");
-          return [
-            parseInt(hex.substring(0, 2), 16),
-            parseInt(hex.substring(2, 4), 16),
-            parseInt(hex.substring(4, 6), 16),
-          ];
-        }
-        function colorDistance(rgb1, rgb2) {
-          return Math.sqrt(
-            Math.pow(rgb1[0] - rgb2[0], 2) +
-              Math.pow(rgb1[1] - rgb2[1], 2) +
-              Math.pow(rgb1[2] - rgb2[2], 2),
-          );
-        }
-        function findClosestColor(hex, colorList) {
-          const rgb = hexToRgb(hex);
-          let minDist = Infinity;
-          let closest = colorList[0].hex;
-          colorList.forEach((c) => {
-            const dist = colorDistance(rgb, hexToRgb(c.hex));
-            if (dist < minDist) {
-              minDist = dist;
-              closest = c.hex;
-            }
-          });
-          return closest;
-        }
-        let selectedModalColor = findClosestColor(colHex, aquariumColors);
-        window.selectedModalColor = selectedModalColor;
-        function renderEditPresetPrimaryColorBar(selectedHex) {
+        // Render color bar and handle selection
+        function renderEditPresetPrimaryColorBar(selectedObj) {
           const bar = document.getElementById("edit-preset-primary-color-bar");
           if (!bar) return;
           bar.innerHTML = "";
@@ -2679,7 +2644,7 @@
             d.title = c.name;
             d.className =
               "primary-color-circle" +
-              (c.hex.toUpperCase() === selectedHex.toUpperCase()
+              (c.hex.toUpperCase() === selectedObj.hex.toUpperCase()
                 ? " selected"
                 : "");
             d.style.background = c.hex;
@@ -2687,7 +2652,7 @@
             d.style.height = "32px";
             d.style.borderRadius = "50%";
             d.style.cursor = "pointer";
-            if (c.hex.toUpperCase() === selectedHex.toUpperCase()) {
+            if (c.hex.toUpperCase() === selectedObj.hex.toUpperCase()) {
               d.style.border = "4px solid #ff9800";
               d.style.boxShadow = "0 0 0 4px #ff980088, 0 2px 8px #0003";
             } else {
@@ -2695,14 +2660,13 @@
               d.style.boxShadow = "0 2px 8px #0003";
             }
             d.onclick = () => {
-              selectedModalColor = c.hex;
-              window.selectedModalColor = c.hex;
-              renderEditPresetPrimaryColorBar(selectedModalColor);
+              window.selectedModalColorObj = c;
+              renderEditPresetPrimaryColorBar(c);
             };
             bar.appendChild(d);
           });
         }
-        renderEditPresetPrimaryColorBar(selectedModalColor);
+        renderEditPresetPrimaryColorBar(selectedModalColorObj);
         const briSlider = document.getElementById("edit-preset-bri");
         const briVal = document.getElementById("edit-preset-bri-val");
         if (briSlider && briVal) {
@@ -2850,20 +2814,27 @@
         const sx = parseInt(document.getElementById("edit-preset-sx").value);
         const ix = parseInt(document.getElementById("edit-preset-ix").value);
         let seg = { fx: fx, sx: sx, ix: ix };
-        // Always record color from modal bar
-        let colHex = "#00BFFF";
-        if (typeof window.selectedModalColor === "string") {
-          colHex = window.selectedModalColor;
-        } else if (window._lastModalColor) {
-          colHex = window._lastModalColor;
-        } else if (typeof selectedModalColor === "string") {
-          colHex = selectedModalColor;
+        // Always record color from modal bar in RGBW format if possible
+        const colorObj = window.selectedModalColorObj;
+        if (!colorObj || typeof colorObj.hex !== "string") {
+          showToast("Please select a color.");
+          return;
         }
-        if (!/^#[0-9A-F]{6}$/i.test(colHex)) colHex = "#00BFFF";
-        const r = parseInt(colHex.substr(1, 2), 16);
-        const g = parseInt(colHex.substr(3, 2), 16);
-        const b = parseInt(colHex.substr(5, 2), 16);
-        seg.col = [[r, g, b]];
+        // Use r, g, b, w directly from the aquariumColors object
+        const r =
+          typeof colorObj.r === "number"
+            ? colorObj.r
+            : parseInt(colorObj.hex.substr(1, 2), 16);
+        const g =
+          typeof colorObj.g === "number"
+            ? colorObj.g
+            : parseInt(colorObj.hex.substr(3, 2), 16);
+        const b =
+          typeof colorObj.b === "number"
+            ? colorObj.b
+            : parseInt(colorObj.hex.substr(5, 2), 16);
+        const w = typeof colorObj.w === "number" ? colorObj.w : 0;
+        seg.col = [[r, g, b, w]];
         // Palette only for non-Solid
         if (fx !== 0) {
           const palSel = document.getElementById("edit-preset-pal");
@@ -3054,7 +3025,9 @@
           t.textContent = "Connected";
           if (pwr)
             pwr.style.fill =
-              typeof powerOn !== "undefined" && !powerOn ? "#e74c3c" : "#00d26a";
+              typeof powerOn !== "undefined" && !powerOn
+                ? "#e74c3c"
+                : "#00d26a";
         } else {
           i.classList.remove("connected");
           i.classList.add("disconnected");
@@ -3075,10 +3048,10 @@
         await updateAquariumPaletteUI();
         // Fetch current power state and update icon immediately if WS not yet open
         try {
-          const resp = await wledApiFetch('/json/state', { method: 'get' });
+          const resp = await wledApiFetch("/json/state", { method: "get" });
           if (resp && resp.ok) {
             const data = await resp.json();
-            if (typeof data.on !== 'undefined') {
+            if (typeof data.on !== "undefined") {
               ps = data.on;
               // Only update status if WebSocket is not yet open
               if (!ws || ws.readyState !== 1) {
