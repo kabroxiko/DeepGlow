@@ -36,8 +36,8 @@
       }
       .control-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-        gap: 20px;
+        grid-template-columns: 1fr 1fr;
+        gap: 32px;
         margin-bottom: 30px;
       }
       .card {
@@ -46,6 +46,8 @@
         padding: 25px;
         box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
         border: 1px solid rgba(255, 255, 255, 0.1);
+        width: 100%;
+        max-width: none;
       }
       .card h2 {
         margin-bottom: 20px;
@@ -298,20 +300,36 @@
           font-size: 2em;
         }
       }
-      .primary-color-circle {
-        width: 25px;
-        height: 25px;
+      .color-circle {
+        width: 28px;
+        height: 28px;
         border-radius: 50%;
         display: inline-block;
-        box-shadow: 0 2px 8px #0003;
-        margin: 0;
-        padding: 0;
+        margin: 0 1px;
         border: 2px solid #fff3;
+        box-shadow: 0 2px 8px #0003;
         cursor: pointer;
-        transition: border 0.2s;
+        transition:
+          border 0.15s,
+          box-shadow 0.15s;
+        vertical-align: middle;
       }
-      .primary-color-circle.selected {
-        border: 4px solid #00bfff;
+      #primary-color-bar,
+      #secondary-color-bar,
+      #tertiary-color-bar {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: center;
+        overflow-x: auto;
+        white-space: nowrap;
+        min-height: 36px;
+      }
+      .color-circle.selected {
+        border: 4px solid #ff9800;
+        box-shadow:
+          0 0 0 4px #ff980088,
+          0 2px 8px #0003;
       }
     </style>
     <script>
@@ -374,6 +392,119 @@
           tries++;
         }
         return resp;
+      }
+
+      // DEBUG: Show number of colors supported for current effect
+      function debugEffectColorCount(fx) {
+        // Default: most effects support up to 3 colors, but some may support fewer
+        // You can extend this mapping as needed for your effects
+        // Determine color count from fxdata param string
+        let effectColorCount = 1;
+        let params = null;
+        let debugInfo = {};
+        if (typeof effectDefaultsCache === "object" && effectDefaultsCache[fx] && effectDefaultsCache[fx].params) {
+          params = effectDefaultsCache[fx].params;
+          // Split by ';' and get the second parameter
+          let parts = params.split(';');
+          let secondParam = parts.length > 1 ? parts[1] : '';
+          // Count comma-separated items in the second parameter
+          let items = secondParam.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          effectColorCount = items.length > 0 ? items.length : 3;
+          debugInfo = { params, secondParam, items };
+        }
+        // Enhanced debug output
+        console.debug(`[DEBUG] fx=${fx}`);
+        console.debug(`[DEBUG] params:`, params);
+        console.debug(`[DEBUG] secondParam:`, debugInfo.secondParam);
+        console.debug(`[DEBUG] items:`, debugInfo.items);
+        console.debug(`[DEBUG] Effect fx=${fx} supports ${effectColorCount} color(s)`);
+        // Optionally, show in UI (e.g., in a debug div)
+        let dbgDiv = document.getElementById("debug-color-count");
+        if (!dbgDiv) {
+          dbgDiv = document.createElement("div");
+          dbgDiv.id = "debug-color-count";
+          dbgDiv.style =
+            "position:fixed;bottom:8px;right:8px;background:#222;color:#fff;padding:8px;border-radius:6px;z-index:9999;font-size:1em;opacity:0.9;";
+          document.body.appendChild(dbgDiv);
+        }
+        dbgDiv.textContent = `Effect fx=${fx} supports ${effectColorCount} color(s)`;
+
+        // Show/hide color bars according to effectColorCount and update their labels
+        const primaryBar = document.getElementById("primary-color-bar");
+        const secondaryBar = document.getElementById("secondary-color-bar");
+        const tertiaryBar = document.getElementById("tertiary-color-bar");
+        const primaryLabel = primaryBar?.previousElementSibling;
+        const secondaryLabel = secondaryBar?.previousElementSibling;
+        const tertiaryLabel = tertiaryBar?.previousElementSibling;
+
+        // Set label text according to color slot (full terms)
+        // Use literal values from items (secondParam) if present, fallback to defaults
+        const defaultLabels = ["Foreground", "Background", "Custom Slot"];
+        // Map known literals to human-readable labels
+        function humanLabel(literal, idx) {
+          if (!literal || typeof literal !== "string") return defaultLabels[idx] || "";
+          // If value is '!', use Fx, Bg, CS in order, mapped to human-readable
+          if (literal === "!") {
+            const fallback = ["Fx", "Bg", "CS"];
+            const fallbackMap = {
+              "Fx": "Foreground",
+              "Bg": "Background",
+              "CS": "Custom Slot"
+            };
+            return fallbackMap[fallback[idx]] || fallback[idx];
+          }
+          const map = {
+            "Fx": "Foreground",
+            "Bg": "Background",
+            "CS": "Custom Slot",
+            "1": "Primary Color",
+            "2": "Secondary Color",
+            "3": "Tertiary Color"
+          };
+          // Remove trailing/leading colons and whitespace
+          let key = literal.replace(/[:\s]/g, "");
+          return map[key] || literal || defaultLabels[idx] || "";
+        }
+        let labelItems = debugInfo && Array.isArray(debugInfo.items) && debugInfo.items.length > 0
+          ? debugInfo.items
+          : [];
+        // If no color params, hide all bars and labels
+        if (!labelItems.length || (labelItems.length === 1 && labelItems[0] === "")) {
+          if (primaryLabel && primaryLabel.tagName === "LABEL") {
+            primaryLabel.textContent = "";
+            primaryLabel.style.display = "none";
+          }
+          if (secondaryLabel && secondaryLabel.tagName === "LABEL") {
+            secondaryLabel.textContent = "";
+            secondaryLabel.style.display = "none";
+          }
+          if (tertiaryLabel && tertiaryLabel.tagName === "LABEL") {
+            tertiaryLabel.textContent = "";
+            tertiaryLabel.style.display = "none";
+          }
+          if (primaryBar) primaryBar.style.display = "none";
+          if (secondaryBar) secondaryBar.style.display = "none";
+          if (tertiaryBar) tertiaryBar.style.display = "none";
+        } else {
+          if (primaryLabel && primaryLabel.tagName === "LABEL") {
+            primaryLabel.textContent = effectColorCount >= 1 ? humanLabel(labelItems[0], 0) : "";
+            primaryLabel.style.display = effectColorCount >= 1 ? "" : "none";
+          }
+          if (secondaryLabel && secondaryLabel.tagName === "LABEL") {
+            secondaryLabel.textContent = effectColorCount >= 2 ? humanLabel(labelItems[1], 1) : "";
+            secondaryLabel.style.display = effectColorCount >= 2 ? "" : "none";
+          }
+          if (tertiaryLabel && tertiaryLabel.tagName === "LABEL") {
+            tertiaryLabel.textContent = effectColorCount >= 3 ? humanLabel(labelItems[2], 2) : "";
+            tertiaryLabel.style.display = effectColorCount >= 3 ? "" : "none";
+          }
+          if (primaryBar)
+            primaryBar.style.display = effectColorCount >= 1 ? "" : "none";
+          if (secondaryBar)
+            secondaryBar.style.display = effectColorCount >= 2 ? "" : "none";
+          if (tertiaryBar)
+            tertiaryBar.style.display = effectColorCount >= 3 ? "" : "none";
+        }
       }
 
       // On local file load, prompt for WLED IP and override fetch/ws
@@ -470,24 +601,26 @@
       // Effects fallback for initial render and error cases
       // Effects array with icon only for known effects (no hardcoded names)
       window.effects = [
-        { id: 0, icon: "🟩" },      // Solid
-        { id: 2, icon: "✨" },      // Glitter
-        { id: 28, icon: "➡️" },     // Chase
-        { id: 38, icon: "🌌" },     // Plasma
-        { id: 45, icon: "🔥" },     // Fire Flicker
-        { id: 46, icon: "🌈" },     // Rainbow
-        { id: 57, icon: "⚡" },     // Lightning
-        { id: 79, icon: "💧" },     // Waterfall
-        { id: 105, icon: "🧊" },    // Ice Sparkle
-        { id: 110, icon: "🌊" },    // Ocean
-        { id: 113, icon: "🌀" },    // Swirl
-        { id: 115, icon: "🌠" },    // Meteor
-        { id: 218, icon: "🐟" },    // Aquarium Ripple
-        { id: 219, icon: "🌊" },    // Gentle Wave
-        { id: 220, icon: "🌅" },    // Sunrise
-        { id: 221, icon: "🪸" },    // Coral Shimmer
-        { id: 222, icon: "🌊" },    // Deep Ocean
-        { id: 223, icon: "🌙" },    // Moonlight
+        { id: 0, icon: "🟩" }, // Solid
+        { id: 2, icon: "✨" }, // Glitter
+        { id: 28, icon: "➡️" }, // Chase
+        { id: 38, icon: "🌌" }, // Plasma
+        { id: 43, icon: "🌧️" }, // Rain
+        { id: 45, icon: "🔥" }, // Fire Flicker
+        { id: 46, icon: "🌈" }, // Rainbow
+        { id: 57, icon: "⚡" }, // Lightning
+        { id: 70, icon: "🌫️" }, // Noise 1
+        { id: 79, icon: "💧" }, // Waterfall
+        { id: 105, icon: "🧊" }, // Ice Sparkle
+        { id: 110, icon: "🌊" }, // Ocean
+        { id: 113, icon: "🌀" }, // Swirl
+        { id: 115, icon: "🌠" }, // Meteor
+        { id: 218, icon: "🐟" }, // Aquarium Ripple
+        { id: 219, icon: "🌊" }, // Gentle Wave
+        { id: 220, icon: "🌅" }, // Sunrise
+        { id: 221, icon: "🪸" }, // Coral Shimmer
+        { id: 222, icon: "🌊" }, // Deep Ocean
+        { id: 223, icon: "🌙" }, // Moonlight
       ];
       async function fetchEffectsMeta() {
         try {
@@ -513,7 +646,8 @@
       // Updated aquarium-related palettes based on device palette list
       // Ocean, Atlantica, Aqua Flash, Fairy Reaf, Red Reaf, Semi Blue, Toxy Reaf, Aurora, Aurora 2, April Night, Orangery
       const aquariumPaletteIds = [
-        0, 2, 9, 11, 15, 19, 22, 35, 50, 51, 55, 46, 47, 59, 58, 62, 60, 63,
+        0, 2, 3, 4, 9, 11, 15, 19, 22, 35, 50, 51, 55, 46, 47, 59, 58, 62, 60,
+        63,
       ];
 
       // --- Fetch and filter palettes from API ---
@@ -620,55 +754,58 @@
           window._lastPaletteListStr = newList;
         }
         // --- Always update selection from backend state ---
-        // Always use the latest values from WebSocket state only
-
-        let wsColor = undefined;
-        // Try to get the color from the latest WS state if available
-        if (
-          window._lastWSState &&
-          window._lastWSState.seg &&
-          window._lastWSState.seg[0] &&
-          window._lastWSState.seg[0].col &&
-          window._lastWSState.seg[0].col[0]
-        ) {
-          const colArr = window._lastWSState.seg[0].col[0];
-          if (Array.isArray(colArr) && colArr.length >= 3) {
-            // If white channel is present and >0, show white
-            if (colArr.length > 3 && colArr[3] > 0) {
-              wsColor = "#FFFFFF";
-            } else {
-              wsColor =
-                "#" +
-                colArr
-                  .slice(0, 3)
-                  .map((x) => x.toString(16).padStart(2, "0"))
-                  .join("")
-                  .toUpperCase();
+        // On initial load, do not select any palette until WS state arrives
+        if (!window._lastWSState) {
+          palSel.value = "";
+        } else {
+          let wsColor = undefined;
+          // Try to get the color from the latest WS state if available
+          if (
+            window._lastWSState &&
+            window._lastWSState.seg &&
+            window._lastWSState.seg[0] &&
+            window._lastWSState.seg[0].col &&
+            window._lastWSState.seg[0].col[0]
+          ) {
+            const colArr = window._lastWSState.seg[0].col[0];
+            if (Array.isArray(colArr) && colArr.length >= 3) {
+              // If white channel is present and >0, show white
+              if (colArr.length > 3 && colArr[3] > 0) {
+                wsColor = "#FFFFFF";
+              } else {
+                wsColor =
+                  "#" +
+                  colArr
+                    .slice(0, 3)
+                    .map((x) => x.toString(16).padStart(2, "0"))
+                    .join("")
+                    .toUpperCase();
+              }
             }
           }
-        }
-        if (effectId === 0) {
-          // If effect is Solid, always show 'Solid' in palette dropdown
-          if (palSel.value !== "-1") palSel.value = "-1";
-        } else if (typeof selectedId !== "undefined") {
-          let selStr = String(selectedId);
-          // Remove any previous temporary options
-          Array.from(palSel.querySelectorAll("option")).forEach((opt) => {
-            if (opt.dataset && opt.dataset.temp === "1")
-              palSel.removeChild(opt);
-          });
-          let opt = palSel.querySelector(`[value="${selStr}"]`);
-          if (!opt) {
-            // Palette not in list, add it as a temporary option
-            const tempOpt = document.createElement("option");
-            tempOpt.value = selStr;
-            tempOpt.textContent = `Palette ${selStr} (WS)`;
-            tempOpt.dataset.temp = "1";
-            palSel.appendChild(tempOpt);
-            opt = tempOpt;
-          }
-          if (palSel.value !== selStr) {
-            palSel.value = selStr;
+          if (effectId === 0) {
+            // If effect is Solid, always show 'Solid' in palette dropdown
+            if (palSel.value !== "-1") palSel.value = "-1";
+          } else if (typeof selectedId !== "undefined") {
+            let selStr = String(selectedId);
+            // Remove any previous temporary options
+            Array.from(palSel.querySelectorAll("option")).forEach((opt) => {
+              if (opt.dataset && opt.dataset.temp === "1")
+                palSel.removeChild(opt);
+            });
+            let opt = palSel.querySelector(`[value="${selStr}"]`);
+            if (!opt) {
+              // Palette not in list, add it as a temporary option
+              const tempOpt = document.createElement("option");
+              tempOpt.value = selStr;
+              tempOpt.textContent = `Palette ${selStr} (WS)`;
+              tempOpt.dataset.temp = "1";
+              palSel.appendChild(tempOpt);
+              opt = tempOpt;
+            }
+            if (palSel.value !== selStr) {
+              palSel.value = selStr;
+            }
           }
         }
         // Update palette bar
@@ -676,15 +813,13 @@
         bar.innerHTML = "";
         if (palSel.value == -1) {
           // Solid: show single color bar (use color from latest WS message if available)
-          let color = wsColor;
-          if (!color) {
-            if (window._lastBackendStateColor) {
-              color = window._lastBackendStateColor;
-            } else if (window.selectedColor) {
-              color = window.selectedColor;
-            } else {
-              color = "#FFFFFF";
-            }
+          let color = "#FFFFFF";
+          if (typeof wsColor !== "undefined" && wsColor) {
+            color = wsColor;
+          } else if (window._lastBackendStateColor) {
+            color = window._lastBackendStateColor;
+          } else if (window.selectedColor) {
+            color = window.selectedColor;
           }
           const line = document.createElement("div");
           line.style.width = "100%";
@@ -764,7 +899,44 @@
               palCombo.value = def.pal;
             }
             renderEffectLane(selectedEffect);
-            applyFx(selectedEffect);
+            // Call applyFx but skip transition change
+            // We replicate the effect change logic but do NOT touch transition
+            ce = typeof selectedEffect === "number" ? selectedEffect : 0;
+            let pal = undefined;
+            if (
+              palCombo &&
+              palCombo.value &&
+              !isNaN(Number(palCombo.value)) &&
+              Number(palCombo.value) >= 0
+            ) {
+              pal = Number(palCombo.value);
+            } else if (
+              effectDefaultsCache[ce] &&
+              typeof effectDefaultsCache[ce].pal === "number"
+            ) {
+              pal = effectDefaultsCache[ce].pal;
+            }
+            let includePal = false;
+            if (
+              effectDefaultsCache[ce] &&
+              Object.prototype.hasOwnProperty.call(
+                effectDefaultsCache[ce],
+                "pal",
+              )
+            ) {
+              if (
+                typeof effectDefaultsCache[ce].pal === "number" &&
+                !isNaN(effectDefaultsCache[ce].pal)
+              ) {
+                includePal = true;
+              }
+            }
+            // Only send effect, speed, intensity, palette (no transition)
+            const segPayload = { fx: ce, sx: cs, ix: ci };
+            if (includePal && typeof pal === "number" && !isNaN(pal))
+              segPayload.pal = pal;
+            const payload = { seg: segPayload };
+            await wledPostState(payload);
           };
           // Show effect name, icon, and description if available
           card.innerHTML = `<div style="font-size:2em">${e.icon}</div><div class="preset-name">${e.name || "Effect " + e.id}</div>${e.desc ? `<div class='preset-info' style='margin-top:4px;font-size:0.9em;opacity:0.7'>${e.desc}</div>` : ""}`;
@@ -786,14 +958,9 @@
       // Fetch all effect defaults from backend at startup
       async function preloadAllEffectDefaults() {
         try {
-          // Use the global effects array for IDs
-          const effectIds = Array.isArray(effects)
-            ? effects.map((e) => e.id)
-            : [];
-          // Fetch /json/eff first
+          // Fetch /json/eff and /json/fxdata
           const effRes = await wledApiFetch("/json/eff");
           const eff = await effRes.json(); // Array of effect names
-          // Add a delay before fetching /json/fxdata
           await new Promise((resolve) => setTimeout(resolve, 400));
           const fxdataRes = await wledApiFetch("/json/fxdata");
           let fxdata = await fxdataRes.json(); // Array of effect param strings
@@ -801,17 +968,17 @@
           fxdata.shift();
           fxdata.unshift(";!;");
           effectDefaultsCache = {};
-          // Optionally update the global effects array with names/params
+          // Optionally update the global effects array with names/params (for visible UI)
           if (Array.isArray(effects)) {
             effects.forEach((e) => {
               e.name = eff[e.id] || e.name;
               e.params = fxdata[e.id] || "";
             });
           }
-          // Populate effectDefaultsCache for all global effect IDs
-          effectIds.forEach((id) => {
+          // Populate effectDefaultsCache for ALL indices present in fxdata
+          for (let id = 0; id < fxdata.length; ++id) {
             const entry = fxdata[id];
-            if (!entry) return;
+            if (!entry) continue;
             const paramMatch = entry.match(/([a-z]+=[^,;]*)/g);
             let sx,
               ix,
@@ -836,7 +1003,7 @@
             };
             if (hasPal) cacheEntry.pal = pal;
             effectDefaultsCache[id] = cacheEntry;
-          });
+          }
         } catch (e) {
           console.error(
             "[PRELOAD ALL EFFECT DEFAULTS] Failed to load from backend",
@@ -912,60 +1079,81 @@
       // --- Aquarium color choices ---
       // Add white channel (w) to each color. If w is present and >0, use RGBW for backend and display.
       const aquariumColors = [
+        { hex: "#FFFFFF", name: "White", w: 255 }, // White channel full
+        { hex: "#000000", name: "White (RGBW)", w: 255 }, // [0,0,0,255] - white via W channel
+        { hex: "#C8DCFF", name: "Sky White", w: 255 },
+        { hex: "#FF3200", name: "Red Orange", w: 0 },
+        { hex: "#FF7800", name: "Orange", w: 50 },
+        { hex: "#FFC864", name: "Peach", w: 180 },
+        { hex: "#FF1E00", name: "Hot Red", w: 10 }, // [255,30,0,10]
+        { hex: "#B400FF", name: "Violet", w: 30 }, // [180,0,255,30]
+        { hex: "#14003C", name: "Deep Purple", w: 0 }, // [20,0,60,0]
+        { hex: "#141428", name: "Night Blue White", w: 10 }, // [20,20,40,10]
+        { hex: "#006464", name: "Aqua White", w: 20 }, // [0,100,100,20]
         { hex: "#00BFFF", name: "Blue", w: 0 },
         { hex: "#1E90FF", name: "Ocean", w: 0 },
-        { hex: "#FFD700", name: "Sun", w: 0 },
-        { hex: "#FF8C00", name: "Coral", w: 0 },
-        { hex: "#FF6347", name: "Reef", w: 0 },
-        { hex: "#20B2AA", name: "Teal", w: 0 },
-        { hex: "#228B22", name: "Plant", w: 0 },
-        { hex: "#FFFFFF", name: "White", w: 255 }, // White channel full
-        { hex: "#191970", name: "Deep", w: 0 },
-        { hex: "#A0522D", name: "Sand", w: 0 },
+        { hex: "#001E50", name: "Teal Blue", w: 0 }, // [0,30,80,0]
+        { hex: "#0000B4", name: "Royal Blue", w: 5 }, // [0,0,180,5]
+        { hex: "#000032", name: "Dim Cyan", w: 0 }, // [0,0,50,0]
       ];
       // selectedColor now stores an object: {hex, w}
-      let selectedColor = {
-        hex: aquariumColors[0].hex,
-        w: aquariumColors[0].w,
-      };
+      // selectedColors now stores up to 3 color objects: [{hex, w}, ...]
+      let selectedColors = [
+        null, // Primary
+        null, // Secondary
+        null, // Tertiary
+      ];
       // Render the primary color bar and wire up real-time color change
-      function renderPrimaryColorBar(selected) {
-        const bar = gId("primary-color-bar");
+      // Render a color bar for a given index (0=Primary, 1=Secondary, 2=Tertiary)
+      function renderColorBar(selectedIdx) {
+        const barIds = [
+          "primary-color-bar",
+          "secondary-color-bar",
+          "tertiary-color-bar",
+        ];
+        const bar = gId(barIds[selectedIdx]);
+        if (!bar) return;
         bar.innerHTML = "";
         aquariumColors.forEach((c) => {
           const d = document.createElement("div");
           d.title = c.name;
-          const isSelected =
-            c.hex.toUpperCase() === selected.hex.toUpperCase() &&
-            (c.w || 0) === (selected.w || 0);
-          d.className =
-            "primary-color-circle" + (isSelected ? " selected" : "");
-          d.style.background = c.hex;
-          d.style.width = "28px";
-          d.style.height = "28px";
-          d.style.borderRadius = "50%";
-          d.style.cursor = "pointer";
-          if (isSelected) {
-            d.style.border = "4px solid #ff9800";
-            d.style.boxShadow = "0 0 0 4px #ff980088, 0 2px 8px #0003";
+          let isSelected = false;
+          if (selectedColors[selectedIdx] && selectedColors[selectedIdx].hex) {
+            isSelected =
+              c.hex.toUpperCase() ===
+                selectedColors[selectedIdx].hex.toUpperCase() &&
+              (c.w || 0) === (selectedColors[selectedIdx].w || 0);
+          }
+          d.className = "color-circle" + (isSelected ? " selected" : "");
+          // Special case: [0,0,0,255] (hex #000000, w:255) should show as white
+          if (c.hex === "#000000" && c.w === 255) {
+            d.style.background = "#fff";
+            d.style.backgroundImage =
+              "linear-gradient(45deg,#fff 60%,#eee 100%)";
           } else {
-            d.style.border = "2px solid #fff3";
-            d.style.boxShadow = "0 2px 8px #0003";
+            d.style.background = c.hex;
+            d.style.backgroundImage = "";
           }
           d.onclick = async () => {
             // On click, update color immediately in UI and backend
-            selectedColor = { hex: c.hex, w: c.w };
-            renderPrimaryColorBar(selectedColor);
-            await applyCol(selectedColor); // send to backend in real time
+            selectedColors[selectedIdx] = { hex: c.hex, w: c.w };
+            renderColorBar(selectedIdx);
+            await applyColMulti(selectedColors);
           };
           bar.appendChild(d);
         });
       }
       // When the actual primary color changes (from backend), update UI highlight
-      function setPrimaryColorFromState(hex, w = 0) {
-        selectedColor = { hex, w };
-        window._lastBackendStateColor = { hex, w };
-        renderPrimaryColorBar(selectedColor);
+      // When the actual colors change (from backend), update UI highlight for all
+      function setColorsFromState(colorsArr) {
+        // colorsArr: array of {hex, w}
+        for (let i = 0; i < 3; ++i) {
+          if (colorsArr[i]) {
+            selectedColors[i] = colorsArr[i];
+            renderColorBar(i);
+          }
+        }
+        window._lastBackendStateColor = selectedColors[0];
       }
       // Render on load
       window.addEventListener("DOMContentLoaded", async () => {
@@ -977,30 +1165,50 @@
         if (typeof updateEffectDefaultsUI === "function") {
           await updateEffectDefaultsUI(selectedEffect);
         } else {
-          renderPrimaryColorBar(selectedColor);
+          for (let i = 0; i < 3; ++i) renderColorBar(i);
         }
       });
+      // --- Multi-color applyCol ---
+      async function applyColMulti(colorsArr) {
+        // Send up to 3 colors to backend, fallback to single if only one
+        // colorsArr: [{hex, w}, ...]
+        const colPayload = colorsArr.map((c) => {
+          // Convert hex to RGB
+          const hex = c.hex.replace("#", "");
+          const r = parseInt(hex.substring(0, 2), 16);
+          const g = parseInt(hex.substring(2, 4), 16);
+          const b = parseInt(hex.substring(4, 6), 16);
+          return c.w !== undefined ? [r, g, b, c.w] : [r, g, b];
+        });
+        await wledPostState({ seg: { col: colPayload } });
+      }
+      // Fallback for single color
+      async function applyCol(c) {
+        await applyColMulti([c]);
+      }
       // --- Palette color bar rendering ---
       function updatePaletteBar(palIdx) {
         const bar = gId("palette-bar");
         bar.innerHTML = "";
-        // Only use loaded palette color data if available
-        if (window._allPaletteColors && window._allPaletteColors[palIdx]) {
-          const colors = window._allPaletteColors[palIdx];
-          if (Array.isArray(colors) && colors.length > 0) {
-            // Each color is [ix, r, g, b]
-            const grad = `linear-gradient(to right, ${colors.map((rgb) => `rgb(${rgb[1]},${rgb[2]},${rgb[3]})`).join(",")})`;
-            const line = document.createElement("div");
-            line.style.width = "100%";
-            line.style.height = "18px";
-            line.style.borderRadius = "8px";
-            line.style.background = grad;
-            line.style.boxShadow = "0 2px 8px #0003";
-            bar.appendChild(line);
-            return;
-          }
+        // Collect selected colors (hex only, ignore w)
+        const selected = selectedColors.filter(
+          (c, i, arr) =>
+            c &&
+            c.hex &&
+            arr.findIndex((x) => x.hex === c.hex && x.w === c.w) === i,
+        );
+        if (selected.length > 0) {
+          // Special case: if color is #000000 and w==255, treat as white in gradient
+          const grad = `linear-gradient(to right, ${selected.map((c) => (c.hex === "#000000" && c.w === 255 ? "#fff" : c.hex)).join(",")})`;
+          const line = document.createElement("div");
+          line.style.width = "100%";
+          line.style.height = "18px";
+          line.style.borderRadius = "8px";
+          line.style.background = grad;
+          line.style.boxShadow = "0 2px 8px #0003";
+          bar.appendChild(line);
         }
-        // If no palette data, show nothing
+        // If no selected colors, show nothing
       }
       // --- Peek Bar: Live LED Color Strip ---
       let ws,
@@ -1169,6 +1377,9 @@
             if (typeof data.seg?.[0]?.fx === "number") {
               selectedEffect = data.seg[0].fx;
               renderEffectLane(selectedEffect);
+              // Show debug info for number of colors supported by this effect
+              if (typeof debugEffectColorCount === "function")
+                debugEffectColorCount(data.seg[0].fx);
             }
             // Sync speed (sx) and intensity (ix) sliders from WS state
             if (data.seg && data.seg[0]) {
@@ -1201,24 +1412,29 @@
                 }
               }
             }
-            // Update Primary Color bar to match WS color (always, not just on user interaction)
+            // Update color bars to match all colors from WS state (primary, secondary, tertiary)
             if (
               data.seg &&
               data.seg[0] &&
               data.seg[0].col &&
-              data.seg[0].col[0]
+              Array.isArray(data.seg[0].col)
             ) {
-              const colArr = data.seg[0].col[0];
-              if (Array.isArray(colArr) && colArr.length >= 3) {
-                const hex =
-                  "#" +
-                  colArr
-                    .slice(0, 3)
-                    .map((x) => x.toString(16).padStart(2, "0"))
-                    .join("")
-                    .toUpperCase();
-                setPrimaryColorFromState(hex, colArr[3] || 0);
-              }
+              const wsColors = data.seg[0].col.slice(0, 3).map((colArr) => {
+                if (Array.isArray(colArr) && colArr.length >= 3) {
+                  return {
+                    hex:
+                      "#" +
+                      colArr
+                        .slice(0, 3)
+                        .map((x) => x.toString(16).padStart(2, "0"))
+                        .join("")
+                        .toUpperCase(),
+                    w: colArr[3] || 0,
+                  };
+                }
+                return null;
+              });
+              setColorsFromState(wsColors);
             }
             // Store the latest WS state globally for color bar use
             window._lastWSState = data;
@@ -1282,7 +1498,7 @@
                     .join("")
                     .toUpperCase();
                 window._lastBackendStateColor = { hex, w: colArr[3] || 0 };
-                setPrimaryColorFromState(hex, colArr[3] || 0);
+                setColorsFromState([{ hex, w: colArr[3] || 0 }]);
               }
             }
             // Palette state tracking
@@ -1537,10 +1753,16 @@
           regularTimers.push({ en: 0, hour: 0, min: 0, macro: 0, dow: 127 });
         }
         // Find existing sunrise/sunset timers from backend config if not set in UI
-        let existingSunrise = currentTimers.find(t => t.hour === 255 && t.en && t.macro > 0);
-        let existingSunset = currentTimers.find(t => t.hour === 255 && t.en && t.macro > 0 && t !== existingSunrise);
-        let sunrise = sunriseTimer || existingSunrise || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
-        let sunset = sunsetTimer || existingSunset || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
+        let existingSunrise = currentTimers.find(
+          (t) => t.hour === 255 && t.en && t.macro > 0,
+        );
+        let existingSunset = currentTimers.find(
+          (t) => t.hour === 255 && t.en && t.macro > 0 && t !== existingSunrise,
+        );
+        let sunrise = sunriseTimer ||
+          existingSunrise || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
+        let sunset = sunsetTimer ||
+          existingSunset || { en: 0, hour: 255, min: 0, macro: 0, dow: 127 };
         sunrise.hour = 255;
         sunset.hour = 255;
         timers = [...regularTimers, sunrise, sunset];
@@ -3066,6 +3288,24 @@
         return document.getElementById(i);
       }
       window.addEventListener("load", initOnLoad);
+      // Hide all color bars on initial load
+      window.addEventListener("DOMContentLoaded", () => {
+        const primaryBar = document.getElementById("primary-color-bar");
+        const secondaryBar = document.getElementById("secondary-color-bar");
+        const tertiaryBar = document.getElementById("tertiary-color-bar");
+        const primaryLabel = primaryBar?.previousElementSibling;
+        const secondaryLabel = secondaryBar?.previousElementSibling;
+        const tertiaryLabel = tertiaryBar?.previousElementSibling;
+        if (primaryBar) primaryBar.style.display = "none";
+        if (primaryLabel && primaryLabel.tagName === "LABEL")
+          primaryLabel.style.display = "none";
+        if (secondaryBar) secondaryBar.style.display = "none";
+        if (secondaryLabel && secondaryLabel.tagName === "LABEL")
+          secondaryLabel.style.display = "none";
+        if (tertiaryBar) tertiaryBar.style.display = "none";
+        if (tertiaryLabel && tertiaryLabel.tagName === "LABEL")
+          tertiaryLabel.style.display = "none";
+      });
       // No periodic checkConn: state is now updated only via WebSocket events
     </script>
   </head>
@@ -3142,9 +3382,11 @@
       <div class="control-grid">
         <!-- Power card removed -->
         <div class="card">
-          <h2>💡 Brightness</h2>
+          <h2>⚙️ Settings</h2>
           <div class="control-group">
-            <label>Level: <span class="value-display" id="bv"></span></label>
+            <label
+              >Brightness: <span class="value-display" id="bv"></span
+            ></label>
             <input
               type="range"
               id="bri"
@@ -3171,6 +3413,72 @@
               ontouchend="updateTr(this.value)"
             />
           </div>
+          <div
+            style="
+              border-top: 1px solid #ffffff22;
+              margin: 18px 0 10px 0;
+              padding-top: 10px;
+            "
+          >
+            <div
+              style="
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                margin-bottom: 8px;
+              "
+            >
+              <span style="font-size: 1.2em">🛡️</span>
+              <span
+                style="
+                  font-weight: bold;
+                  font-size: 1.08em;
+                  letter-spacing: 0.5px;
+                "
+                >Safety</span
+              >
+            </div>
+            <div class="control-group" id="max-bri-group">
+              <label
+                >Max Brightness:
+                <span class="value-display" id="max_bri_v">&nbsp;</span></label
+              >
+              <input
+                type="range"
+                id="max_bri"
+                min="50"
+                max="255"
+                value="200"
+                disabled
+                style="opacity: 0.5; pointer-events: none"
+              />
+              <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
+                Safety limit to protect fish from sudden brightness
+              </p>
+            </div>
+            <div class="control-group" id="min-tr-group">
+              <label
+                >Min Transition Time:
+                <span class="value-display" id="min_tr_v">&nbsp;</span></label
+              >
+              <input
+                type="range"
+                id="min_tr"
+                min="5"
+                max="60"
+                value="10"
+                disabled
+                style="opacity: 0.5; pointer-events: none"
+              />
+              <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
+                Minimum safe transition for fish (prevents stress)
+              </p>
+            </div>
+          </div>
+          <p style="margin-top: 15px; opacity: 0.7; font-size: 0.9em">
+            ⚙️ Settings include safety features for gradual transitions and
+            brightness limits for fish health. Changes save automatically.
+          </p>
         </div>
         <div class="card">
           <h2>🎨 Colors</h2>
@@ -3199,50 +3507,27 @@
                 align-items: center;
               "
             ></div>
+            <label>Secondary Color</label>
+            <div
+              id="secondary-color-bar"
+              style="
+                display: flex;
+                gap: 10px;
+                margin: 8px 0;
+                align-items: center;
+              "
+            ></div>
+            <label>Tertiary Color</label>
+            <div
+              id="tertiary-color-bar"
+              style="
+                display: flex;
+                gap: 10px;
+                margin: 8px 0;
+                align-items: center;
+              "
+            ></div>
           </div>
-        </div>
-        <div class="card">
-          <h2>🛡️ Safety</h2>
-          <div class="control-group" id="min-tr-group">
-            <label
-              >Min Transition Time:
-              <span class="value-display" id="min_tr_v">&nbsp;</span></label
-            >
-            <input
-              type="range"
-              id="min_tr"
-              min="5"
-              max="60"
-              value="10"
-              disabled
-              style="opacity: 0.5; pointer-events: none"
-            />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
-              Minimum safe transition for fish (prevents stress)
-            </p>
-          </div>
-          <div class="control-group" id="max-bri-group">
-            <label
-              >Max Brightness:
-              <span class="value-display" id="max_bri_v">&nbsp;</span></label
-            >
-            <input
-              type="range"
-              id="max_bri"
-              min="50"
-              max="255"
-              value="200"
-              disabled
-              style="opacity: 0.5; pointer-events: none"
-            />
-            <p style="margin-top: 5px; opacity: 0.7; font-size: 0.85em">
-              Safety limit to protect fish from sudden brightness
-            </p>
-          </div>
-          <p style="margin-top: 15px; opacity: 0.7; font-size: 0.9em">
-            🛡️ Safety features ensure gradual transitions and brightness limits
-            for fish health. Changes save automatically.
-          </p>
         </div>
         <div class="card" style="grid-column: 1/-1">
           <h2>🎭 Effects</h2>
