@@ -1,27 +1,46 @@
 diff --git a/wled00/json.cpp b/wled00/json.cpp
-index f2308013..09e4aa10 100644
+index f2308013..abf69c94 100644
 --- a/wled00/json.cpp
 +++ b/wled00/json.cpp
-@@ -396,7 +396,21 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
-   if (!presetId || currentPlaylist < 0) { //do not apply transition time from preset if playlist active, as it would override playlist transition times
-     tr = root[F("transition")] | -1;
-     if (tr >= 0) {
--      transitionDelay = tr * 100;
-+      // Enforce minTransitionTime and maxBrightness if AquariumControllerUsermod is available
-+      uint32_t appliedTransition = tr * 100;
-+      extern uint32_t aquariumMinTransitionTime;
-+      extern uint8_t aquariumMaxBrightness;
-+      uint32_t minTransition = aquariumMinTransitionTime;
-+      if (minTransition > 0) {
-+        if (minTransition == 1) minTransition = 100;
-+        if (appliedTransition < minTransition * 100) {
-+          appliedTransition = minTransition * 100;
-+        }
-+      }
-+      if (bri > aquariumMaxBrightness) {
-+        bri = aquariumMaxBrightness;
-+      }
-+      transitionDelay = appliedTransition;
-       strip.setTransition(transitionDelay);
-     }
+@@ -362,6 +362,22 @@ static bool deserializeSegment(JsonObject elem, byte it, byte presetId = 0)
+   return true;
+ }
+ 
++// Helper to enforce minimum transition time and max brightness
++void enforceAquariumSafety() {
++  extern uint16_t aquariumMinTransitionTime;
++  extern uint8_t aquariumMaxBrightness;
++  uint16_t minTransition = aquariumMinTransitionTime;
++  if (minTransition > 0) {
++    if (minTransition == 1) minTransition = 100;
++    if (strip.getTransition() < minTransition * 100) {
++      strip.setTransition(minTransition * 100);
++    }
++  }
++  if (bri > aquariumMaxBrightness) {
++    bri = aquariumMaxBrightness;
++  }
++}
++
+ // deserializes WLED state
+ // presetId is non-0 if called from handlePreset()
+ bool deserializeState(JsonObject root, byte callMode, byte presetId)
+@@ -559,6 +575,9 @@ bool deserializeState(JsonObject root, byte callMode, byte presetId)
+   if (stateChanged) stateUpdated(callMode);
+   if (presetToRestore) currentPreset = presetToRestore;
+ 
++  // Always enforce min transition time after all state changes
++  enforceAquariumSafety();
++
+   return stateResponse;
+ }
+ 
+@@ -638,7 +657,7 @@ void serializeState(JsonObject root, bool forPreset, bool includeBri, bool segme
+   if (includeBri) {
+     root["on"] = (bri > 0);
+     root["bri"] = briLast;
+-    root[F("transition")] = transitionDelay/100; //in 100ms
++    root[F("transition")] = strip.getTransition()/100; //in 100ms, enforced value
+     root[F("bs")] = blendingStyle;
    }
+ 

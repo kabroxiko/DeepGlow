@@ -394,40 +394,32 @@
         return resp;
       }
 
-      // DEBUG: Show number of colors supported for current effect
-      function debugEffectColorCount(fx) {
+      // Show number of colors supported for current effect
+      function updateEffectColorUI(fx) {
         // Default: most effects support up to 3 colors, but some may support fewer
         // You can extend this mapping as needed for your effects
         // Determine color count from fxdata param string
         let effectColorCount = 1;
         let params = null;
-        let debugInfo = {};
-        if (typeof effectDefaultsCache === "object" && effectDefaultsCache[fx] && effectDefaultsCache[fx].params) {
+        let info = {};
+        if (
+          typeof effectDefaultsCache === "object" &&
+          effectDefaultsCache[fx] &&
+          effectDefaultsCache[fx].params
+        ) {
           params = effectDefaultsCache[fx].params;
           // Split by ';' and get the second parameter
-          let parts = params.split(';');
-          let secondParam = parts.length > 1 ? parts[1] : '';
+          let parts = params.split(";");
+          let secondParam = parts.length > 1 ? parts[1] : "";
           // Count comma-separated items in the second parameter
-          let items = secondParam.split(',').map(s => s.trim()).filter(s => s.length > 0);
+          let items = secondParam
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
           effectColorCount = items.length > 0 ? items.length : 3;
-          debugInfo = { params, secondParam, items };
+          info = { params, secondParam, items };
         }
-        // Enhanced debug output
-        console.debug(`[DEBUG] fx=${fx}`);
-        console.debug(`[DEBUG] params:`, params);
-        console.debug(`[DEBUG] secondParam:`, debugInfo.secondParam);
-        console.debug(`[DEBUG] items:`, debugInfo.items);
-        console.debug(`[DEBUG] Effect fx=${fx} supports ${effectColorCount} color(s)`);
-        // Optionally, show in UI (e.g., in a debug div)
-        let dbgDiv = document.getElementById("debug-color-count");
-        if (!dbgDiv) {
-          dbgDiv = document.createElement("div");
-          dbgDiv.id = "debug-color-count";
-          dbgDiv.style =
-            "position:fixed;bottom:8px;right:8px;background:#222;color:#fff;padding:8px;border-radius:6px;z-index:9999;font-size:1em;opacity:0.9;";
-          document.body.appendChild(dbgDiv);
-        }
-        dbgDiv.textContent = `Effect fx=${fx} supports ${effectColorCount} color(s)`;
+        // Optionally, show color count in UI (add to an existing label or element if needed)
 
         // Show/hide color bars according to effectColorCount and update their labels
         const primaryBar = document.getElementById("primary-color-bar");
@@ -442,34 +434,39 @@
         const defaultLabels = ["Foreground", "Background", "Custom Slot"];
         // Map known literals to human-readable labels
         function humanLabel(literal, idx) {
-          if (!literal || typeof literal !== "string") return defaultLabels[idx] || "";
+          if (!literal || typeof literal !== "string")
+            return defaultLabels[idx] || "";
           // If value is '!', use Fx, Bg, CS in order, mapped to human-readable
           if (literal === "!") {
             const fallback = ["Fx", "Bg", "CS"];
             const fallbackMap = {
-              "Fx": "Foreground",
-              "Bg": "Background",
-              "CS": "Custom Slot"
+              Fx: "Foreground",
+              Bg: "Background",
+              CS: "Custom Slot",
             };
             return fallbackMap[fallback[idx]] || fallback[idx];
           }
           const map = {
-            "Fx": "Foreground",
-            "Bg": "Background",
-            "CS": "Custom Slot",
-            "1": "Primary Color",
-            "2": "Secondary Color",
-            "3": "Tertiary Color"
+            Fx: "Foreground",
+            Bg: "Background",
+            CS: "Custom Slot",
+            1: "Primary Color",
+            2: "Secondary Color",
+            3: "Tertiary Color",
           };
           // Remove trailing/leading colons and whitespace
           let key = literal.replace(/[:\s]/g, "");
           return map[key] || literal || defaultLabels[idx] || "";
         }
-        let labelItems = debugInfo && Array.isArray(debugInfo.items) && debugInfo.items.length > 0
-          ? debugInfo.items
-          : [];
+        let labelItems =
+          info && Array.isArray(info.items) && info.items.length > 0
+            ? info.items
+            : [];
         // If no color params, hide all bars and labels
-        if (!labelItems.length || (labelItems.length === 1 && labelItems[0] === "")) {
+        if (
+          !labelItems.length ||
+          (labelItems.length === 1 && labelItems[0] === "")
+        ) {
           if (primaryLabel && primaryLabel.tagName === "LABEL") {
             primaryLabel.textContent = "";
             primaryLabel.style.display = "none";
@@ -487,15 +484,18 @@
           if (tertiaryBar) tertiaryBar.style.display = "none";
         } else {
           if (primaryLabel && primaryLabel.tagName === "LABEL") {
-            primaryLabel.textContent = effectColorCount >= 1 ? humanLabel(labelItems[0], 0) : "";
+            primaryLabel.textContent =
+              effectColorCount >= 1 ? humanLabel(labelItems[0], 0) : "";
             primaryLabel.style.display = effectColorCount >= 1 ? "" : "none";
           }
           if (secondaryLabel && secondaryLabel.tagName === "LABEL") {
-            secondaryLabel.textContent = effectColorCount >= 2 ? humanLabel(labelItems[1], 1) : "";
+            secondaryLabel.textContent =
+              effectColorCount >= 2 ? humanLabel(labelItems[1], 1) : "";
             secondaryLabel.style.display = effectColorCount >= 2 ? "" : "none";
           }
           if (tertiaryLabel && tertiaryLabel.tagName === "LABEL") {
-            tertiaryLabel.textContent = effectColorCount >= 3 ? humanLabel(labelItems[2], 2) : "";
+            tertiaryLabel.textContent =
+              effectColorCount >= 3 ? humanLabel(labelItems[2], 2) : "";
             tertiaryLabel.style.display = effectColorCount >= 3 ? "" : "none";
           }
           if (primaryBar)
@@ -1267,17 +1267,16 @@
           wsConnecting = false;
         };
         ws.onmessage = (e) => {
-          // Debug: log all WebSocket messages
+          // Log all WebSocket messages (for development only, remove in production)
           if (e.data instanceof Blob) {
             if (e.data.type && e.data.type.startsWith("text")) {
               const reader = new FileReader();
-              reader.onload = function () {
-                console.debug("WS message (Blob as text):", reader.result);
-              };
+              reader.onload = function () {};
               reader.readAsText(e.data);
             }
           } else {
-            console.debug("WS message (string):", e.data);
+            // Debug: log all non-Blob WebSocket messages
+            console.log("[WS]", e.data);
           }
           // Only set status to connected after receiving {success:true}
           try {
@@ -1286,11 +1285,8 @@
               updateStatus(true, ps);
             }
             if (msg) {
-              console.debug("WS message (parsed):", msg);
             }
-          } catch (err) {
-            console.debug("WS message parse error:", err);
-          }
+          } catch (err) {}
           let handleState = async (data) => {
             // Force preset highlight from backend state on every WS message
             if (typeof data.ps === "number") {
@@ -1377,9 +1373,9 @@
             if (typeof data.seg?.[0]?.fx === "number") {
               selectedEffect = data.seg[0].fx;
               renderEffectLane(selectedEffect);
-              // Show debug info for number of colors supported by this effect
-              if (typeof debugEffectColorCount === "function")
-                debugEffectColorCount(data.seg[0].fx);
+              // Update color bar/label UI for number of colors supported by this effect
+              if (typeof updateEffectColorUI === "function")
+                updateEffectColorUI(data.seg[0].fx);
             }
             // Sync speed (sx) and intensity (ix) sliders from WS state
             if (data.seg && data.seg[0]) {
