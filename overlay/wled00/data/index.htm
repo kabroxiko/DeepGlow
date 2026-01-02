@@ -1278,15 +1278,63 @@
             // Debug: log all non-Blob WebSocket messages
             console.log("[WS]", e.data);
           }
-          // Only set status to connected after receiving {success:true}
+          // Parse message and update firmware time from any time field
+          let msg = null;
           try {
-            const msg = typeof e.data === "string" ? JSON.parse(e.data) : null;
-            if (msg && msg.success === true) {
-              updateStatus(true, ps);
-            }
-            if (msg) {
-            }
+            msg = typeof e.data === "string" ? JSON.parse(e.data) : null;
           } catch (err) {}
+          // Update firmware time from any message with a time field
+          if (msg) {
+            let wsTime = null;
+            if (msg && msg.time) wsTime = msg.time;
+            else if (msg && msg.info && msg.info.time) wsTime = msg.info.time;
+            if (wsTime) {
+              // Store firmware time globally for schedule table
+              window._lastFirmwareTimeFromWS = wsTime;
+              // Set fwTimeBase/fwTimeOffset for the clock display
+              let t = wsTime;
+              let dateObj = null;
+              if (typeof t === "number") {
+                // seconds since midnight
+                const now = new Date();
+                now.setHours(0, 0, 0, 0);
+                now.setSeconds(t);
+                dateObj = now;
+              } else if (typeof t === "string") {
+                // Try ISO or "YYYY-MM-DD HH:MM:SS"
+                const match = t.match(/(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2}):(\d{2})/);
+                if (match) {
+                  const [_, y, mo, d, h, mi, s] = match;
+                  dateObj = new Date(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(s));
+                } else {
+                  // Try as seconds
+                  const n = Number(t);
+                  if (!isNaN(n)) {
+                    const now = new Date();
+                    now.setHours(0, 0, 0, 0);
+                    now.setSeconds(n);
+                    dateObj = now;
+                  } else {
+                    dateObj = new Date(t);
+                  }
+                }
+              }
+              if (dateObj) {
+                fwTimeBase = dateObj;
+                fwTimeOffset = Date.now();
+                fwTimeInitialized = true;
+                if (typeof renderFirmwareTime === "function") renderFirmwareTime();
+              }
+              // Immediately update schedule highlighting
+              if (typeof populateScheduleTable === "function") {
+                populateScheduleTable();
+              }
+            }
+          }
+          // Only set status to connected after receiving {success:true} and no error
+          if (msg && msg.success === true && !msg.error) {
+            updateStatus(true, ps);
+          }
           let handleState = async (data) => {
             // Force preset highlight from backend state on every WS message
             if (typeof data.ps === "number") {
@@ -1434,6 +1482,31 @@
             }
             // Store the latest WS state globally for color bar use
             window._lastWSState = data;
+            // If time field is present, update firmware time base
+            let wsTime = null;
+            if (data && data.time) wsTime = data.time;
+            else if (data && data.info && data.info.time)
+              wsTime = data.info.time;
+            if (wsTime) {
+              let t = wsTime.replace(",", "").replace(/\s+/, " ");
+              const match = t.match(
+                /(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2})/,
+              );
+              if (match) {
+                const [_, y, mo, d, h, mi, s] = match;
+                fwTimeBase = new Date(
+                  Number(y),
+                  Number(mo) - 1,
+                  Number(d),
+                  Number(h),
+                  Number(mi),
+                  Number(s),
+                );
+                fwTimeOffset = Date.now();
+                fwTimeInitialized = true;
+                renderFirmwareTime();
+              }
+            }
             // Always update palette combo and bar according to WS state
             let palIdx =
               typeof data.seg?.[0]?.pal === "number"
@@ -2117,7 +2190,31 @@
           }
         }
         timers.sort((a, b) => getMin(a) - getMin(b));
-        const now = new Date();
+        // Use firmware time from WS if available, else local time
+        let now;
+        if (window._lastFirmwareTimeFromWS) {
+          // _lastFirmwareTimeFromWS can be string (ISO or time) or number (seconds since midnight)
+          if (typeof window._lastFirmwareTimeFromWS === "number") {
+            // Assume seconds since midnight
+            const d = new Date();
+            d.setHours(0, 0, 0, 0);
+            d.setSeconds(window._lastFirmwareTimeFromWS);
+            now = d;
+          } else if (typeof window._lastFirmwareTimeFromWS === "string") {
+            // Try to parse as ISO string or as seconds
+            const n = Number(window._lastFirmwareTimeFromWS);
+            if (!isNaN(n)) {
+              const d = new Date();
+              d.setHours(0, 0, 0, 0);
+              d.setSeconds(n);
+              now = d;
+            } else {
+              // Try ISO string
+              now = new Date(window._lastFirmwareTimeFromWS);
+            }
+          }
+        }
+        if (!now) now = new Date();
         const currentMinutes = now.getHours() * 60 + now.getMinutes();
         let lastIdx = -1,
           lastTime = -1;
@@ -2312,9 +2409,11 @@
       window.addEventListener("DOMContentLoaded", () => {
         populateScheduleTable();
         // Only call loadPresetList if needed, but do NOT call populateScheduleTable again inside it
+        // Periodically refresh schedule table to update row highlighting as time passes
+        setInterval(() => {
+          populateScheduleTable();
+        }, 60000); // every minute
       });
-      // Update schedule table every minute (no separate highlight logic)
-      // Removed periodic schedule table refresh to prevent race conditions and redundant calls
       async function send(d) {
         try {
           await wledPostState(d);
@@ -3283,9 +3382,53 @@
       function gId(i) {
         return document.getElementById(i);
       }
-      window.addEventListener("load", initOnLoad);
-      // Hide all color bars on initial load
+      // --- Firmware Time Display Logic ---
+      // --- Firmware Time Display Logic ---
+      let fwTimeBase = null;
+      let fwTimeOffset = 0;
+      let fwTimeInitialized = false;
+      function pad2(n) {
+        return n < 10 ? "0" + n : n;
+      }
+      function renderFirmwareTime() {
+        if (!fwTimeBase) return;
+        // Add offset in seconds to base time
+        const now = new Date();
+        const elapsed = Math.floor((now.getTime() - fwTimeOffset) / 1000);
+        const t = new Date(fwTimeBase.getTime() + elapsed * 1000);
+        // Format as YYYY-MM-DD HH:MM:SS
+        const formatted = `${t.getFullYear()}-${pad2(t.getMonth() + 1)}-${pad2(t.getDate())} ${pad2(t.getHours())}:${pad2(t.getMinutes())}:${pad2(t.getSeconds())}`;
+        const el = gId("fw-time");
+        if (el) el.textContent = `🕒 ${formatted}`;
+      }
+      async function fetchFirmwareTimeOnce() {
+        // No longer used: time is now synced from WebSocket state
+        // Left as fallback if needed
+        if (window._lastWSState && window._lastWSState.time) {
+          let t = window._lastWSState.time.replace(",", "").replace(/\s+/, " ");
+          const match = t.match(
+            /(\d{4})-(\d{1,2})-(\d{1,2}) (\d{1,2}):(\d{2}):(\d{2})/,
+          );
+          if (match) {
+            const [_, y, mo, d, h, mi, s] = match;
+            fwTimeBase = new Date(
+              Number(y),
+              Number(mo) - 1,
+              Number(d),
+              Number(h),
+              Number(mi),
+              Number(s),
+            );
+            fwTimeOffset = Date.now();
+            fwTimeInitialized = true;
+            renderFirmwareTime();
+          }
+        }
+      }
       window.addEventListener("DOMContentLoaded", () => {
+        // Firmware time will be initialized from WebSocket state
+        setInterval(renderFirmwareTime, 1000);
+        // Hide all color bars on initial load
         const primaryBar = document.getElementById("primary-color-bar");
         const secondaryBar = document.getElementById("secondary-color-bar");
         const tertiaryBar = document.getElementById("tertiary-color-bar");
@@ -3302,6 +3445,7 @@
         if (tertiaryLabel && tertiaryLabel.tagName === "LABEL")
           tertiaryLabel.style.display = "none";
       });
+      window.addEventListener("load", initOnLoad);
       // No periodic checkConn: state is now updated only via WebSocket events
     </script>
   </head>
@@ -3341,6 +3485,15 @@
           </span>
           <span class="status-indicator disconnected" id="si"></span>
           <span id="st">Disconnected</span>
+          <span
+            id="fw-time"
+            style="
+              margin-left: 18px;
+              opacity: 0.85;
+              font-size: 1.08em;
+              letter-spacing: 0.5px;
+            "
+          ></span>
         </div>
         <div>
           <button class="btn" onclick="location.href = '/settings'">
