@@ -338,7 +338,7 @@ function displayTimers() {
 }
 
 function showTimerEditor() {
-    alert('Timer editor UI - To be implemented in full version');
+    showToast('Timer editor UI - To be implemented in full version');
 }
 
 // Load configuration
@@ -401,13 +401,34 @@ function saveConfiguration() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('Configuration saved! Some changes may require a reboot to take effect.');
+            showToast('Configuration saved! Changes take effect immediately.');
+            sendDebugWS('Config saved successfully');
         } else {
-            alert('Failed to save configuration');
+            showToast('Failed to save configuration');
+            sendDebugWS('Config save failed');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error saving configuration');
+        showToast('Error saving configuration');
+        sendDebugWS('Config save error: ' + error);
     });
+// Toast notification
+function showToast(message, duration = 3000) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.style.display = 'block';
+    toast.style.opacity = '0.95';
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => { toast.style.display = 'none'; }, 300);
+    }, duration);
+}
+
+// Send debug message through WebSocket
+function sendDebugWS(msg) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ debug: msg }));
+    }
+}
 }

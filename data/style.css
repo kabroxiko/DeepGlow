@@ -1,3 +1,19 @@
+/* Toast styles */
+.toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg-light);
+    color: var(--text-primary);
+    padding: 16px 32px;
+    border-radius: 8px;
+    box-shadow: 0 4px 16px var(--shadow);
+    font-size: 1.1rem;
+    z-index: 9999;
+    opacity: 0.95;
+    transition: opacity 0.3s;
+}
 :root {
     --primary-color: #0099cc;
     --secondary-color: #66ccff;

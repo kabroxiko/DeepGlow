@@ -130,8 +130,19 @@ void setup() {
     webServer.onEffectChange(setEffect);
     webServer.onPresetApply(applyPreset);
     webServer.onConfigChange([]() {
-        debugPrintln("Configuration updated, recalculating sun times");
+        debugPrintln("Configuration updated, recalculating sun times and reinitializing LEDs");
         scheduler.calculateSunTimes();
+        // Save current transition state
+        uint8_t prevBrightness = transition.getCurrentBrightness();
+        uint32_t prevColor1 = transition.getCurrentColor1();
+        uint32_t prevColor2 = transition.getCurrentColor2();
+        setupLEDs();
+        transition = TransitionEngine();
+        // Restore previous state to new transition engine
+        transition.startTransition(prevBrightness, 0);
+        transition.startColorTransition(prevColor1, prevColor2, 0);
+        // If you have custom effect objects, re-create them here as well
+        updateLEDs();
     });
 
     // Start web server (moved up)
@@ -275,12 +286,48 @@ void setupWiFi() {
 }
 
 void setupLEDs() {
+    uint32_t debugStart = millis();
+    debugPrintln("[DEBUG] setupLEDs() started");
     // Detect LED type and allocate/init accordingly
     String type = config.led.type;
     type.toUpperCase();
     uint8_t pin = DEFAULT_LED_PIN;
     uint16_t count = config.led.count;
-    if (strip) delete strip;
+    // Optimize clearing: only clear both protocols if type changes
+    static String prevType = "";
+    const uint16_t MAX_LED_SAFE = 256; // adjust as needed for your hardware
+    uint32_t clearStart = millis();
+    if (prevType.length() > 0 && prevType != type) {
+        debugPrintln("[DEBUG] LED type changed, clearing both protocols");
+        Adafruit_NeoPixel clearGRB(MAX_LED_SAFE, pin, NEO_GRB + NEO_KHZ800);
+        clearGRB.begin();
+        for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearGRB.setPixelColor(i, 0);
+        clearGRB.show();
+        Adafruit_NeoPixel clearGRBW(MAX_LED_SAFE, pin, NEO_GRBW + NEO_KHZ800);
+        clearGRBW.begin();
+        for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearGRBW.setPixelColor(i, 0);
+        clearGRBW.show();
+    } else {
+        debugPrintln("[DEBUG] LED type unchanged, clearing current protocol");
+        uint32_t proto = (type.indexOf("SK6812") >= 0) ? (NEO_GRBW + NEO_KHZ800) : (NEO_GRB + NEO_KHZ800);
+        Adafruit_NeoPixel clearStrip(MAX_LED_SAFE, pin, proto);
+        clearStrip.begin();
+        for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearStrip.setPixelColor(i, 0);
+        clearStrip.show();
+    }
+    if (strip) {
+        delete strip;
+    }
+    uint32_t clearEnd = millis();
+    debugPrint("[DEBUG] LED clearing took: ");
+    debugPrintln((int)(clearEnd - clearStart));
+    debugPrintln(" ms");
+        uint32_t debugEnd = millis();
+        debugPrint("[DEBUG] setupLEDs() total time: ");
+        debugPrintln((int)(debugEnd - debugStart));
+        debugPrintln(" ms");
+    prevType = type;
+    // Now create the actual strip
     if (type.indexOf("SK6812") >= 0) {
         // SK6812 RGBW
         strip = new Adafruit_NeoPixel(count, pin, NEO_GRBW + NEO_KHZ800);
