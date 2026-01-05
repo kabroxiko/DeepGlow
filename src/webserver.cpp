@@ -390,7 +390,12 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
     // Update configuration
     if (doc.containsKey("led")) {
         JsonObject ledObj = doc["led"];
-        _config->led.count = ledObj["count"] | _config->led.count;
+        if (ledObj.containsKey("count")) {
+            _config->led.count = ledObj["count"];
+        }
+        if (ledObj.containsKey("type")) {
+            _config->led.type = ledObj["type"] | _config->led.type;
+        }
         // Note: Changing LED pin/type requires reboot
     }
     

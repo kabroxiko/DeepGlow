@@ -347,21 +347,24 @@ function loadConfig() {
         .then(response => response.json())
         .then(data => {
             config = data;
-            
+
             // Update config UI
             if (data.led) {
                 document.getElementById('ledCount').value = data.led.count;
+                if (data.led.type) {
+                    document.getElementById('ledType').value = data.led.type;
+                }
             }
-            
+
             if (data.safety) {
                 document.getElementById('maxBrightness').value = data.safety.maxBrightness;
                 document.getElementById('maxBrightnessValue').textContent = data.safety.maxBrightness;
-                
+
                 const minTransSeconds = Math.floor(data.safety.minTransitionTime / 1000);
                 document.getElementById('minTransition').value = minTransSeconds;
                 document.getElementById('minTransitionValue').textContent = minTransSeconds;
             }
-            
+
             if (data.time) {
                 document.getElementById('timezoneOffset').value = data.time.timezoneOffset;
                 document.getElementById('latitude').value = data.time.latitude;
@@ -374,7 +377,8 @@ function loadConfig() {
 function saveConfiguration() {
     const configUpdate = {
         led: {
-            count: parseInt(document.getElementById('ledCount').value)
+            count: parseInt(document.getElementById('ledCount').value),
+            type: document.getElementById('ledType').value
         },
         safety: {
             maxBrightness: parseInt(document.getElementById('maxBrightness').value),

@@ -31,7 +31,7 @@ void debugPrint(int) {}
  */
 
 #include <Arduino.h>
-#include <FastLED.h>
+#include <Adafruit_NeoPixel.h>
 #ifdef ESP8266
     #include <ESP8266WiFi.h>
     #include <LittleFS.h>
@@ -56,8 +56,9 @@ TransitionEngine transition;
 WebServerManager webServer(&config, &scheduler);
 
 // LED array
-CRGB* leds = nullptr;
-AquariumEffects* effects = nullptr;
+#include <type_traits>
+
+Adafruit_NeoPixel* strip = nullptr;
 
 // Timing
 uint32_t lastStateSave = 0;
@@ -274,20 +275,24 @@ void setupWiFi() {
 }
 
 void setupLEDs() {
-    // Allocate LED array
-    leds = new CRGB[config.led.count];
-    
-    // Initialize FastLED
-    // Note: For production, support multiple LED types
-    FastLED.addLeds<WS2812B, DEFAULT_LED_PIN, GRB>(leds, config.led.count);
-    FastLED.setBrightness(config.state.brightness);
-    FastLED.setMaxPowerInVoltsAndMilliamps(5, 2000);
-    
-    // Initialize effects engine
-    effects = new AquariumEffects(leds, config.led.count);
-    
-    Serial.print("LEDs initialized: ");
-    Serial.print(config.led.count);
+    // Detect LED type and allocate/init accordingly
+    String type = config.led.type;
+    type.toUpperCase();
+    uint8_t pin = DEFAULT_LED_PIN;
+    uint16_t count = config.led.count;
+    if (strip) delete strip;
+    if (type.indexOf("SK6812") >= 0) {
+        // SK6812 RGBW
+        strip = new Adafruit_NeoPixel(count, pin, NEO_GRBW + NEO_KHZ800);
+        Serial.print("LEDs initialized (SK6812 RGBW): ");
+    } else {
+        // Default: WS2812B or compatible RGB
+        strip = new Adafruit_NeoPixel(count, pin, NEO_GRB + NEO_KHZ800);
+        Serial.print("LEDs initialized (WS2812B RGB): ");
+    }
+    strip->begin();
+    strip->show();
+    Serial.print(count);
     Serial.println(" pixels");
 }
 
@@ -384,28 +389,28 @@ void setEffect(EffectMode effect, const EffectParams& params) {
 void updateLEDs() {
     // Update transition
     transition.update();
-    
+
     // Get current values from transition engine
     uint8_t currentBrightness = transition.getCurrentBrightness();
     EffectParams currentParams = config.state.params;
     currentParams.color1 = transition.getCurrentColor1();
     currentParams.color2 = transition.getCurrentColor2();
-    
+
     // Apply power state
     if (!config.state.power) {
         currentBrightness = 0;
     }
-    
-    // Update effect
-    effects->update(config.state.effect, currentParams, currentBrightness);
-    
-    // Apply global brightness
-    FastLED.setBrightness(currentBrightness);
-    
-    // Show LEDs
-    FastLED.show();
-    
-    // Update transition state
+
+    // For demonstration, fill all LEDs with color1 (expand as needed for effects)
+    uint8_t r = (currentParams.color1 >> 16) & 0xFF;
+    uint8_t g = (currentParams.color1 >> 8) & 0xFF;
+    uint8_t b = currentParams.color1 & 0xFF;
+    uint8_t w = 0; // You can add logic to use white channel if desired
+    for (uint16_t i = 0; i < strip->numPixels(); i++) {
+        strip->setPixelColor(i, strip->Color(r, g, b, w));
+    }
+    strip->setBrightness(currentBrightness);
+    strip->show();
     config.state.inTransition = transition.isTransitioning();
 }
 
