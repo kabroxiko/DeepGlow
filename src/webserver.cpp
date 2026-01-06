@@ -294,12 +294,13 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
         return;
     }
+    // ...existing code...
 
     // Merge incoming state with current state
     uint8_t brightness = _config->state.brightness;
     uint32_t transitionTime = _config->state.transitionTime;
     bool power = _config->state.power;
-    EffectMode effect = _config->state.effect;
+    uint8_t effect = _config->state.effect;
     EffectParams params = _config->state.params;
 
     if (doc.containsKey("brightness")) {
@@ -312,7 +313,7 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         power = doc["power"];
     }
     if (doc.containsKey("effect")) {
-        effect = (EffectMode)(int)doc["effect"];
+        effect = (uint8_t)(int)doc["effect"];
     }
     if (doc.containsKey("params")) {
         JsonObject paramsObj = doc["params"];
@@ -362,7 +363,7 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
         // Save preset data
         _config->presets[presetId].name = doc["name"] | "";
         _config->presets[presetId].brightness = doc["brightness"] | 128;
-        _config->presets[presetId].effect = (EffectMode)(int)doc["effect"];
+        _config->presets[presetId].effect = (uint8_t)(int)doc["effect"];
         _config->presets[presetId].enabled = doc["enabled"] | true;
         
         if (doc.containsKey("params")) {
@@ -599,7 +600,7 @@ void WebServerManager::onBrightnessChange(void (*callback)(uint8_t)) {
     _brightnessCallback = callback;
 }
 
-void WebServerManager::onEffectChange(void (*callback)(EffectMode, const EffectParams&)) {
+void WebServerManager::onEffectChange(void (*callback)(uint8_t, const EffectParams&)) {
     _effectCallback = callback;
 }
 

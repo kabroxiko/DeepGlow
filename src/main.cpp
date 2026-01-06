@@ -29,7 +29,7 @@ void debugPrint(int) {}
  */
 
 #include <Arduino.h>
-#include <Adafruit_NeoPixel.h>
+#include <WS2812FX.h>
 #ifdef ESP8266
     #include <ESP8266WiFi.h>
     #include <LittleFS.h>
@@ -41,7 +41,7 @@ void debugPrint(int) {}
 #endif
 
 #include "config.h"
-#include "effects.h"
+// #include "effects.h" // Custom effects disabled, using WS2812FX native effects only
 #include "scheduler.h"
 #include "transition.h"
 #include "webserver.h"
@@ -56,7 +56,8 @@ WebServerManager webServer(&config, &scheduler);
 // LED array
 #include <type_traits>
 
-Adafruit_NeoPixel* strip = nullptr;
+// WS2812FX LED object
+WS2812FX* strip = nullptr;
 
 // Timing
 uint32_t lastStateSave = 0;
@@ -69,7 +70,7 @@ void setupLEDs();
 void applyPreset(uint8_t presetId);
 void setPower(bool power);
 void setBrightness(uint8_t brightness);
-void setEffect(EffectMode effect, const EffectParams& params);
+void setEffect(uint8_t effect, const EffectParams& params);
 void updateLEDs();
 void checkSchedule();
 
@@ -176,6 +177,8 @@ void setup() {
         #ifdef DEBUG_SERIAL
         debugPrintln("Restoring last state");
         #endif
+        // Ensure transition starts from the actual brightness, not 0
+        transition.forceCurrentBrightness(config.state.brightness);
         setEffect(config.state.effect, config.state.params);
         setBrightness(config.state.brightness);
         setPower(config.state.power);
@@ -196,7 +199,11 @@ void setup() {
 void loop() {
     // Top of loop: check for unexpected resets
     static bool firstLoop = true;
-
+    if (firstLoop) {
+        debugPrintln("[DEBUG] loop() entered (device running)");
+        Serial.println("[DEBUG] loop() entered (device running)");
+        firstLoop = false;
+    }
     // Update all systems
     scheduler.update();
     webServer.update();
@@ -205,8 +212,11 @@ void loop() {
     // Check schedule every loop (scheduler has internal rate limiting)
     checkSchedule();
     
-    // Update LEDs at target frame rate
-    EVERY_N_MILLISECONDS(1000 / FRAMES_PER_SECOND) {
+    // Update LEDs at target frame rate (manual timing)
+    static uint32_t lastFrame = 0;
+    uint32_t now = millis();
+    if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
+        lastFrame = now;
         updateLEDs();
     }
     
@@ -244,46 +254,23 @@ void setupWiFi() {
     #else
         WiFi.setHostname(config.network.hostname.c_str());
     #endif
-
-    // Connect to WiFi with retry logic
+    
+    // Connect to WiFi
     if (config.network.ssid.length() > 0) {
-        int maxRetries = 3;
-        int retryDelayMs = 5000;
-        int attempt = 0;
-        bool connected = false;
-        while (attempt < maxRetries && !connected) {
-            Serial.print("\nWiFi attempt ");
-            Serial.print(attempt + 1);
-            Serial.print(" of ");
-            Serial.println(maxRetries);
-            WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
-            int subAttempts = 0;
-            while (WiFi.status() != WL_CONNECTED && subAttempts < 30) {
-                delay(500);
-                Serial.print(".");
-                subAttempts++;
-            }
-            if (WiFi.status() == WL_CONNECTED) {
-                connected = true;
-                break;
-            } else {
-                Serial.println("\nWiFi connection failed, retrying...");
-                WiFi.disconnect();
-                delay(retryDelayMs);
-            }
-            attempt++;
+        WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
+        int attempts = 0;
+        while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+            delay(500);
+            Serial.print(".");
+            attempts++;
         }
-        if (connected) {
+        if (WiFi.status() == WL_CONNECTED) {
             Serial.println();
             Serial.print("Connected! IP: ");
             Serial.println(WiFi.localIP());
             stopCaptivePortal();
             return;
-        } else {
-            Serial.println("\nAll WiFi connection attempts failed, starting AP mode");
         }
-    } else {
-        Serial.println("\nNo SSID configured, starting AP mode");
     }
     // If connection failed or no credentials, start AP mode
     Serial.println();
@@ -297,48 +284,38 @@ void setupWiFi() {
 }
 
 void setupLEDs() {
-    // Detect LED type and allocate/init accordingly
-    String type = config.led.type;
-    type.toUpperCase();
-    uint8_t pin = DEFAULT_LED_PIN;
-    uint16_t count = config.led.count;
-    // Optimize clearing: only clear both protocols if type changes
-    static String prevType = "";
-    const uint16_t MAX_LED_SAFE = 256; // adjust as needed for your hardware
-    if (prevType.length() > 0 && prevType != type) {
-        Adafruit_NeoPixel clearGRB(MAX_LED_SAFE, pin, NEO_GRB + NEO_KHZ800);
-        clearGRB.begin();
-        for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearGRB.setPixelColor(i, 0);
-        clearGRB.show();
-        Adafruit_NeoPixel clearGRBW(MAX_LED_SAFE, pin, NEO_GRBW + NEO_KHZ800);
-        clearGRBW.begin();
-        for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearGRBW.setPixelColor(i, 0);
-        clearGRBW.show();
-    } else {
-        uint32_t proto = (type.indexOf("SK6812") >= 0) ? (NEO_GRBW + NEO_KHZ800) : (NEO_GRB + NEO_KHZ800);
-        Adafruit_NeoPixel clearStrip(MAX_LED_SAFE, pin, proto);
-        clearStrip.begin();
-        for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearStrip.setPixelColor(i, 0);
-        clearStrip.show();
-    }
     if (strip) {
         delete strip;
+        strip = nullptr;
     }
-    prevType = type;
-    // Now create the actual strip
+    uint8_t pin = config.led.pin;
+    uint16_t count = config.led.count;
+    String type = config.led.type;
+    String order = config.led.colorOrder;
+    type.toUpperCase();
+    order.toUpperCase();
+    uint8_t wsType = NEO_GRB + NEO_KHZ800; // default
     if (type.indexOf("SK6812") >= 0) {
-        // SK6812 RGBW
-        strip = new Adafruit_NeoPixel(count, pin, NEO_GRBW + NEO_KHZ800);
-        Serial.print("LEDs initialized (SK6812 RGBW): ");
-    } else {
-        // Default: WS2812B or compatible RGB
-        strip = new Adafruit_NeoPixel(count, pin, NEO_GRB + NEO_KHZ800);
-        Serial.print("LEDs initialized (WS2812B RGB): ");
+        if (order == "RGBW") wsType = NEO_RGBW + NEO_KHZ800;
+        else if (order == "GRBW") wsType = NEO_GRBW + NEO_KHZ800;
+        else wsType = NEO_GRBW + NEO_KHZ800; // default for SK6812
+    } else if (type.indexOf("WS2812") >= 0) {
+        if (order == "RGB") wsType = NEO_RGB + NEO_KHZ800;
+        else if (order == "GRB") wsType = NEO_GRB + NEO_KHZ800;
+        else wsType = NEO_GRB + NEO_KHZ800; // default for WS2812
+    } else if (type.indexOf("APA106") >= 0) {
+        wsType = NEO_RGB + NEO_KHZ800;
     }
-    strip->begin();
-    strip->show();
+    strip = new WS2812FX(count, pin, wsType);
+    strip->init();
+    strip->setBrightness(config.state.brightness);
+    strip->start();
+    Serial.print("LEDs initialized (WS2812FX): ");
     Serial.print(count);
-    Serial.println(" pixels");
+    Serial.print(" type: ");
+    Serial.print(type);
+    Serial.print(" order: ");
+    Serial.println(order);
 }
 
 void applyPreset(uint8_t presetId) {
@@ -359,10 +336,8 @@ void applyPreset(uint8_t presetId) {
     uint8_t safeBrightness = min(preset.brightness, config.safety.maxBrightness);
     // Start transitions
     transition.startTransition(safeBrightness, transTime);
-    transition.startColorTransition(preset.params.color1, preset.params.color2, transTime);
-    // Update state except brightness (let transition engine manage brightness)
-    config.state.effect = preset.effect;
-    config.state.params = preset.params;
+    // No color transition, just set effect and color directly
+    setEffect(preset.effect, preset.params);
     config.state.currentPreset = presetId;
     config.state.power = true;
     config.state.inTransition = true;
@@ -384,7 +359,6 @@ void setPower(bool power) {
     }
     if (transition.getCurrentBrightness() != targetBrightness || !transition.isTransitioning()) {
         transition.startTransition(targetBrightness, transTime);
-    } else {
     }
     Serial.print("Power: ");
     Serial.println(power ? "ON" : "OFF");
@@ -399,62 +373,42 @@ void setBrightness(uint8_t brightness) {
     }
     uint8_t current = transition.getCurrentBrightness();
     if (brightness != current) {
-        // If transition is not active, force transition engine to current state brightness
         if (!transition.isTransitioning()) {
             transition.forceCurrentBrightness(config.state.brightness);
         }
         transition.startTransition(brightness, transTime);
-        // Do not set config.state.brightness here; let transition engine update it when done
         Serial.print("Brightness: ");
         Serial.println(brightness);
         webServer.broadcastState();
-    } else {
     }
 }
 
-void setEffect(EffectMode effect, const EffectParams& params) {
+void setEffect(uint8_t effect, const EffectParams& params) {
     config.state.effect = effect;
     config.state.params = params;
-    // Start color transition
-    uint32_t transTime = config.state.transitionTime;
-    if (transTime < config.safety.minTransitionTime) {
-        transTime = config.safety.minTransitionTime;
+    // Set WS2812FX effect and color
+    if (strip) {
+        strip->setMode(effect);
+        strip->setColor(params.color1);
     }
-    transition.startColorTransition(params.color1, params.color2, transTime);
+    Serial.print("Effect changed to: ");
+    Serial.println(effect);
     webServer.broadcastState();
 }
 
 void updateLEDs() {
-    // Update transition
-    transition.update();
-
-    // Get current values from transition engine
-    static bool lastPower = false;
-    static int lastBrightness = -1;
-    uint8_t currentBrightness = transition.getCurrentBrightness();
-    EffectParams currentParams = config.state.params;
-    currentParams.color1 = transition.getCurrentColor1();
-    currentParams.color2 = transition.getCurrentColor2();
-
-    // Set brightness to 0 if power is OFF, otherwise always use transition engine's value
+    // Only update brightness and call WS2812FX service
     if (!config.state.power) {
-        currentBrightness = 0;
-    } else {
-        currentBrightness = transition.getCurrentBrightness();
+        strip->setBrightness(0);
+        strip->service();
+        config.state.inTransition = false;
+        config.state.brightness = 0;
+        return;
     }
-
-    // For demonstration, fill all LEDs with color1 (expand as needed for effects)
-    uint8_t r = (currentParams.color1 >> 16) & 0xFF;
-    uint8_t g = (currentParams.color1 >> 8) & 0xFF;
-    uint8_t b = currentParams.color1 & 0xFF;
-    uint8_t w = 0; // You can add logic to use white channel if desired
-    for (uint16_t i = 0; i < strip->numPixels(); i++) {
-        strip->setPixelColor(i, strip->Color(r, g, b, w));
-    }
+    uint8_t currentBrightness = config.state.brightness;
     strip->setBrightness(currentBrightness);
-    strip->show();
-    config.state.inTransition = transition.isTransitioning();
-    // Always keep config.state.brightness in sync with actual output
+    strip->service();
+    config.state.inTransition = false;
     config.state.brightness = currentBrightness;
 }
 

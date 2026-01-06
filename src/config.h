@@ -43,16 +43,8 @@
 #define MAX_SUN_TIMERS 2
 #define STATE_SAVE_INTERVAL 60000  // Save every 60 seconds
 
-// Effect IDs
-enum EffectMode {
-    MODE_SOLID = 0,
-    MODE_AQUARIUM_RIPPLE = 1,
-    MODE_AQUARIUM_GENTLE_WAVE = 2,
-    MODE_AQUARIUM_SUNRISE = 3,
-    MODE_AQUARIUM_CORAL_SHIMMER = 4,
-    MODE_AQUARIUM_DEEP_OCEAN = 5,
-    MODE_AQUARIUM_MOONLIGHT = 6
-};
+
+// Presets now use WS2812FX native effect index directly (uint8_t)
 
 // Timer Types
 enum TimerType {
@@ -110,7 +102,7 @@ struct Timer {
 struct Preset {
     String name = "";
     uint8_t brightness = 128;
-    EffectMode effect = MODE_SOLID;
+    uint8_t effect = 0; // WS2812FX native effect index
     EffectParams params;
     bool enabled = true;
 };
@@ -118,7 +110,7 @@ struct Preset {
 struct SystemState {
     bool power = true;
     uint8_t brightness = 128;
-    EffectMode effect = MODE_SOLID;
+    uint8_t effect = 0;
     EffectParams params;
     uint32_t transitionTime = DEFAULT_MIN_TRANSITION_TIME;
     uint8_t currentPreset = 0;
@@ -137,6 +129,7 @@ public:
     Timer timers[MAX_TIMERS + MAX_SUN_TIMERS];
 
     bool load();
+    void resetPresetsFile();
     bool save();
     bool loadPresets();
     bool savePresets();

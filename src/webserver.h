@@ -35,7 +35,7 @@ public:
     // Callbacks for control actions
     void onPowerChange(void (*callback)(bool));
     void onBrightnessChange(void (*callback)(uint8_t));
-    void onEffectChange(void (*callback)(EffectMode, const EffectParams&));
+    void onEffectChange(void (*callback)(uint8_t, const EffectParams&));
     void onPresetApply(void (*callback)(uint8_t));
     void onConfigChange(void (*callback)());
     
@@ -50,7 +50,7 @@ private:
     // Callbacks
     void (*_powerCallback)(bool) = nullptr;
     void (*_brightnessCallback)(uint8_t) = nullptr;
-    void (*_effectCallback)(EffectMode, const EffectParams&) = nullptr;
+    void (*_effectCallback)(uint8_t, const EffectParams&) = nullptr;
     void (*_presetCallback)(uint8_t) = nullptr;
     void (*_configCallback)() = nullptr;
     

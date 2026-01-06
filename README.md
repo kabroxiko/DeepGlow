@@ -14,13 +14,20 @@ A complete standalone aquarium lighting controller system for ESP32/ESP8266 micr
 - **Smooth interpolation** - All changes use exponential easing
 - **Safety enforcement** - Multiple layers of protection at API, preset, and effect levels
 
-### 6 Custom Aquarium Effects
-1. **Aquarium Ripple** - Simulates light ripples through water surface
-2. **Gentle Wave** - Smooth flowing underwater waves
-3. **Sunrise Simulation** - Multi-phase color transition from dawn to daylight
-4. **Coral Shimmer** - Subtle twinkling for reef tanks
-5. **Deep Ocean** - Very slow dark blue pulsing for deep water simulation
-6. **Moonlight** - Ultra-dim blue lighting for nocturnal observation
+### Preset Effects (WS2812FX Native)
+All effects are now native WS2812FX effects, selected by their effect index. The default presets use the following WS2812FX effect indices:
+
+| Preset Name        | Effect Index | WS2812FX Effect Name      |
+|--------------------|--------------|--------------------------|
+| Morning Sun        | 15           | FADE                     |
+| Daylight           | 0            | STATIC                   |
+| Afternoon Ripple   | 12           | RAINBOW_CYCLE            |
+| Gentle Wave        | 3            | COLOR_WIPE               |
+| Coral Shimmer      | 21           | TWINKLE_FADE             |
+| Deep Ocean         | 37           | CHASE_BLUE               |
+| Moonlight          | 2            | BREATH                   |
+
+See the WS2812FX documentation for the full list of effect indices and names.
 
 ### Advanced Scheduling
 - **NTP time synchronization** - Accurate timekeeping
@@ -32,7 +39,7 @@ A complete standalone aquarium lighting controller system for ESP32/ESP8266 micr
 ### Modern Web Interface
 - Responsive design (mobile & desktop)
 - Real-time WebSocket updates
-- Visual preset management
+- Visual preset management (presets use WS2812FX effect indices)
 - Schedule dashboard
 - Configuration panel
 - Ocean-themed gradient design
@@ -59,21 +66,44 @@ A complete standalone aquarium lighting controller system for ESP32/ESP8266 micr
 
 ## 🔌 Wiring Diagram
 
-### Basic Setup (ESP8266)
-```
-ESP8266 Pin 2 (GPIO2) ───→ LED Strip Data In
-GND ──────────────────────→ LED Strip GND
-External 5V ──────────────→ LED Strip 5V
-                      └───→ ESP8266 VIN (if needed)
+
+### Basic Setup (ESP8266/ESP32)
+
+```mermaid
+flowchart LR
+  subgraph ESP["ESP8266/ESP32"]
+    MCU_VIN["VIN"]
+    MCU_DATA["Pin 2 (GPIO2)"]
+    MCU_GND["GND"]
+    MCU_RELAY["Pin 12 (GPIO12)"]
+  end
+  subgraph LED["LED Strip"]
+    LED_DATA["Data In"]
+    LED_GND["GND"]
+    LED_5V["5V"]
+  end
+  EXT_5V["External 5V"]
+
+  MCU_DATA -- Data --> LED_DATA
+  MCU_GND -- GND --> LED_GND
+  EXT_5V -- 5V --> RELAY_SW["Relay Module (optional)"]
+  RELAY_SW -- 5V --> LED_5V
+  EXT_5V -- 5V --> MCU_VIN
+
+  %% Optional relay wiring
+  MCU_RELAY -- Control --> RELAY_SW
+
+  %% Notes:
+  %% - Use a level shifter (74HCT245) for best reliability
+  %% - Add 470Ω resistor between MCU and LED data line
+  %% - Add 1000µF capacitor across LED power supply
+  %% - Ensure sufficient power supply (60mA per LED at full white)
+  %% - Relay is optional and can be used to switch LED power for safety or scheduling
 ```
 
-### ESP32 Setup
-```
-ESP32 Pin 2 (GPIO2) ──────→ LED Strip Data In
-GND ──────────────────────→ LED Strip GND
-External 5V ──────────────→ LED Strip 5V
-                      └───→ ESP32 VIN (if needed)
-```
+**Legend:**
+- Pin 2 (GPIO2) is the default data pin for both ESP8266 and ESP32.
+- Both 5V and VIN must be connected to the external 5V supply for reliable operation. VIN is required.
 
 **Important Notes:**
 - Use a level shifter (74HCT245) for best reliability
@@ -108,12 +138,15 @@ pio run -e esp32      # For ESP32
 pio run -e athom      # For Athom controllers
 ```
 
+pio run -t uploadfs -e esp8266
 ### 3. Upload Filesystem (Web Interface)
 
 ```bash
 # Upload filesystem (contains web interface)
 pio run -t uploadfs -e esp8266
 ```
+
+**Note:** PlatformIO's uploadfs/buildfs does not erase old files due to custom partitions. Old files (like presets.json) will persist unless deleted by firmware or a manual tool.
 
 ### 4. Upload Firmware
 
@@ -228,12 +261,14 @@ Find your coordinates: [LatLong.net](https://www.latlong.net/)
 ```
 - `offset`: Minutes after sunrise/sunset (+/-)
 
-## 🎨 Creating Custom Presets
+## 🎨 Creating and Managing Presets
+
+Presets use WS2812FX effect indices and parameters. You can manage presets via the web interface or API.
 
 ### Via Web Interface
 1. Navigate to Presets section
 2. Click "Add Preset"
-3. Configure effect, brightness, colors
+3. Select effect (by index), brightness, and colors
 4. Save preset
 
 ### Via API
@@ -244,7 +279,7 @@ curl -X POST http://aquariumled.local/api/preset \
     "id": 7,
     "name": "My Custom Preset",
     "brightness": 150,
-    "effect": 1,
+    "effect": 1,  // WS2812FX effect index
     "params": {
       "speed": 100,
       "intensity": 180,
@@ -253,6 +288,8 @@ curl -X POST http://aquariumled.local/api/preset \
     }
   }'
 ```
+
+To change the default presets, edit the `setDefaultPresets()` function in `src/config.cpp`.
 
 ## 🔧 API Reference
 
@@ -408,8 +445,10 @@ Server broadcasts state changes every 2 seconds and on any change.
 - Try alternative NTP server
 - Check timezone offset
 
-### Filesystem Errors
-- Reformat filesystem: `pio run -t erase`
+### Filesystem & Preset Errors
+- **Presets.json is now always deleted and regenerated on boot by firmware.**
+- PlatformIO's uploadfs/buildfs does not erase old files due to custom partitions.
+- If you want to preserve user presets, modify the firmware logic in `loadPresets()`.
 - Re-upload filesystem: `pio run -t uploadfs`
 - Check available flash memory
 
@@ -445,7 +484,7 @@ pio run -t upload --upload-port aquariumled.local
 
 **Note**: Configuration preserved during OTA updates.
 
-## 📁 Project Structure
+## 📁 Project Structure & Preset Logic
 
 ```
 DeepGlow/
@@ -453,7 +492,10 @@ DeepGlow/
 ├── src/
 │   ├── main.cpp           # Main application
 │   ├── config.h/cpp       # Configuration management
-│   ├── effects.h/cpp      # LED effects
+│   ├── effects.h/cpp      # (Unused, all effects are WS2812FX native)
+### Preset Regeneration Logic
+
+On every boot, the firmware deletes and regenerates `presets.json` with the default presets defined in `src/config.cpp`. If you want to preserve user presets, you must change this logic in `Configuration::loadPresets()`.
 │   ├── scheduler.h/cpp    # Time & scheduling
 │   ├── transition.h/cpp   # Smooth transitions
 │   └── webserver.h/cpp    # Web server & API

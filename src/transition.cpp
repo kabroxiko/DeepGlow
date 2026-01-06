@@ -3,12 +3,27 @@
 #include "transition.h"
 
 void TransitionEngine::forceCurrentBrightness(uint8_t value) {
+    if (value == 0) {
+        debugPrintln("[DEBUG] forceCurrentBrightness: Forcing _currentBrightness to 0");
+    }
     _currentBrightness = value;
 }
 
 TransitionEngine::TransitionEngine() {}
 
 void TransitionEngine::startTransition(uint8_t targetBrightness, uint32_t duration) {
+    debugPrint("[DEBUG] startTransition: start=");
+    debugPrintln((int)_currentBrightness);
+    debugPrint("[DEBUG] startTransition: target=");
+    debugPrintln((int)targetBrightness);
+    debugPrint("[DEBUG] startTransition: duration=");
+    debugPrintln((int)duration);
+    if (_currentBrightness == 0) {
+        debugPrintln("[DEBUG] startTransition: _currentBrightness is 0 at start");
+    }
+    if (targetBrightness == 0) {
+        debugPrintln("[DEBUG] startTransition: targetBrightness is 0");
+    }
     _startBrightness = _currentBrightness;
     _targetBrightness = targetBrightness;
     _startTime = millis();
