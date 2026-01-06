@@ -1,4 +1,10 @@
+
+#include <Arduino.h>
 #include "transition.h"
+
+void TransitionEngine::forceCurrentBrightness(uint8_t value) {
+    _currentBrightness = value;
+}
 
 TransitionEngine::TransitionEngine() {}
 
@@ -22,9 +28,8 @@ void TransitionEngine::startColorTransition(uint32_t targetColor1, uint32_t targ
 
 void TransitionEngine::update() {
     if (!_active) return;
-    
+
     uint32_t elapsed = millis() - _startTime;
-    
     if (elapsed >= _duration) {
         // Transition complete
         _currentBrightness = _targetBrightness;
@@ -33,13 +38,13 @@ void TransitionEngine::update() {
         _active = false;
         return;
     }
-    
+
     // Calculate progress (0.0 to 1.0)
     float progress = (float)elapsed / (float)_duration;
-    
+
     // Smooth easing (ease-in-out)
     progress = progress * progress * (3.0 - 2.0 * progress);
-    
+
     // Interpolate values
     _currentBrightness = interpolate(_startBrightness, _targetBrightness, progress);
     _currentColor1 = interpolateColor(_startColor1, _targetColor1, progress);

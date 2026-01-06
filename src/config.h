@@ -35,7 +35,6 @@
 
 // File Paths
 #define CONFIG_FILE "/config.json"
-#define STATE_FILE "/state.json"
 #define PRESET_FILE "/presets.json"
 
 // Limits
@@ -72,7 +71,7 @@ struct LEDConfig {
 };
 
 struct SafetyConfig {
-    uint16_t minTransitionTime = DEFAULT_MIN_TRANSITION_TIME;
+    uint32_t minTransitionTime = DEFAULT_MIN_TRANSITION_TIME;
     uint8_t maxBrightness = DEFAULT_MAX_BRIGHTNESS;
 };
 
@@ -121,7 +120,7 @@ struct SystemState {
     uint8_t brightness = 128;
     EffectMode effect = MODE_SOLID;
     EffectParams params;
-    uint16_t transitionTime = DEFAULT_MIN_TRANSITION_TIME;
+    uint32_t transitionTime = DEFAULT_MIN_TRANSITION_TIME;
     uint8_t currentPreset = 0;
     bool inTransition = false;
 };
@@ -136,16 +135,14 @@ public:
     SystemState state;
     Preset presets[MAX_PRESETS];
     Timer timers[MAX_TIMERS + MAX_SUN_TIMERS];
-    
+
     bool load();
     bool save();
     bool loadPresets();
     bool savePresets();
-    bool loadState();
-    bool saveState();
     void setDefaults();
     void setDefaultPresets();
-    
+
 private:
     bool loadFromFile(const char* path, JsonDocument& doc);
     bool saveToFile(const char* path, const JsonDocument& doc);

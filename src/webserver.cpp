@@ -5,8 +5,12 @@
 #ifdef ESP32
 #include <WebServer.h> // HTTP_* constants
 #endif
+
 #include <LittleFS.h>
 #define FILESYSTEM LittleFS
+
+#include "transition.h"
+extern TransitionEngine transition;
 
 
 
@@ -83,24 +87,20 @@ void WebServerManager::begin() {
 
 void WebServerManager::update() {
     _ws->cleanupClients();
-    
-    // Broadcast state every 2 seconds
-    if (millis() - _lastBroadcast > 2000) {
-        broadcastState();
-        _lastBroadcast = millis();
-    }
+    // No periodic broadcast; state is sent only on connection and on actual changes
 }
 
 void WebServerManager::setupWebSocket() {
-    _ws->onEvent([](AsyncWebSocket* server, AsyncWebSocketClient* client, 
+    _ws->onEvent([this](AsyncWebSocket* server, AsyncWebSocketClient* client, 
                      AwsEventType type, void* arg, uint8_t* data, size_t len) {
         if (type == WS_EVT_CONNECT) {
             Serial.println("WebSocket client connected");
+            // Send current state immediately to the new client
+            client->text(getStateJSON());
         } else if (type == WS_EVT_DISCONNECT) {
             Serial.println("WebSocket client disconnected");
         }
     });
-    
     _server->addHandler(_ws);
 }
 
@@ -290,41 +290,47 @@ void WebServerManager::handleGetState(AsyncWebServerRequest* request) {
 void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
     StaticJsonDocument<512> doc;
     DeserializationError error = deserializeJson(doc, data, len);
-    
     if (error) {
         request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
         return;
     }
-    
-    // Apply safety limits
+
+    // Merge incoming state with current state
+    uint8_t brightness = _config->state.brightness;
+    uint32_t transitionTime = _config->state.transitionTime;
+    bool power = _config->state.power;
+    EffectMode effect = _config->state.effect;
+    EffectParams params = _config->state.params;
+
     if (doc.containsKey("brightness")) {
-        uint8_t brightness = doc["brightness"];
-        uint16_t transitionTime = doc["transitionTime"] | _config->state.transitionTime;
-        applySafetyLimits(brightness, transitionTime);
-        
-        if (_brightnessCallback) _brightnessCallback(brightness);
-        _config->state.transitionTime = transitionTime;
+        brightness = doc["brightness"];
     }
-    
-    if (doc.containsKey("power") && _powerCallback) {
-        _powerCallback(doc["power"]);
+    if (doc.containsKey("transitionTime")) {
+        transitionTime = (uint32_t)doc["transitionTime"];
     }
-    
+    if (doc.containsKey("power")) {
+        power = doc["power"];
+    }
     if (doc.containsKey("effect")) {
-        EffectMode effect = (EffectMode)(int)doc["effect"];
-        EffectParams params = _config->state.params;
-        
-        if (doc.containsKey("params")) {
-            JsonObject paramsObj = doc["params"];
-            params.speed = paramsObj["speed"] | params.speed;
-            params.intensity = paramsObj["intensity"] | params.intensity;
-            params.color1 = paramsObj["color1"] | params.color1;
-            params.color2 = paramsObj["color2"] | params.color2;
-        }
-        
-        if (_effectCallback) _effectCallback(effect, params);
+        effect = (EffectMode)(int)doc["effect"];
     }
-    
+    if (doc.containsKey("params")) {
+        JsonObject paramsObj = doc["params"];
+        params.speed = paramsObj["speed"] | params.speed;
+        params.intensity = paramsObj["intensity"] | params.intensity;
+        params.color1 = paramsObj["color1"] | params.color1;
+        params.color2 = paramsObj["color2"] | params.color2;
+    }
+
+    // Apply safety limits for brightness and/or transitionTime
+    applySafetyLimits(brightness, transitionTime);
+
+    // Update state and call callbacks
+    if (_powerCallback) _powerCallback(power);
+    if (_brightnessCallback) _brightnessCallback(brightness);
+    if (_effectCallback) _effectCallback(effect, params);
+    _config->state.transitionTime = transitionTime;
+
     request->send(200, "application/json", "{\"success\":true}");
     broadcastState();
 }
@@ -457,20 +463,22 @@ String WebServerManager::getStateJSON() {
     StaticJsonDocument<512> doc;
     
     doc["power"] = _config->state.power;
-    doc["brightness"] = _config->state.brightness;
+    // Send target brightness as 'brightness' in state
+    extern TransitionEngine transition;
+    doc["brightness"] = transition.getTargetBrightness();
     doc["effect"] = _config->state.effect;
     doc["transitionTime"] = _config->state.transitionTime;
     doc["currentPreset"] = _config->state.currentPreset;
     doc["time"] = _scheduler->getCurrentTime();
     doc["sunrise"] = _scheduler->getSunriseTime();
     doc["sunset"] = _scheduler->getSunsetTime();
-    
+
     JsonObject paramsObj = doc.createNestedObject("params");
     paramsObj["speed"] = _config->state.params.speed;
     paramsObj["intensity"] = _config->state.params.intensity;
     paramsObj["color1"] = _config->state.params.color1;
     paramsObj["color2"] = _config->state.params.color2;
-    
+
     String output;
     serializeJson(doc, output);
     return output;
@@ -547,23 +555,38 @@ String WebServerManager::getTimersJSON() {
     return output;
 }
 
-bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint16_t& transitionTime) {
+bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transitionTime) {
     bool modified = false;
-    
+    Serial.print("[DEBUG] applySafetyLimits: brightness in=" );
+    Serial.print((int)brightness);
+    Serial.print(", transitionTime in=");
+    Serial.print((unsigned long)transitionTime);
+    Serial.print(", minTransitionTime=");
+    Serial.print((unsigned long)_config->safety.minTransitionTime);
+    Serial.print(", maxBrightness=");
+    Serial.println((int)_config->safety.maxBrightness);
+
     if (brightness > _config->safety.maxBrightness) {
         brightness = _config->safety.maxBrightness;
         modified = true;
     }
-    
+
     if (transitionTime < _config->safety.minTransitionTime) {
         transitionTime = _config->safety.minTransitionTime;
         modified = true;
     }
-    
+
+    Serial.print("[DEBUG] applySafetyLimits: brightness out=" );
+    Serial.print((int)brightness);
+    Serial.print(", transitionTime out=");
+    Serial.println((unsigned long)transitionTime);
     return modified;
 }
 
 void WebServerManager::broadcastState() {
+    // Sync config.state.brightness with transition engine before broadcasting
+    extern TransitionEngine transition;
+    _config->state.brightness = transition.getCurrentBrightness();
     String stateJSON = getStateJSON();
     _ws->textAll(stateJSON);
 }

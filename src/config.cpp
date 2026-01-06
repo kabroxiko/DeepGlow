@@ -8,26 +8,15 @@
 #endif
 
 bool Configuration::loadFromFile(const char* path, JsonDocument& doc) {
-    Serial.print("[DEBUG] loadFromFile: opening ");
-    Serial.println(path);
     File file = FILESYSTEM.open(path, "r");
     if (!file) {
-        Serial.print("[DEBUG] Failed to open file: ");
-        Serial.println(path);
         return false;
     }
     size_t fileSize = file.size();
-    Serial.print("[DEBUG] File size: ");
-    Serial.println(fileSize);
-
     DeserializationError error = deserializeJson(doc, file);
-    Serial.print("[DEBUG] deserializeJson() result: ");
-    Serial.println(error.c_str());
     file.close();
 
     if (error) {
-        Serial.print("[DEBUG] Failed to parse JSON: ");
-        Serial.println(error.c_str());
         return false;
     }
 
@@ -37,14 +26,10 @@ bool Configuration::loadFromFile(const char* path, JsonDocument& doc) {
 bool Configuration::saveToFile(const char* path, const JsonDocument& doc) {
     File file = FILESYSTEM.open(path, "w");
     if (!file) {
-        Serial.print("Failed to create file: ");
-        Serial.println(path);
         return false;
     }
-    
     size_t written = serializeJson(doc, file);
     file.close();
-    
     return written > 0;
 }
 
@@ -158,31 +143,23 @@ bool Configuration::save() {
 }
 
 bool Configuration::loadPresets() {
-    Serial.println("[DEBUG] Entered loadPresets()");
     // Use DynamicJsonDocument for heap allocation
     size_t capacity = 8192;
     DynamicJsonDocument doc(capacity);
 
     if (!loadFromFile(PRESET_FILE, doc)) {
-        Serial.println("[DEBUG] loadFromFile failed in loadPresets()");
         setDefaultPresets();
         return false;
     }
-    Serial.println("[DEBUG] Loaded JSON from presets file");
 
     if (!doc.containsKey("presets")) {
-        Serial.println("[DEBUG] No 'presets' key in JSON");
         setDefaultPresets();
         return false;
     }
 
     JsonArray presetsArray = doc["presets"];
-    Serial.print("[DEBUG] Presets array size: ");
-    Serial.println(presetsArray.size());
     for (size_t i = 0; i < presetsArray.size() && i < MAX_PRESETS; i++) {
         JsonObject presetObj = presetsArray[i];
-        Serial.print("[DEBUG] Loading preset ");
-        Serial.println(i);
         presets[i].name = presetObj["name"] | "";
         presets[i].brightness = presetObj["brightness"] | 128;
         presets[i].effect = (EffectMode)(presetObj["effect"] | 0);
@@ -196,7 +173,6 @@ bool Configuration::loadPresets() {
             presets[i].params.color2 = paramsObj["color2"] | 0x00FFFF;
         }
     }
-    Serial.println("[DEBUG] Finished loading presets");
     return true;
 }
 
@@ -225,47 +201,6 @@ bool Configuration::savePresets() {
     return saveToFile(PRESET_FILE, doc);
 }
 
-bool Configuration::loadState() {
-    StaticJsonDocument<1024> doc;
-    
-    if (!loadFromFile(STATE_FILE, doc)) {
-        return false;
-    }
-    
-    state.power = doc["power"] | true;
-    state.brightness = doc["brightness"] | 128;
-    state.effect = (EffectMode)(doc["effect"] | 0);
-    state.transitionTime = doc["transitionTime"] | DEFAULT_MIN_TRANSITION_TIME;
-    state.currentPreset = doc["currentPreset"] | 0;
-    
-    if (doc.containsKey("params")) {
-        JsonObject paramsObj = doc["params"];
-        state.params.speed = paramsObj["speed"] | 128;
-        state.params.intensity = paramsObj["intensity"] | 128;
-        state.params.color1 = paramsObj["color1"] | 0x0000FF;
-        state.params.color2 = paramsObj["color2"] | 0x00FFFF;
-    }
-    
-    return true;
-}
-
-bool Configuration::saveState() {
-    StaticJsonDocument<1024> doc;
-    
-    doc["power"] = state.power;
-    doc["brightness"] = state.brightness;
-    doc["effect"] = state.effect;
-    doc["transitionTime"] = state.transitionTime;
-    doc["currentPreset"] = state.currentPreset;
-    
-    JsonObject paramsObj = doc.createNestedObject("params");
-    paramsObj["speed"] = state.params.speed;
-    paramsObj["intensity"] = state.params.intensity;
-    paramsObj["color1"] = state.params.color1;
-    paramsObj["color2"] = state.params.color2;
-    
-    return saveToFile(STATE_FILE, doc);
-}
 
 void Configuration::setDefaults() {
     led = LEDConfig();

@@ -1,7 +1,5 @@
 
-// ...existing code...
 #include <Arduino.h>
-// ...existing code...
 #ifdef DEBUG_SERIAL
 void debugPrintln(const char* msg) { Serial.println(msg); }
 void debugPrintln(const String& msg) { Serial.println(msg); }
@@ -112,9 +110,6 @@ void setup() {
     }
     debugPrintln("[DEBUG] Presets loaded");
 
-    // Load last state
-    config.loadState();
-    debugPrintln("[DEBUG] State loaded");
 
     // Initialize LEDs
     setupLEDs();
@@ -199,6 +194,13 @@ void setup() {
 }
 
 void loop() {
+    // Top of loop: check for unexpected resets
+    static bool firstLoop = true;
+    if (firstLoop) {
+        debugPrintln("[DEBUG] loop() entered (device running)");
+        Serial.println("[DEBUG] loop() entered (device running)");
+        firstLoop = false;
+    }
     // Update all systems
     scheduler.update();
     webServer.update();
@@ -213,9 +215,10 @@ void loop() {
     }
     
     // Save state periodically
+    // State saving to file removed; only update lastStateSave timestamp
     if (millis() - lastStateSave > STATE_SAVE_INTERVAL) {
-        config.saveState();
         lastStateSave = millis();
+        transition.forceCurrentBrightness(config.state.brightness);
     }
 
     // Captive portal DNS handler (if in AP mode)
@@ -286,8 +289,6 @@ void setupWiFi() {
 }
 
 void setupLEDs() {
-    uint32_t debugStart = millis();
-    debugPrintln("[DEBUG] setupLEDs() started");
     // Detect LED type and allocate/init accordingly
     String type = config.led.type;
     type.toUpperCase();
@@ -296,9 +297,7 @@ void setupLEDs() {
     // Optimize clearing: only clear both protocols if type changes
     static String prevType = "";
     const uint16_t MAX_LED_SAFE = 256; // adjust as needed for your hardware
-    uint32_t clearStart = millis();
     if (prevType.length() > 0 && prevType != type) {
-        debugPrintln("[DEBUG] LED type changed, clearing both protocols");
         Adafruit_NeoPixel clearGRB(MAX_LED_SAFE, pin, NEO_GRB + NEO_KHZ800);
         clearGRB.begin();
         for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearGRB.setPixelColor(i, 0);
@@ -308,7 +307,6 @@ void setupLEDs() {
         for (uint16_t i = 0; i < MAX_LED_SAFE; i++) clearGRBW.setPixelColor(i, 0);
         clearGRBW.show();
     } else {
-        debugPrintln("[DEBUG] LED type unchanged, clearing current protocol");
         uint32_t proto = (type.indexOf("SK6812") >= 0) ? (NEO_GRBW + NEO_KHZ800) : (NEO_GRB + NEO_KHZ800);
         Adafruit_NeoPixel clearStrip(MAX_LED_SAFE, pin, proto);
         clearStrip.begin();
@@ -318,14 +316,6 @@ void setupLEDs() {
     if (strip) {
         delete strip;
     }
-    uint32_t clearEnd = millis();
-    debugPrint("[DEBUG] LED clearing took: ");
-    debugPrintln((int)(clearEnd - clearStart));
-    debugPrintln(" ms");
-        uint32_t debugEnd = millis();
-        debugPrint("[DEBUG] setupLEDs() total time: ");
-        debugPrintln((int)(debugEnd - debugStart));
-        debugPrintln(" ms");
     prevType = type;
     // Now create the actual strip
     if (type.indexOf("SK6812") >= 0) {
@@ -348,88 +338,83 @@ void applyPreset(uint8_t presetId) {
         Serial.println("Invalid preset ID");
         return;
     }
-    
     Serial.print("Applying preset: ");
     Serial.println(config.presets[presetId].name);
-    
     Preset& preset = config.presets[presetId];
-    
     // Start transitions
-    uint16_t transTime = config.state.transitionTime;
-    
+    uint32_t transTime = config.state.transitionTime;
     // Ensure minimum transition time
     if (transTime < config.safety.minTransitionTime) {
         transTime = config.safety.minTransitionTime;
     }
-    
     // Apply safety limits to brightness
     uint8_t safeBrightness = min(preset.brightness, config.safety.maxBrightness);
-    
     // Start transitions
     transition.startTransition(safeBrightness, transTime);
     transition.startColorTransition(preset.params.color1, preset.params.color2, transTime);
-    
-    // Update state
-    config.state.brightness = safeBrightness;
+    // Update state except brightness (let transition engine manage brightness)
     config.state.effect = preset.effect;
     config.state.params = preset.params;
     config.state.currentPreset = presetId;
     config.state.power = true;
     config.state.inTransition = true;
-    
     webServer.broadcastState();
 }
 
 void setPower(bool power) {
-    config.state.power = power;
-    
-    if (!power) {
-        // Fade to black
-        transition.startTransition(0, config.safety.minTransitionTime);
-    } else {
-        // Restore brightness
-        transition.startTransition(config.state.brightness, config.safety.minTransitionTime);
+    if (config.state.power == power) {
+        return;
     }
-    
+    config.state.power = power;
+    uint8_t targetBrightness = power ? config.state.brightness : 0;
+    uint32_t transTime = config.state.transitionTime;
+    if (transTime < config.safety.minTransitionTime) {
+        transTime = config.safety.minTransitionTime;
+    }
+    if (power) {
+        transition.forceCurrentBrightness(config.state.brightness);
+    }
+    if (transition.getCurrentBrightness() != targetBrightness || !transition.isTransitioning()) {
+        transition.startTransition(targetBrightness, transTime);
+    } else {
+    }
     Serial.print("Power: ");
     Serial.println(power ? "ON" : "OFF");
-    
     webServer.broadcastState();
 }
 
 void setBrightness(uint8_t brightness) {
-    // Apply safety limit
     brightness = min(brightness, config.safety.maxBrightness);
-    
-    uint16_t transTime = config.state.transitionTime;
+    uint32_t transTime = config.state.transitionTime;
     if (transTime < config.safety.minTransitionTime) {
         transTime = config.safety.minTransitionTime;
     }
-    
-    transition.startTransition(brightness, transTime);
-    config.state.brightness = brightness;
-    
-    Serial.print("Brightness: ");
-    Serial.println(brightness);
-    
-    webServer.broadcastState();
+    uint8_t current = transition.getCurrentBrightness();
+    if (brightness != current) {
+        // If transition is not active, force transition engine to current state brightness
+        if (!transition.isTransitioning()) {
+            transition.forceCurrentBrightness(config.state.brightness);
+        }
+        transition.startTransition(brightness, transTime);
+        // Do not set config.state.brightness here; let transition engine update it when done
+        Serial.print("Brightness: ");
+        Serial.println(brightness);
+        webServer.broadcastState();
+    } else {
+    }
 }
 
 void setEffect(EffectMode effect, const EffectParams& params) {
     config.state.effect = effect;
     config.state.params = params;
-    
     // Start color transition
-    uint16_t transTime = config.state.transitionTime;
+    uint32_t transTime = config.state.transitionTime;
     if (transTime < config.safety.minTransitionTime) {
         transTime = config.safety.minTransitionTime;
     }
-    
     transition.startColorTransition(params.color1, params.color2, transTime);
-    
     Serial.print("Effect changed to: ");
     Serial.println(effect);
-    
     webServer.broadcastState();
 }
 
@@ -438,14 +423,18 @@ void updateLEDs() {
     transition.update();
 
     // Get current values from transition engine
+    static bool lastPower = false;
+    static int lastBrightness = -1;
     uint8_t currentBrightness = transition.getCurrentBrightness();
     EffectParams currentParams = config.state.params;
     currentParams.color1 = transition.getCurrentColor1();
     currentParams.color2 = transition.getCurrentColor2();
 
-    // Apply power state
+    // Set brightness to 0 if power is OFF, otherwise always use transition engine's value
     if (!config.state.power) {
         currentBrightness = 0;
+    } else {
+        currentBrightness = transition.getCurrentBrightness();
     }
 
     // For demonstration, fill all LEDs with color1 (expand as needed for effects)
@@ -459,6 +448,8 @@ void updateLEDs() {
     strip->setBrightness(currentBrightness);
     strip->show();
     config.state.inTransition = transition.isTransitioning();
+    // Always keep config.state.brightness in sync with actual output
+    config.state.brightness = currentBrightness;
 }
 
 void checkSchedule() {

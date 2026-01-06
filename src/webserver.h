@@ -73,7 +73,7 @@ private:
     String getPresetsJSON();
     String getConfigJSON();
     String getTimersJSON();
-    bool applySafetyLimits(uint8_t& brightness, uint16_t& transitionTime);
+    bool applySafetyLimits(uint8_t& brightness, uint32_t& transitionTime);
 };
 
 #endif

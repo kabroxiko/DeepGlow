@@ -3,12 +3,17 @@
 let ws = null;
 let reconnectInterval = null;
 let currentState = {};
+let clockInterval = null;
+let clockSynced = false;
+let localClock = null;
 let presets = [];
 let timers = [];
 let config = {};
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
+    // Hide Quick Controls until first WebSocket message
+    document.querySelector('.card').style.display = 'none';
     initializeWebSocket();
     setupEventListeners();
     loadPresets();
@@ -22,46 +27,52 @@ function initializeWebSocket() {
     const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
     
     ws = new WebSocket(wsUrl);
-    
+
     ws.onopen = () => {
-        console.log('WebSocket connected');
+        console.log('[WS] Connected');
         document.getElementById('statusIndicator').style.color = '#00cc88';
         if (reconnectInterval) {
             clearInterval(reconnectInterval);
             reconnectInterval = null;
         }
     };
-    
+
     ws.onmessage = (event) => {
+        console.log('[WS] Message:', event.data);
         try {
             const data = JSON.parse(event.data);
             updateState(data);
         } catch (e) {
-            console.error('Failed to parse WebSocket message:', e);
+            console.error('[WS] Failed to parse message:', e);
         }
     };
-    
+
     ws.onclose = () => {
-        console.log('WebSocket disconnected');
+        console.log('[WS] Disconnected');
         document.getElementById('statusIndicator').style.color = '#ff4466';
-        
+
         // Attempt to reconnect
         if (!reconnectInterval) {
             reconnectInterval = setInterval(() => {
-                console.log('Attempting to reconnect...');
+                console.log('[WS] Attempting to reconnect...');
                 initializeWebSocket();
             }, 5000);
         }
     };
-    
+
     ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('[WS] Error:', error);
     };
 }
 
 // Update UI with state from server
 function updateState(state) {
     currentState = state;
+    // Show Quick Controls on first WebSocket message
+    const quickControls = document.querySelector('.card');
+    if (quickControls && quickControls.style.display === 'none') {
+        quickControls.style.display = '';
+    }
     
     // Update controls without triggering events
     const powerToggle = document.getElementById('powerToggle');
@@ -79,7 +90,17 @@ function updateState(state) {
     if (effectSelect.value != state.effect) {
         effectSelect.value = state.effect;
     }
-    
+
+    // Update transition slider and label from state
+    if (typeof state.transitionTime !== 'undefined') {
+        const transitionSlider = document.getElementById('transitionSlider');
+        const transitionSeconds = Math.round(Number(state.transitionTime) / 1000);
+        if (transitionSlider.value != transitionSeconds) {
+            transitionSlider.value = transitionSeconds;
+        }
+        document.getElementById('transitionValue').textContent = transitionSeconds;
+    }
+
     if (state.params) {
         document.getElementById('speedSlider').value = state.params.speed;
         document.getElementById('speedValue').textContent = state.params.speed;
@@ -90,20 +111,35 @@ function updateState(state) {
         document.getElementById('color1Picker').value = '#' + state.params.color1.toString(16).padStart(6, '0');
         document.getElementById('color2Picker').value = '#' + state.params.color2.toString(16).padStart(6, '0');
     }
-    
-    // Update time display
+
+    // Synchronize clock with backend on first WS message, then advance locally
     if (state.time) {
-        document.getElementById('currentTime').textContent = state.time;
+        if (!clockSynced) {
+            document.getElementById('currentTime').textContent = state.time;
+            // Parse time as HH:MM:SS
+            const [h, m, s] = state.time.split(':').map(Number);
+            const now = new Date();
+            localClock = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, s);
+            if (clockInterval) clearInterval(clockInterval);
+            clockInterval = setInterval(() => {
+                localClock.setSeconds(localClock.getSeconds() + 1);
+                const hh = localClock.getHours().toString().padStart(2, '0');
+                const mm = localClock.getMinutes().toString().padStart(2, '0');
+                const ss = localClock.getSeconds().toString().padStart(2, '0');
+                document.getElementById('currentTime').textContent = `${hh}:${mm}:${ss}`;
+            }, 1000);
+            clockSynced = true;
+        }
     }
-    
+
     if (state.sunrise) {
         document.getElementById('sunriseTime').textContent = state.sunrise;
     }
-    
+
     if (state.sunset) {
         document.getElementById('sunsetTime').textContent = state.sunset;
     }
-    
+
     // Highlight active preset
     if (state.currentPreset !== undefined) {
         document.querySelectorAll('.preset-card').forEach((card, index) => {
@@ -124,20 +160,23 @@ function setupEventListeners() {
     });
     
     // Brightness slider
-    let brightnessTimeout;
     document.getElementById('brightnessSlider').addEventListener('input', (e) => {
         document.getElementById('brightnessValue').textContent = e.target.value;
-        clearTimeout(brightnessTimeout);
-        brightnessTimeout = setTimeout(() => {
-            sendState({ brightness: parseInt(e.target.value) });
-        }, 300);
+    });
+    document.getElementById('brightnessSlider').addEventListener('change', (e) => {
+        sendState({ brightness: parseInt(e.target.value) });
     });
     
     // Transition time slider
+    // Only update label on input
     document.getElementById('transitionSlider').addEventListener('input', (e) => {
         const seconds = parseInt(e.target.value);
         document.getElementById('transitionValue').textContent = seconds;
-        sendState({ transitionTime: seconds * 1000 });
+    });
+    // Only send to backend on release
+    document.getElementById('transitionSlider').addEventListener('change', (e) => {
+        const seconds = parseInt(e.target.value);
+        sendState({ transitionTime: Number(seconds) * 1000 });
     });
     
     // Effect selector
@@ -360,7 +399,7 @@ function loadConfig() {
                 document.getElementById('maxBrightness').value = data.safety.maxBrightness;
                 document.getElementById('maxBrightnessValue').textContent = data.safety.maxBrightness;
 
-                const minTransSeconds = Math.floor(data.safety.minTransitionTime / 1000);
+                const minTransSeconds = Math.floor(Number(data.safety.minTransitionTime) / 1000);
                 document.getElementById('minTransition').value = minTransSeconds;
                 document.getElementById('minTransitionValue').textContent = minTransSeconds;
             }
@@ -382,7 +421,7 @@ function saveConfiguration() {
         },
         safety: {
             maxBrightness: parseInt(document.getElementById('maxBrightness').value),
-            minTransitionTime: parseInt(document.getElementById('minTransition').value) * 1000
+            minTransitionTime: Number(document.getElementById('minTransition').value) * 1000
         },
         time: {
             timezoneOffset: parseInt(document.getElementById('timezoneOffset').value),
