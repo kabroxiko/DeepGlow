@@ -196,11 +196,7 @@ void setup() {
 void loop() {
     // Top of loop: check for unexpected resets
     static bool firstLoop = true;
-    if (firstLoop) {
-        debugPrintln("[DEBUG] loop() entered (device running)");
-        Serial.println("[DEBUG] loop() entered (device running)");
-        firstLoop = false;
-    }
+
     // Update all systems
     scheduler.update();
     webServer.update();
@@ -242,40 +238,52 @@ void setupFilesystem() {
 
 void setupWiFi() {
     Serial.print("Connecting to WiFi");
-    debugPrint("[DEBUG] WiFi credentials: SSID=");
-    debugPrint(config.network.ssid.c_str());
-    debugPrint(", Password=");
-    debugPrintln(config.network.password.c_str());
-    
     // Set hostname
     #ifdef ESP8266
         WiFi.hostname(config.network.hostname);
     #else
         WiFi.setHostname(config.network.hostname.c_str());
     #endif
-    
-    // Connect to WiFi
+
+    // Connect to WiFi with retry logic
     if (config.network.ssid.length() > 0) {
-        debugPrintln("[DEBUG] Attempting WiFi.begin() with loaded credentials...");
-        WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
-        int attempts = 0;
-        while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-            delay(500);
-            Serial.print(".");
-            attempts++;
+        int maxRetries = 3;
+        int retryDelayMs = 5000;
+        int attempt = 0;
+        bool connected = false;
+        while (attempt < maxRetries && !connected) {
+            Serial.print("\nWiFi attempt ");
+            Serial.print(attempt + 1);
+            Serial.print(" of ");
+            Serial.println(maxRetries);
+            WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
+            int subAttempts = 0;
+            while (WiFi.status() != WL_CONNECTED && subAttempts < 30) {
+                delay(500);
+                Serial.print(".");
+                subAttempts++;
+            }
+            if (WiFi.status() == WL_CONNECTED) {
+                connected = true;
+                break;
+            } else {
+                Serial.println("\nWiFi connection failed, retrying...");
+                WiFi.disconnect();
+                delay(retryDelayMs);
+            }
+            attempt++;
         }
-        if (WiFi.status() == WL_CONNECTED) {
+        if (connected) {
             Serial.println();
             Serial.print("Connected! IP: ");
             Serial.println(WiFi.localIP());
-            debugPrintln("[DEBUG] WiFi connection successful, stopping captive portal");
             stopCaptivePortal();
             return;
         } else {
-            debugPrintln("[DEBUG] WiFi connection failed, starting AP mode");
+            Serial.println("\nAll WiFi connection attempts failed, starting AP mode");
         }
     } else {
-        debugPrintln("[DEBUG] No SSID configured, starting AP mode");
+        Serial.println("\nNo SSID configured, starting AP mode");
     }
     // If connection failed or no credentials, start AP mode
     Serial.println();
@@ -413,8 +421,6 @@ void setEffect(EffectMode effect, const EffectParams& params) {
         transTime = config.safety.minTransitionTime;
     }
     transition.startColorTransition(params.color1, params.color2, transTime);
-    Serial.print("Effect changed to: ");
-    Serial.println(effect);
     webServer.broadcastState();
 }
 
