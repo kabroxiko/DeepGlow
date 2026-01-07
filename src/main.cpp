@@ -58,6 +58,10 @@ void updateLEDs();
 void checkSchedule();
 
 void setup() {
+    // Initialize relay pin from config
+    pinMode(config.led.relayPin, OUTPUT);
+    // Set relay to off state at boot
+    digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
     #ifdef DEBUG_SERIAL
     Serial.begin(115200);
     delay(1000);
@@ -109,6 +113,10 @@ void setup() {
     webServer.onPresetApply(applyPreset);
     webServer.onConfigChange([]() {
         debugPrintln("Configuration updated, recalculating sun times and reinitializing LEDs");
+        // Immediately apply relay pin and logic changes
+        pinMode(config.led.relayPin, OUTPUT);
+        // Set relay to current state with new logic
+        digitalWrite(config.led.relayPin, config.state.power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
         scheduler.calculateSunTimes();
         // Save current transition state
         uint8_t prevBrightness = transition.getCurrentBrightness();
@@ -316,6 +324,8 @@ void setPower(bool power) {
         return;
     }
     config.state.power = power;
+    // Control relay
+    digitalWrite(config.led.relayPin, power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
     uint8_t targetBrightness = power ? config.state.brightness : 0;
     uint32_t transTime = config.state.transitionTime;
     if (transTime < config.safety.minTransitionTime) {

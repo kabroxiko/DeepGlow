@@ -52,6 +52,7 @@ bool Configuration::load() {
         led.type = ledObj["type"] | DEFAULT_LED_TYPE;
         led.colorOrder = ledObj["colorOrder"] | DEFAULT_COLOR_ORDER;
         led.relayPin = ledObj.containsKey("relayPin") ? (int)ledObj["relayPin"] : DEFAULT_LED_RELAY_PIN;
+        led.relayActiveHigh = ledObj.containsKey("relayActiveHigh") ? (bool)ledObj["relayActiveHigh"] : true;
     }
     
     // Safety Configuration
@@ -108,6 +109,7 @@ bool Configuration::save() {
     ledObj["type"] = led.type;
     ledObj["colorOrder"] = led.colorOrder;
     ledObj["relayPin"] = led.relayPin;
+    ledObj["relayActiveHigh"] = led.relayActiveHigh;
     
     // Safety Configuration
     JsonObject safetyObj = doc.createNestedObject("safety");

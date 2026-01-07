@@ -132,29 +132,42 @@
                         <option value="SK6812">SK6812 (GRB)</option>
                     </select>
                 </div>
-                
+
+                <div class="config-item">
+                    <label>Relay Pin (GPIO)</label>
+                    <input type="number" id="relayPin" min="0" max="39" value="12" class="text-input">
+                </div>
+
+                <div class="config-item">
+                    <label>Relay Active Level</label>
+                    <select id="relayActiveHigh" class="select-input">
+                        <option value="true">HIGH = ON</option>
+                        <option value="false">LOW = ON</option>
+                    </select>
+                </div>
+
                 <div class="config-item">
                     <label>Max Brightness (Fish Safety)</label>
                     <input type="range" id="maxBrightness" min="50" max="255" value="200" class="slider-input">
                     <span id="maxBrightnessValue">200</span>
                 </div>
-                
+
                 <div class="config-item">
                     <label>Min Transition Time (seconds)</label>
                     <input type="range" id="minTransition" min="2" max="3600" value="5" class="slider-input">
                     <span id="minTransitionValue">5</span>
                 </div>
-                
+
                 <div class="config-item">
                     <label>Timezone Offset (hours)</label>
                     <input type="number" id="timezoneOffset" min="-12" max="12" value="0" class="text-input">
                 </div>
-                
+
                 <div class="config-item">
                     <label>Latitude</label>
                     <input type="number" id="latitude" min="-90" max="90" step="0.01" value="0" class="text-input">
                 </div>
-                
+
                 <div class="config-item">
                     <label>Longitude</label>
                     <input type="number" id="longitude" min="-180" max="180" step="0.01" value="0" class="text-input">
