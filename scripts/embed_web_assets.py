@@ -10,6 +10,14 @@ import sys
 
 import tempfile
 
+
+# Skip script if PlatformIO target is erase, eraspatche, or clean
+import sys
+pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
+if any(x in pio_targets for x in ['erase', 'clean']):
+	print('embed_web_assets.py: Skipping script for erase/eraspatche/clean target.')
+	sys.exit(0)
+
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR = os.path.join(os.getcwd(), 'data')
 OUT_DIR = os.path.join(os.getcwd(), 'src/web_assets')

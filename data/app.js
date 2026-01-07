@@ -337,9 +337,14 @@ function sendState(updates) {
         },
         body: JSON.stringify(updates)
     })
-    .then(response => response.json())
+    .then(async response => {
+        const text = await response.text();
+        if (!text) return {};
+        try { return JSON.parse(text); } catch { return {}; }
+    })
     .then(data => {
-        if (!data.success) {
+        // Treat empty response or missing success property as success
+        if (data && typeof data.success !== 'undefined' && !data.success) {
             console.error('Failed to update state');
         }
     })
@@ -349,9 +354,13 @@ function sendState(updates) {
 // Load and display presets
 function loadPresets() {
     fetch(BASE_URL + '/api/presets')
-        .then(response => response.json())
+        .then(async response => {
+            const text = await response.text();
+            if (!text) return {};
+            try { return JSON.parse(text); } catch { return {}; }
+        })
         .then(data => {
-            presets = data.presets;
+            presets = data.presets || [];
             displayPresets();
         })
         .catch(error => console.error('Error loading presets:', error));
@@ -395,7 +404,11 @@ function applyPreset(presetId) {
             apply: true
         })
     })
-    .then(response => response.json())
+    .then(async response => {
+        const text = await response.text();
+        if (!text) return {};
+        try { return JSON.parse(text); } catch { return {}; }
+    })
     .then(data => {
         if (data.success) {
             console.log('Preset applied:', presetId);
@@ -407,9 +420,13 @@ function applyPreset(presetId) {
 // Load and display timers
 function loadTimers() {
     fetch(BASE_URL + '/api/timers')
-        .then(response => response.json())
+        .then(async response => {
+            const text = await response.text();
+            if (!text) return {};
+            try { return JSON.parse(text); } catch { return {}; }
+        })
         .then(data => {
-            timers = data.timers;
+            timers = data.timers || [];
             displayTimers();
         })
         .catch(error => console.error('Error loading timers:', error));
@@ -466,7 +483,11 @@ function showTimerEditor() {
 // Load configuration
 function loadConfig() {
     fetch(BASE_URL + '/api/config')
-        .then(response => response.json())
+        .then(async response => {
+            const text = await response.text();
+            if (!text) return {};
+            try { return JSON.parse(text); } catch { return {}; }
+        })
         .then(data => {
             config = data;
 
@@ -475,6 +496,12 @@ function loadConfig() {
                 document.getElementById('ledCount').value = data.led.count;
                 if (data.led.type) {
                     document.getElementById('ledType').value = data.led.type;
+                }
+                if (typeof data.led.relayPin !== 'undefined') {
+                    document.getElementById('relayPin').value = data.led.relayPin;
+                }
+                if (typeof data.led.relayActiveHigh !== 'undefined') {
+                    document.getElementById('relayActiveHigh').value = String(data.led.relayActiveHigh);
                 }
             }
 
@@ -497,22 +524,40 @@ function loadConfig() {
 }
 
 function saveConfiguration() {
-    const configUpdate = {
-        led: {
-            count: parseInt(document.getElementById('ledCount').value),
-            type: document.getElementById('ledType').value
-        },
-        safety: {
-            maxBrightness: parseInt(document.getElementById('maxBrightness').value),
-            minTransitionTime: Number(document.getElementById('minTransition').value) * 1000
-        },
-        time: {
-            timezoneOffset: parseInt(document.getElementById('timezoneOffset').value),
-            latitude: parseFloat(document.getElementById('latitude').value),
-            longitude: parseFloat(document.getElementById('longitude').value)
-        }
-    };
-    
+    // Build configUpdate with only changed values
+    const configUpdate = {};
+    // LED
+    const ledUpdate = {};
+    const ledCount = parseInt(document.getElementById('ledCount').value);
+    if (!config.led || config.led.count !== ledCount) ledUpdate.count = ledCount;
+    const ledType = document.getElementById('ledType').value;
+    if (!config.led || config.led.type !== ledType) ledUpdate.type = ledType;
+    const relayPin = parseInt(document.getElementById('relayPin').value);
+    if (!config.led || config.led.relayPin !== relayPin) ledUpdate.relayPin = relayPin;
+    const relayActiveHigh = document.getElementById('relayActiveHigh').value === 'true';
+    if (!config.led || config.led.relayActiveHigh !== relayActiveHigh) ledUpdate.relayActiveHigh = relayActiveHigh;
+    if (Object.keys(ledUpdate).length > 0) configUpdate.led = ledUpdate;
+    // Safety
+    const safetyUpdate = {};
+    const maxBrightness = parseInt(document.getElementById('maxBrightness').value);
+    if (!config.safety || config.safety.maxBrightness !== maxBrightness) safetyUpdate.maxBrightness = maxBrightness;
+    const minTransitionTime = Number(document.getElementById('minTransition').value) * 1000;
+    if (!config.safety || config.safety.minTransitionTime !== minTransitionTime) safetyUpdate.minTransitionTime = minTransitionTime;
+    if (Object.keys(safetyUpdate).length > 0) configUpdate.safety = safetyUpdate;
+    // Time
+    const timeUpdate = {};
+    const timezoneOffset = parseInt(document.getElementById('timezoneOffset').value);
+    if (!config.time || config.time.timezoneOffset !== timezoneOffset) timeUpdate.timezoneOffset = timezoneOffset;
+    const latitude = parseFloat(document.getElementById('latitude').value);
+    if (!config.time || config.time.latitude !== latitude) timeUpdate.latitude = latitude;
+    const longitude = parseFloat(document.getElementById('longitude').value);
+    if (!config.time || config.time.longitude !== longitude) timeUpdate.longitude = longitude;
+    if (Object.keys(timeUpdate).length > 0) configUpdate.time = timeUpdate;
+    // Only send if something changed
+    if (Object.keys(configUpdate).length === 0) {
+        showToast('No changes to save.');
+        return;
+    }
     fetch(BASE_URL + '/api/config', {
         method: 'POST',
         headers: {
@@ -520,9 +565,19 @@ function saveConfiguration() {
         },
         body: JSON.stringify(configUpdate)
     })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
+    .then(async response => {
+        const statusOk = response.ok;
+        let data = {};
+        try {
+            const text = await response.text();
+            if (text) data = JSON.parse(text);
+        } catch (e) {
+            // Ignore JSON parse error, treat as success if HTTP 200
+        }
+        return { statusOk, data };
+    })
+    .then(({ statusOk, data }) => {
+        if (statusOk && (data.success === undefined || data.success === true)) {
             showToast('Configuration saved! Changes take effect immediately.');
             sendDebugWS('Config saved successfully');
         } else {

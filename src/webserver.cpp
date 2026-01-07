@@ -518,8 +518,14 @@ void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
 void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
     StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, data, len);
-    
+    debugPrintln("[DEBUG] handleSetConfig called");
+    String incomingJson;
+    serializeJson(doc, incomingJson);
+    debugPrint("[DEBUG] Incoming config JSON: ");
+    debugPrintln(incomingJson);
+
     if (error) {
+        debugPrintln("[DEBUG] JSON parse error in handleSetConfig");
         {
             AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
             for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
@@ -527,7 +533,7 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
         }
         return;
     }
-    
+
     // Update configuration
     if (doc.containsKey("led")) {
         JsonObject ledObj = doc["led"];
@@ -537,15 +543,21 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
         if (ledObj.containsKey("type")) {
             _config->led.type = ledObj["type"] | _config->led.type;
         }
-        // Note: Changing LED pin/type requires reboot
+        if (ledObj.containsKey("relayPin")) {
+            _config->led.relayPin = ledObj["relayPin"];
+        }
+        if (ledObj.containsKey("relayActiveHigh")) {
+            _config->led.relayActiveHigh = ledObj["relayActiveHigh"];
+        }
+        // Note: Changing LED pin/type/relay config may require reboot for some changes
     }
-    
+
     if (doc.containsKey("safety")) {
         JsonObject safetyObj = doc["safety"];
         _config->safety.minTransitionTime = safetyObj["minTransitionTime"] | _config->safety.minTransitionTime;
         _config->safety.maxBrightness = safetyObj["maxBrightness"] | _config->safety.maxBrightness;
     }
-    
+
     if (doc.containsKey("time")) {
         JsonObject timeObj = doc["time"];
         _config->time.timezoneOffset = timeObj["timezoneOffset"] | _config->time.timezoneOffset;
@@ -553,11 +565,13 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
         _config->time.longitude = timeObj["longitude"] | _config->time.longitude;
         _config->time.dstEnabled = timeObj["dstEnabled"] | _config->time.dstEnabled;
     }
-    
-    _config->save();
-    
+
+    bool saveResult = _config->save();
+    debugPrint("[DEBUG] Config save result: ");
+    debugPrintln(saveResult ? "success" : "FAIL");
+
     if (_configCallback) _configCallback();
-    
+
     {
         AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
@@ -672,6 +686,8 @@ String WebServerManager::getConfigJSON() {
     ledObj["pin"] = _config->led.pin;
     ledObj["count"] = _config->led.count;
     ledObj["type"] = _config->led.type;
+    ledObj["relayPin"] = _config->led.relayPin;
+    ledObj["relayActiveHigh"] = _config->led.relayActiveHigh;
     
     JsonObject safetyObj = doc.createNestedObject("safety");
     safetyObj["minTransitionTime"] = _config->safety.minTransitionTime;

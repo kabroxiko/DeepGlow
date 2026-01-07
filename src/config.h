@@ -60,6 +60,7 @@ struct LEDConfig {
     String type = DEFAULT_LED_TYPE;
     String colorOrder = DEFAULT_COLOR_ORDER;
     int relayPin = DEFAULT_LED_RELAY_PIN;
+    bool relayActiveHigh = true; // true: HIGH=on, false: LOW=on
 };
 
 struct SafetyConfig {
