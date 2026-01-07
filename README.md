@@ -475,14 +475,38 @@ Server broadcasts state changes every 2 seconds and on any change.
 
 ## 🔄 OTA Updates
 
-Over-the-air firmware updates supported:
+Over-the-air firmware updates are supported in two ways:
+
+### 1. ArduinoOTA (PlatformIO/Arduino IDE, ESP32 only)
+
+You can use PlatformIO's built-in OTA upload or the Arduino IDE for wireless firmware updates:
 
 ```bash
-# Upload via OTA
-pio run -t upload --upload-port aquariumled.local
+# Upload via ArduinoOTA (ESP32 only)
+pio run -t upload --upload-port <device-hostname>.local
 ```
+- Replace `<device-hostname>` with your configured hostname (default: `AquariumLED`).
+- Example: `pio run -t upload --upload-port AquariumLED.local`
+- The device must be on the same network and not in AP mode.
 
-**Note**: Configuration preserved during OTA updates.
+### 2. HTTP OTA (Web UI or curl)
+
+You can also upload firmware using the web interface or via HTTP POST:
+
+**Web UI:**
+- Open the device's web interface in your browser.
+- Use the OTA upload form to select and upload your firmware.
+
+**curl:**
+```bash
+curl -X POST --data-binary @.pio/build/esp32d/firmware.bin http://<device-ip>/ota
+```
+- Replace `<device-ip>` with your device's IP address.
+
+**Note:**
+- Configuration is preserved during OTA updates.
+- ArduinoOTA is only available on ESP32 builds.
+- HTTP OTA works on both ESP32 and ESP8266.
 
 ## 📁 Project Structure & Preset Logic
 

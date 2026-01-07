@@ -1,11 +1,29 @@
+#if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)
+#include <pgmspace.h>
+#endif
 #include "web_assets/index_html.inc"
 #include "web_assets/wifi_html.inc"
 #include "web_assets/app_js.inc"
 #include "web_assets/style_css.inc"
+#include "web_assets/fflate_min_js.inc"
 
 #include "webserver.h"
+#if defined(ESP32)
+#include <Update.h>
+#elif defined(ESP8266)
+#include <Updater.h>
+#endif
 #include "debug.h"
 #include "transition.h"
+
+
+// Helper: CORS headers for API responses
+static const char* CORS_HEADERS[][2] = {
+    {"Access-Control-Allow-Origin", "*"},
+    {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
+    {"Access-Control-Allow-Headers", "Content-Type"}
+};
+static const size_t CORS_HEADER_COUNT = sizeof(CORS_HEADERS) / sizeof(CORS_HEADERS[0]);
 
 extern TransitionEngine transition;
 
@@ -13,6 +31,40 @@ extern TransitionEngine transition;
 static String urlDecode(const String& input);
 
 // Place at the very end of the file, after all other code
+void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
+    // Actual OTA update logic
+    if (index == 0) {
+    #if defined(ESP32)
+        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+    #elif defined(ESP8266)
+        if (!Update.begin(total)) {
+    #endif
+            Update.printError(Serial);
+        }
+    }
+    if (Update.write(data, len) != len) {
+        Update.printError(Serial);
+    }
+    if (index + len == total) {
+        bool ok = Update.end(true);
+        AsyncWebServerResponse *resp = nullptr;
+        if (ok) {
+            resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
+        } else {
+            Update.printError(Serial);
+            resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
+        }
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+        if (ok) {
+            request->onDisconnect([]() {
+                delay(100);
+                ESP.restart();
+            });
+        }
+    }
+}
+
 static String urlDecode(const String& input) {
     String decoded;
     char temp[3] = {0};
@@ -66,6 +118,36 @@ void WebServerManager::setupWebSocket() {
 }
 
 void WebServerManager::setupRoutes() {
+    // CORS preflight for OTA
+    _server->on("/ota", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
+    // OTA Update endpoint (POST /ota, direct binary upload)
+    _server->on("/ota", HTTP_POST,
+        [](AsyncWebServerRequest* request) {
+            AsyncWebServerResponse *resp = nullptr;
+            if (Update.hasError()) {
+                resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
+            } else {
+                resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
+            }
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+            if (!Update.hasError()) {
+                request->onDisconnect([]() {
+                    delay(100);
+                    ESP.restart();
+                });
+            }
+        },
+        NULL,
+        [this](AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
+            handleOTAUpdate(request, reinterpret_cast<uint8_t*>(data), static_cast<size_t>(len), static_cast<size_t>(index), static_cast<size_t>(total));
+        }
+    );
+
     // Captive portal triggers for auto-popup on phones/laptops
     auto logRequest = [](AsyncWebServerRequest* request, const char* tag = "[DEBUG] HTTP") {
         debugPrint(tag);
@@ -208,61 +290,118 @@ void WebServerManager::setupRoutes() {
         logRequest(request, "[DEBUG] /style.css");
         request->send_P(200, "text/css", web_style_css, web_style_css_len);
     });
+    _server->on("/fflate.min.js", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
+        logRequest(request, "[DEBUG] /fflate.min.js");
+        request->send_P(200, "application/javascript", web_fflate_min_js, web_fflate_min_js_len);
+    });
     
     // State API
+    _server->on("/api/state", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
     _server->on("/api/state", HTTP_GET, [this](AsyncWebServerRequest* request) {
         handleGetState(request);
     });
     
-    _server->on("/api/state", HTTP_POST, [](AsyncWebServerRequest* request) {},
+    _server->on("/api/state", HTTP_POST, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    },
         NULL, [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleSetState(request, data, len);
     });
     
     // Presets API
+    _server->on("/api/presets", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
     _server->on("/api/presets", HTTP_GET, [this](AsyncWebServerRequest* request) {
         handleGetPresets(request);
     });
     
-    _server->on("/api/preset", HTTP_POST, [](AsyncWebServerRequest* request) {},
+    _server->on("/api/preset", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
+    _server->on("/api/preset", HTTP_POST, [](AsyncWebServerRequest* request) {
+        // Always return a JSON response so frontend .json() does not fail
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    },
         NULL, [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleSetPreset(request, data, len);
     });
     
     // Configuration API
+    _server->on("/api/config", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
     _server->on("/api/config", HTTP_GET, [this](AsyncWebServerRequest* request) {
         handleGetConfig(request);
     });
     
-    _server->on("/api/config", HTTP_POST, [](AsyncWebServerRequest* request) {},
+    _server->on("/api/config", HTTP_POST, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    },
         NULL, [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleSetConfig(request, data, len);
     });
     
     // Timers API
+    _server->on("/api/timers", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
     _server->on("/api/timers", HTTP_GET, [this](AsyncWebServerRequest* request) {
         handleGetTimers(request);
     });
     
-    _server->on("/api/timer", HTTP_POST, [](AsyncWebServerRequest* request) {},
+    _server->on("/api/timer", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
+    _server->on("/api/timer", HTTP_POST, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    },
         NULL, [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleSetTimer(request, data, len);
     });
 }
 
 void WebServerManager::handleGetState(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", getStateJSON());
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", getStateJSON());
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
 }
 
 void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
     StaticJsonDocument<512> doc;
     DeserializationError error = deserializeJson(doc, data, len);
     if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
         return;
     }
-    // ...existing code...
-
     // Merge incoming state with current state
     uint8_t brightness = _config->state.brightness;
     uint32_t transitionTime = _config->state.transitionTime;
@@ -299,12 +438,20 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     if (_effectCallback) _effectCallback(effect, params);
     _config->state.transitionTime = transitionTime;
 
-    request->send(200, "application/json", "{\"success\":true}");
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
     broadcastState();
 }
 
 void WebServerManager::handleGetPresets(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", getPresetsJSON());
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", getPresetsJSON());
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
 }
 
 void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
@@ -312,14 +459,22 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
     DeserializationError error = deserializeJson(doc, data, len);
     
     if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
         return;
     }
     
     uint8_t presetId = doc["id"] | 0;
     
     if (presetId >= MAX_PRESETS) {
-        request->send(400, "application/json", "{\"error\":\"Invalid preset ID\"}");
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid preset ID\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
         return;
     }
     
@@ -344,12 +499,20 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
         _config->savePresets();
     }
     
-    request->send(200, "application/json", "{\"success\":true}");
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
     broadcastState();
 }
 
 void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", getConfigJSON());
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", getConfigJSON());
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
 }
 
 void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
@@ -357,7 +520,11 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
     DeserializationError error = deserializeJson(doc, data, len);
     
     if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
         return;
     }
     
@@ -391,11 +558,19 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
     
     if (_configCallback) _configCallback();
     
-    request->send(200, "application/json", "{\"success\":true}");
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
 }
 
 void WebServerManager::handleGetTimers(AsyncWebServerRequest* request) {
-    request->send(200, "application/json", getTimersJSON());
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", getTimersJSON());
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
 }
 
 void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
@@ -403,14 +578,22 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
     DeserializationError error = deserializeJson(doc, data, len);
     
     if (error) {
-        request->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
         return;
     }
     
     uint8_t timerId = doc["id"] | 0;
     
     if (timerId >= MAX_TIMERS + MAX_SUN_TIMERS) {
-        request->send(400, "application/json", "{\"error\":\"Invalid timer ID\"}");
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid timer ID\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
         return;
     }
     
@@ -424,7 +607,11 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
     
     _config->save();
     
-    request->send(200, "application/json", "{\"success\":true}");
+    {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    }
 }
 
 String WebServerManager::getStateJSON() {

@@ -19,6 +19,9 @@
 *.img
 src/web_assets/*.inc
 
+# Exclude auto-downloaded browser-side decompression lib
+data/fflate.min.js
+
 # Logs
 *.log
 

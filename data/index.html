@@ -162,8 +162,27 @@
             </div>
             <button class="btn btn-primary" onclick="saveConfiguration()">Save Configuration</button>
         </section>
+        <!-- OTA Firmware Update (moved to bottom) -->
+        <section class="card ota-card">
+            <h2>OTA Firmware Update</h2>
+            <form id="otaForm" class="ota-form">
+                <div class="ota-upload-row">
+                    <input type="file" id="otaFile" accept=".bin,.gz,.zip" required style="display:none;">
+                    <label for="otaFile" class="btn btn-primary ota-file-label">
+                        <span class="ota-file-label-icon">&#128194;</span> Choose File
+                    </label>
+                    <span id="otaFileName" class="ota-file-name">No file chosen</span>
+                    <button type="submit" class="btn btn-primary ota-upload-btn">Upload</button>
+                </div>
+                <div id="otaProgressBar" class="ota-progress-bar" style="display:none;">
+                    <div id="otaProgressFill" class="ota-progress-fill"></div>
+                </div>
+            </form>
+            <div id="otaStatus" class="ota-status"></div>
+        </section>
     </div>
 
+    <script src="fflate.min.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

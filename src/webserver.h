@@ -16,6 +16,8 @@
 
 class WebServerManager {
 public:
+    // OTA handler for direct POST
+    void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total);
     WebServerManager(Configuration* config, Scheduler* scheduler);
     
     void begin();
