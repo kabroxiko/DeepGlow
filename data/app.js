@@ -10,6 +10,16 @@ let presets = [];
 let timers = [];
 let config = {};
 
+// Base URL logic for local development and file://
+let BASE_URL = '';
+if (location.protocol === 'file:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+    BASE_URL = localStorage.getItem('BASE_URL') || '';
+    if (!BASE_URL) {
+        BASE_URL = prompt('Enter backend base URL (e.g. http://192.168.1.100:80):', '');
+        if (BASE_URL) localStorage.setItem('BASE_URL', BASE_URL);
+    }
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     // Hide Quick Controls until first WebSocket message
@@ -19,13 +29,86 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPresets();
     loadTimers();
     loadConfig();
+
+    // OTA upload form handler
+    const otaForm = document.getElementById('otaForm');
+    if (otaForm) {
+        otaForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const otaFileInput = document.getElementById('otaFile');
+            const otaFile = otaFileInput.files[0];
+            if (!otaFile) {
+                showToast('Please select a firmware file.');
+                return;
+            }
+            if (otaProgressBar && otaProgressFill) {
+                otaProgressBar.style.display = '';
+                otaProgressFill.style.width = '0%';
+            }
+            try {
+                let fileToSend = otaFile;
+                // If .gz, decompress in browser using fflate
+                if (otaFile.name.endsWith('.gz')) {
+                    const arrayBuffer = await otaFile.arrayBuffer();
+                    // fflate is loaded globally
+                    const decompressed = fflate.gunzipSync(new Uint8Array(arrayBuffer));
+                    fileToSend = new Blob([decompressed], { type: 'application/octet-stream' });
+                }
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', BASE_URL + '/ota', true);
+                xhr.setRequestHeader('Accept', 'application/json');
+                xhr.upload.onprogress = function(e) {
+                    if (e.lengthComputable && otaProgressFill) {
+                        const percent = Math.round((e.loaded / e.total) * 100);
+                        otaProgressFill.style.width = percent + '%';
+                    }
+                };
+                xhr.onload = function() {
+                    if (otaProgressBar && otaProgressFill) {
+                        otaProgressFill.style.width = '100%';
+                    }
+                    if (xhr.status === 200) {
+                        showToast('Firmware uploaded! Rebooting...', 4000);
+                        setTimeout(function() {
+                            location.reload();
+                        }, 4500);
+                    } else {
+                        showToast('OTA failed: ' + (xhr.responseText || xhr.statusText), 6000);
+                    }
+                };
+                xhr.onerror = function() {
+                    showToast('OTA upload error.', 6000);
+                };
+                // Send as raw binary, not FormData
+                xhr.send(fileToSend);
+            } catch (err) {
+                showToast('OTA error: ' + err, 6000);
+            }
+        });
+    }
+
+    // OTA file input filename display and progress bar
+    const otaFileInput = document.getElementById('otaFile');
+    const otaFileName = document.getElementById('otaFileName');
+    const otaProgressBar = document.getElementById('otaProgressBar');
+    const otaProgressFill = document.getElementById('otaProgressFill');
+    if (otaFileInput && otaFileName) {
+        otaFileInput.addEventListener('change', function() {
+            otaFileName.textContent = this.files && this.files.length > 0 ? this.files[0].name : 'No file chosen';
+        });
+    }
 });
 
 // WebSocket Connection
 function initializeWebSocket() {
-    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
-    
+    let wsUrl;
+    if (BASE_URL) {
+        // Convert BASE_URL to ws(s)://
+        wsUrl = BASE_URL.replace(/^http/, 'ws') + '/ws';
+    } else {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    }
     ws = new WebSocket(wsUrl);
 
     ws.onopen = () => {
@@ -247,7 +330,7 @@ function setupEventListeners() {
 
 // Send state update to server
 function sendState(updates) {
-    fetch('/api/state', {
+    fetch(BASE_URL + '/api/state', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -265,7 +348,7 @@ function sendState(updates) {
 
 // Load and display presets
 function loadPresets() {
-    fetch('/api/presets')
+    fetch(BASE_URL + '/api/presets')
         .then(response => response.json())
         .then(data => {
             presets = data.presets;
@@ -302,7 +385,7 @@ function displayPresets() {
 }
 
 function applyPreset(presetId) {
-    fetch('/api/preset', {
+    fetch(BASE_URL + '/api/preset', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -323,7 +406,7 @@ function applyPreset(presetId) {
 
 // Load and display timers
 function loadTimers() {
-    fetch('/api/timers')
+    fetch(BASE_URL + '/api/timers')
         .then(response => response.json())
         .then(data => {
             timers = data.timers;
@@ -382,7 +465,7 @@ function showTimerEditor() {
 
 // Load configuration
 function loadConfig() {
-    fetch('/api/config')
+    fetch(BASE_URL + '/api/config')
         .then(response => response.json())
         .then(data => {
             config = data;
@@ -430,7 +513,7 @@ function saveConfiguration() {
         }
     };
     
-    fetch('/api/config', {
+    fetch(BASE_URL + '/api/config', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -452,22 +535,31 @@ function saveConfiguration() {
         showToast('Error saving configuration');
         sendDebugWS('Config save error: ' + error);
     });
-// Toast notification
+}
+
+// Toast notification (moved to top level)
 function showToast(message, duration = 3000) {
     const toast = document.getElementById('toast');
+    console.log('[TOAST]', message); // DEBUG: log to console
     toast.textContent = message;
     toast.style.display = 'block';
     toast.style.opacity = '0.95';
-    setTimeout(() => {
+    if (window._toastTimeout) {
+        clearTimeout(window._toastTimeout);
+    }
+    if (message === 'Uploading...') {
+        // Don't auto-hide, will be hidden by next toast
+        return;
+    }
+    window._toastTimeout = setTimeout(() => {
         toast.style.opacity = '0';
         setTimeout(() => { toast.style.display = 'none'; }, 300);
     }, duration);
 }
 
-// Send debug message through WebSocket
+// Send debug message through WebSocket (moved to top level)
 function sendDebugWS(msg) {
     if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ debug: msg }));
     }
-}
 }

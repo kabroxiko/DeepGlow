@@ -28,8 +28,8 @@
 #include "webserver.h"
 #include "captive_portal.h"
 #include <Arduino.h>
-
 #include "debug.h"
+#include "ota.h"
 
 // Global objects
 Configuration config;
@@ -131,6 +131,9 @@ void setup() {
     scheduler.begin();
     debugPrintln("[DEBUG] Scheduler initialized");
 
+    // Setup ArduinoOTA (ESP32 only)
+    setupArduinoOTA(config.network.hostname.c_str());
+    
     // Wait for NTP time sync
     debugPrintln("Waiting for time sync...");
     for (int i = 0; i < 30; i++) {
@@ -179,13 +182,8 @@ void setup() {
 }
 
 void loop() {
-    // Top of loop: check for unexpected resets
-    static bool firstLoop = true;
-    if (firstLoop) {
-        debugPrintln("[DEBUG] loop() entered (device running)");
-        debugPrintln("[DEBUG] loop() entered (device running)");
-        firstLoop = false;
-    }
+    // Handle ArduinoOTA (ESP32 only)
+    handleArduinoOTA();
     // Update all systems
     scheduler.update();
     webServer.update();
