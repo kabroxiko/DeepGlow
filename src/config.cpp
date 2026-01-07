@@ -1,11 +1,7 @@
 #include "config.h"
-#ifdef ESP8266
-    #include <LittleFS.h>
-    #define FILESYSTEM LittleFS
-#else
-    #include <SPIFFS.h>
-    #define FILESYSTEM SPIFFS
-#endif
+#include <LittleFS.h>
+
+#define FILESYSTEM LittleFS
 
 // Utility to delete presets file
 void Configuration::resetPresetsFile() {

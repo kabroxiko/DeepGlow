@@ -1,18 +1,13 @@
+#include "web_assets/index_html.inc"
+#include "web_assets/wifi_html.inc"
+#include "web_assets/app_js.inc"
+#include "web_assets/style_css.inc"
+
 #include "webserver.h"
-#ifdef ESP8266
-#include <ESP8266WebServer.h> // HTTP_* constants
-#endif
-#ifdef ESP32
-#include <WebServer.h> // HTTP_* constants
-#endif
-
-#include <LittleFS.h>
-#define FILESYSTEM LittleFS
-
+#include "debug.h"
 #include "transition.h"
+
 extern TransitionEngine transition;
-
-
 
 // Helper: URL decode for form fields (declaration)
 static String urlDecode(const String& input);
@@ -45,44 +40,10 @@ WebServerManager::WebServerManager(Configuration* config, Scheduler* scheduler) 
 }
 
 void WebServerManager::begin() {
-    // Mount filesystem and list contents for debug
-    #ifdef ESP8266
-    if (!FILESYSTEM.begin()) {
-        Serial.println("[ERROR] LittleFS mount failed!");
-    } else {
-        Serial.println("[DEBUG] LittleFS mounted.");
-        Serial.println("[DEBUG] Filesystem contents:");
-        Dir dir = FILESYSTEM.openDir("/");
-        while (dir.next()) {
-            Serial.print("  ");
-            Serial.print(dir.fileName());
-            Serial.print(" (size: ");
-            Serial.print(dir.fileSize());
-            Serial.println(")");
-        }
-    }
-    #else
-    if (!FILESYSTEM.begin(true)) {
-        Serial.println("[ERROR] LittleFS mount failed!");
-    } else {
-        Serial.println("[DEBUG] LittleFS mounted.");
-        Serial.println("[DEBUG] Filesystem contents:");
-        File root = FILESYSTEM.open("/");
-        File file = root.openNextFile();
-        while (file) {
-            Serial.print("  ");
-            Serial.print(file.name());
-            Serial.print(" (size: ");
-            Serial.print(file.size());
-            Serial.println(")");
-            file = root.openNextFile();
-        }
-    }
-    #endif
     setupWebSocket();
     setupRoutes();
     _server->begin();
-    Serial.println("Web server started");
+    debugPrintln("Web server started");
 }
 
 void WebServerManager::update() {
@@ -94,38 +55,24 @@ void WebServerManager::setupWebSocket() {
     _ws->onEvent([this](AsyncWebSocket* server, AsyncWebSocketClient* client, 
                      AwsEventType type, void* arg, uint8_t* data, size_t len) {
         if (type == WS_EVT_CONNECT) {
-            Serial.println("WebSocket client connected");
+            debugPrintln("WebSocket client connected");
             // Send current state immediately to the new client
             client->text(getStateJSON());
         } else if (type == WS_EVT_DISCONNECT) {
-            Serial.println("WebSocket client disconnected");
+            debugPrintln("WebSocket client disconnected");
         }
     });
     _server->addHandler(_ws);
 }
 
 void WebServerManager::setupRoutes() {
-    // Debug: Log every HTTP request (method and URL) in each handler
-    _server->onNotFound([this](AsyncWebServerRequest* request) {
-        Serial.print("[DEBUG] NotFound: ");
-        Serial.print(request->method());
-        Serial.print(" ");
-        Serial.println(request->url());
-        // Prevent redirect loop: if already on /wifi, serve the form instead of redirecting
-        if (request->url() == "/wifi") {
-            request->send(FILESYSTEM, "/wifi.html", "text/html");
-        } else {
-            request->redirect("/wifi");
-        }
-    });
-
     // Captive portal triggers for auto-popup on phones/laptops
     auto logRequest = [](AsyncWebServerRequest* request, const char* tag = "[DEBUG] HTTP") {
-        Serial.print(tag);
-        Serial.print(": ");
-        Serial.print(request->method());
-        Serial.print(" ");
-        Serial.println(request->url());
+        debugPrint(tag);
+        debugPrint(": ");
+        debugPrint(request->method());
+        debugPrint(" ");
+        debugPrintln(request->url());
     };
     _server->on("/generate_204", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /generate_204");
@@ -156,49 +103,64 @@ void WebServerManager::setupRoutes() {
     // Serve web assets from filesystem image
     _server->on("/", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /");
-        request->send(FILESYSTEM, "/index.html", "text/html");
+        request->send_P(200, "text/html", web_index_html, web_index_html_len);
     });
     _server->on("/index.html", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /index.html");
-        request->send(FILESYSTEM, "/index.html", "text/html");
+        request->send_P(200, "text/html", web_index_html, web_index_html_len);
     });
     // Serve WiFi page for POST: robust handler parses body manually (WLED-style, minimal signature)
     _server->on("/wifi", HTTP_POST, 
         [this, logRequest](AsyncWebServerRequest* request) {
             logRequest(request, "[DEBUG] /wifi POST (request handler)");
-            Serial.print("[DEBUG] /wifi POST Content-Type: ");
-            Serial.println(request->contentType());
+            debugPrint("[DEBUG] /wifi POST Content-Type: ");
+            debugPrintln(request->contentType());
+            debugPrint("[DEBUG] /wifi POST Headers: ");
+            for (size_t i = 0; i < request->headers(); i++) {
+                debugPrint("    ");
+                debugPrint(request->headerName(i));
+                debugPrint(": ");
+                debugPrintln(request->header(i));
+            }
+            debugPrint("[DEBUG] /wifi POST Params: ");
+            for (size_t i = 0; i < request->params(); i++) {
+                debugPrint("    ");
+                debugPrint(request->getParam(i)->name());
+                debugPrint(": ");
+                debugPrintln(request->getParam(i)->value());
+            }
             // Fallback: If body handler is not called, parse POST params here
             if (request->hasParam("ssid", true)) {
                 String ssid = urlDecode(request->getParam("ssid", true)->value());
                 String password = request->hasParam("password", true) ? urlDecode(request->getParam("password", true)->value()) : "";
-                Serial.print("[DEBUG] Fallback parsed ssid: "); Serial.println(ssid);
-                Serial.print("[DEBUG] Fallback parsed password: "); Serial.println(password);
+                debugPrint("[DEBUG] Fallback parsed ssid: "); debugPrintln(ssid);
+                debugPrint("[DEBUG] Fallback parsed password: "); debugPrintln(password);
                 if (ssid.length() > 0) {
                     _config->network.ssid = ssid;
                     _config->network.password = password;
-                    Serial.println("[DEBUG] Saving config after WiFi form submit (fallback)...");
+                    debugPrintln("[DEBUG] Saving config after WiFi form submit (fallback)...");
                     _config->save();
-                    Serial.println("[DEBUG] Config saved. Rebooting...");
+                    debugPrintln("[DEBUG] Config saved. Rebooting...");
                     String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
                     request->send(200, "text/html", html);
                     delay(1000);
                     ESP.restart();
                     return;
                 }
-                Serial.println("[DEBUG] SSID missing or POST parse failed (fallback), serving WiFi form again");
-                request->send(FILESYSTEM, "/wifi.html", "text/html");
+                debugPrintln("[DEBUG] SSID missing or POST parse failed (fallback), serving WiFi form again");
+                request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
             }
         }, 
         nullptr,
         [this, logRequest](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t, size_t) {
-            Serial.println("[DEBUG] /wifi POST body handler CALLED");
+            debugPrintln("[DEBUG] /wifi POST body handler CALLED");
             logRequest(request, "[DEBUG] /wifi POST (body handler)");
-            Serial.print("[DEBUG] /wifi POST body length: ");
-            Serial.println(len);
-            String body = String((const char*)data, len);
-            Serial.print("[DEBUG] /wifi POST raw body: ");
-            Serial.println(body);
+            debugPrint("[DEBUG] /wifi POST body length: ");
+            debugPrintln(len);
+            String body;
+            for (size_t i = 0; i < len; ++i) body += (char)data[i];
+            debugPrint("[DEBUG] /wifi POST raw body: ");
+            debugPrintln(body);
             String ssid, password;
             int ssidIdx = body.indexOf("ssid=");
             int passIdx = body.indexOf("password=");
@@ -210,36 +172,41 @@ void WebServerManager::setupRoutes() {
                 int amp = body.indexOf('&', passIdx);
                 password = urlDecode(body.substring(passIdx + 9, amp == -1 ? body.length() : amp));
             }
-            Serial.print("[DEBUG] parsed ssid: "); Serial.println(ssid);
-            Serial.print("[DEBUG] parsed password: "); Serial.println(password);
+            debugPrint("[DEBUG] parsed ssid: "); debugPrintln(ssid);
+            debugPrint("[DEBUG] parsed password: "); debugPrintln(password);
             if (ssid.length() > 0) {
                 _config->network.ssid = ssid;
                 _config->network.password = password;
-                Serial.println("[DEBUG] Saving config after WiFi form submit...");
+                debugPrintln("[DEBUG] Saving config after WiFi form submit...");
                 _config->save();
-                Serial.println("[DEBUG] Config saved. Rebooting...");
+                debugPrintln("[DEBUG] Config saved. Rebooting...");
                 String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
                 request->send(200, "text/html", html);
                 delay(1000);
                 ESP.restart();
                 return;
             }
-            Serial.println("[DEBUG] SSID missing or POST parse failed, serving WiFi form again");
-            request->send(FILESYSTEM, "/wifi.html", "text/html");
+            debugPrintln("[DEBUG] SSID missing or POST parse failed, serving WiFi form again");
+            request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
         }
     );
     // For GET, serve the WiFi form
     _server->on("/wifi", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
-        logRequest(request, "[DEBUG] /wifi GET");
-        request->send(FILESYSTEM, "/wifi.html", "text/html");
+        for (size_t i = 0; i < request->headers(); i++) {
+            debugPrint("    ");
+            debugPrint(request->headerName(i));
+            debugPrint(": ");
+            debugPrintln(request->header(i));
+        }
+        request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
     });
     _server->on("/app.js", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /app.js");
-        request->send(FILESYSTEM, "/app.js", "application/javascript");
+        request->send_P(200, "application/javascript", web_app_js, web_app_js_len);
     });
     _server->on("/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /style.css");
-        request->send(FILESYSTEM, "/style.css", "text/css");
+        request->send_P(200, "text/css", web_style_css, web_style_css_len);
     });
     
     // State API
@@ -558,14 +525,14 @@ String WebServerManager::getTimersJSON() {
 
 bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transitionTime) {
     bool modified = false;
-    Serial.print("[DEBUG] applySafetyLimits: brightness in=" );
-    Serial.print((int)brightness);
-    Serial.print(", transitionTime in=");
-    Serial.print((unsigned long)transitionTime);
-    Serial.print(", minTransitionTime=");
-    Serial.print((unsigned long)_config->safety.minTransitionTime);
-    Serial.print(", maxBrightness=");
-    Serial.println((int)_config->safety.maxBrightness);
+    debugPrint("[DEBUG] applySafetyLimits: brightness in=" );
+    debugPrint((int)brightness);
+    debugPrint(", transitionTime in=");
+    debugPrint((unsigned long)transitionTime);
+    debugPrint(", minTransitionTime=");
+    debugPrint((unsigned long)_config->safety.minTransitionTime);
+    debugPrint(", maxBrightness=");
+    debugPrintln((int)_config->safety.maxBrightness);
 
     if (brightness > _config->safety.maxBrightness) {
         brightness = _config->safety.maxBrightness;
@@ -577,10 +544,10 @@ bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transiti
         modified = true;
     }
 
-    Serial.print("[DEBUG] applySafetyLimits: brightness out=" );
-    Serial.print((int)brightness);
-    Serial.print(", transitionTime out=");
-    Serial.println((unsigned long)transitionTime);
+    debugPrint("[DEBUG] applySafetyLimits: brightness out=" );
+    debugPrint((int)brightness);
+    debugPrint(", transitionTime out=");
+    debugPrintln((unsigned long)transitionTime);
     return modified;
 }
 

@@ -270,8 +270,8 @@ Applying preset: 3
 **Debug:**
 ```cpp
 // Check scheduler in main.cpp
-Serial.print("Current time: ");
-Serial.println(scheduler.getCurrentTime());
+debugPrint("Current time: ");
+debugPrintln(scheduler.getCurrentTime());
 ```
 
 ---

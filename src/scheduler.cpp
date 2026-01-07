@@ -1,4 +1,5 @@
 #include "scheduler.h"
+#include "debug.h"
 #include <math.h>
 
 Scheduler::Scheduler(Configuration* config) {
@@ -30,7 +31,7 @@ void Scheduler::update() {
 void Scheduler::updateNTP() {
     _timeClient->forceUpdate();
     _lastNTPUpdate = millis();
-    Serial.println("NTP time updated");
+    debugPrintln("NTP time updated");
 }
 
 bool Scheduler::isTimeValid() {
@@ -65,14 +66,14 @@ void Scheduler::calculateSunTimes() {
     _sunriseMinutes = calculateSunriseMinutes();
     _sunsetMinutes = calculateSunsetMinutes();
     
-    Serial.print("Sunrise: ");
-    Serial.print(_sunriseMinutes / 60);
-    Serial.print(":");
-    Serial.println(_sunriseMinutes % 60);
-    Serial.print("Sunset: ");
-    Serial.print(_sunsetMinutes / 60);
-    Serial.print(":");
-    Serial.println(_sunsetMinutes % 60);
+    debugPrint("Sunrise: ");
+    debugPrint(_sunriseMinutes / 60);
+    debugPrint(":");
+    debugPrintln(_sunriseMinutes % 60);
+    debugPrint("Sunset: ");
+    debugPrint(_sunsetMinutes / 60);
+    debugPrint(":");
+    debugPrintln(_sunsetMinutes % 60);
 }
 
 int Scheduler::calculateSunriseMinutes() {
@@ -197,8 +198,8 @@ int8_t Scheduler::checkTimers() {
         
         // Trigger if current time matches timer time
         if (currentMinutes == timerMinutes) {
-            Serial.print("Timer triggered: ");
-            Serial.println(i);
+            debugPrint("Timer triggered: ");
+            debugPrintln(i);
             return _config->timers[i].presetId;
         }
     }
@@ -232,8 +233,8 @@ int8_t Scheduler::getBootPreset() {
     }
     
     if (mostRecentPreset != -1) {
-        Serial.print("Boot preset from timer: ");
-        Serial.println(mostRecentPreset);
+        debugPrint("Boot preset from timer: ");
+        debugPrintln(mostRecentPreset);
     }
     
     return mostRecentPreset;

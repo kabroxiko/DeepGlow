@@ -1,20 +1,3 @@
-
-#include <Arduino.h>
-#ifdef DEBUG_SERIAL
-void debugPrintln(const char* msg) { Serial.println(msg); }
-void debugPrintln(const String& msg) { Serial.println(msg); }
-void debugPrintln(int val) { Serial.println(val); }
-void debugPrint(const char* msg) { Serial.print(msg); }
-void debugPrint(const String& msg) { Serial.print(msg); }
-void debugPrint(int val) { Serial.print(val); }
-#else
-void debugPrintln(const char*) {}
-void debugPrintln(const String&) {}
-void debugPrintln(int) {}
-void debugPrint(const char*) {}
-void debugPrint(const String&) {}
-void debugPrint(int) {}
-#endif
 /*
  * Standalone Aquarium LED Controller
  * ESP32/ESP8266 Fish-Safe LED Controller with Scheduling
@@ -31,14 +14,12 @@ void debugPrint(int) {}
 #include <Arduino.h>
 #include <WS2812FX.h>
 #ifdef ESP8266
-    #include <ESP8266WiFi.h>
-    #include <LittleFS.h>
-    #define FILESYSTEM LittleFS
+#include <ESP8266WiFi.h>
 #else
-    #include <WiFi.h>
-    #include <SPIFFS.h>
-    #define FILESYSTEM SPIFFS
+#include <WiFi.h>
 #endif
+#include <LittleFS.h>
+#define FILESYSTEM LittleFS
 
 #include "config.h"
 // #include "effects.h" // Custom effects disabled, using WS2812FX native effects only
@@ -46,6 +27,9 @@ void debugPrint(int) {}
 #include "transition.h"
 #include "webserver.h"
 #include "captive_portal.h"
+#include <Arduino.h>
+
+#include "debug.h"
 
 // Global objects
 Configuration config;
@@ -65,7 +49,6 @@ uint32_t lastUpdate = 0;
 
 // Function declarations
 void setupWiFi();
-void setupFilesystem();
 void setupLEDs();
 void applyPreset(uint8_t presetId);
 void setPower(bool power);
@@ -78,15 +61,14 @@ void setup() {
     #ifdef DEBUG_SERIAL
     Serial.begin(115200);
     delay(1000);
-    Serial.println();
-    Serial.println("=================================");
-    Serial.println("  Aquarium LED Controller v1.0  ");
-    Serial.println("=================================");
+    debugPrintln();
+    debugPrintln("=================================");
+    debugPrintln("  Aquarium LED Controller v1.0  ");
+    debugPrintln("=================================");
     #endif
     
-    // Initialize filesystem
-    setupFilesystem();
-    debugPrintln("[DEBUG] Filesystem initialized");
+    // List files in LittleFS for debugging
+    LittleFS.begin();
 
     // Load configuration
     debugPrintln("[DEBUG] Attempting to load config...");
@@ -188,11 +170,11 @@ void setup() {
     }
 
     #ifdef DEBUG_SERIAL
-    Serial.println();
-    Serial.println("System ready!");
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-    Serial.println("=================================");
+    debugPrintln();
+    debugPrintln("System ready!");
+    debugPrint("IP Address: ");
+    debugPrintln(WiFi.localIP());
+    debugPrintln("=================================");
     #endif
 }
 
@@ -201,7 +183,7 @@ void loop() {
     static bool firstLoop = true;
     if (firstLoop) {
         debugPrintln("[DEBUG] loop() entered (device running)");
-        Serial.println("[DEBUG] loop() entered (device running)");
+        debugPrintln("[DEBUG] loop() entered (device running)");
         firstLoop = false;
     }
     // Update all systems
@@ -233,21 +215,8 @@ void loop() {
     }
 }
 
-void setupFilesystem() {
-    if (!FILESYSTEM.begin()) {
-        Serial.println("Failed to mount filesystem!");
-        Serial.println("Formatting...");
-        FILESYSTEM.format();
-        if (!FILESYSTEM.begin()) {
-            Serial.println("Filesystem mount failed after format!");
-            return;
-        }
-    }
-    Serial.println("Filesystem mounted");
-}
-
 void setupWiFi() {
-    Serial.print("Connecting to WiFi");
+    debugPrint("Connecting to WiFi");
     // Set hostname
     #ifdef ESP8266
         WiFi.hostname(config.network.hostname);
@@ -261,24 +230,24 @@ void setupWiFi() {
         int attempts = 0;
         while (WiFi.status() != WL_CONNECTED && attempts < 30) {
             delay(500);
-            Serial.print(".");
+            debugPrint(".");
             attempts++;
         }
         if (WiFi.status() == WL_CONNECTED) {
-            Serial.println();
-            Serial.print("Connected! IP: ");
-            Serial.println(WiFi.localIP());
+            debugPrintln();
+            debugPrint("Connected! IP: ");
+            debugPrintln(WiFi.localIP());
             stopCaptivePortal();
             return;
         }
     }
     // If connection failed or no credentials, start AP mode
-    Serial.println();
-    Serial.println("Starting Access Point mode");
+    debugPrintln();
+    debugPrintln("Starting Access Point mode");
     WiFi.mode(WIFI_AP);
     WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
-    Serial.print("AP IP: ");
-    Serial.println(WiFi.softAPIP());
+    debugPrint("AP IP: ");
+    debugPrintln(WiFi.softAPIP());
     // Start captive portal DNS
     startCaptivePortal(WiFi.softAPIP());
 }
@@ -310,21 +279,21 @@ void setupLEDs() {
     strip->init();
     strip->setBrightness(config.state.brightness);
     strip->start();
-    Serial.print("LEDs initialized (WS2812FX): ");
-    Serial.print(count);
-    Serial.print(" type: ");
-    Serial.print(type);
-    Serial.print(" order: ");
-    Serial.println(order);
+    debugPrint("LEDs initialized (WS2812FX): ");
+    debugPrint(count);
+    debugPrint(" type: ");
+    debugPrint(type);
+    debugPrint(" order: ");
+    debugPrintln(order);
 }
 
 void applyPreset(uint8_t presetId) {
     if (presetId >= MAX_PRESETS || !config.presets[presetId].enabled) {
-        Serial.println("Invalid preset ID");
+        debugPrintln("Invalid preset ID");
         return;
     }
-    Serial.print("Applying preset: ");
-    Serial.println(config.presets[presetId].name);
+    debugPrint("Applying preset: ");
+    debugPrintln(config.presets[presetId].name);
     Preset& preset = config.presets[presetId];
     // Start transitions
     uint32_t transTime = config.state.transitionTime;
@@ -360,8 +329,8 @@ void setPower(bool power) {
     if (transition.getCurrentBrightness() != targetBrightness || !transition.isTransitioning()) {
         transition.startTransition(targetBrightness, transTime);
     }
-    Serial.print("Power: ");
-    Serial.println(power ? "ON" : "OFF");
+    debugPrint("Power: ");
+    debugPrintln(power ? "ON" : "OFF");
     webServer.broadcastState();
 }
 
@@ -377,8 +346,8 @@ void setBrightness(uint8_t brightness) {
             transition.forceCurrentBrightness(config.state.brightness);
         }
         transition.startTransition(brightness, transTime);
-        Serial.print("Brightness: ");
-        Serial.println(brightness);
+        debugPrint("Brightness: ");
+        debugPrintln(brightness);
         webServer.broadcastState();
     }
 }
@@ -391,8 +360,8 @@ void setEffect(uint8_t effect, const EffectParams& params) {
         strip->setMode(effect);
         strip->setColor(params.color1);
     }
-    Serial.print("Effect changed to: ");
-    Serial.println(effect);
+    debugPrint("Effect changed to: ");
+    debugPrintln(effect);
     webServer.broadcastState();
 }
 
@@ -416,8 +385,8 @@ void checkSchedule() {
     int8_t presetId = scheduler.checkTimers();
     
     if (presetId >= 0 && presetId < MAX_PRESETS) {
-        Serial.print("Timer triggered, applying preset: ");
-        Serial.println(presetId);
+        debugPrint("Timer triggered, applying preset: ");
+        debugPrintln(presetId);
         applyPreset(presetId);
     }
 }

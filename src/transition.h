@@ -1,6 +1,4 @@
-    void debugPrint(const char* msg);
-    void debugPrintln(const char* msg);
-    void debugPrintln(int val);
+    #include "debug.h"
     // Allow external force of current brightness for smooth slider
     void forceCurrentBrightness(uint8_t value);
 #ifndef TRANSITION_H
