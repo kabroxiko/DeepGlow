@@ -77,9 +77,10 @@ struct NetworkConfig {
 
 struct TimeConfig {
     String ntpServer = DEFAULT_NTP_SERVER;
-    int timezoneOffset = DEFAULT_TIMEZONE_OFFSET;
+    String timezone = "Etc/UTC"; // IANA timezone string, e.g. "America/Los_Angeles"
     float latitude = 0.0;
     float longitude = 0.0;
+    bool gpsValid = false; // true if GPS fix is available
     bool dstEnabled = false;
 };
 
@@ -136,6 +137,10 @@ public:
     bool savePresets();
     void setDefaults();
     void setDefaultPresets();
+
+    // GPS and timezone helpers
+    void updateLocationFromGPS(float lat, float lon, bool valid);
+    int getTimezoneOffsetSeconds(); // Returns offset in seconds for current timezone
 
 private:
     bool loadFromFile(const char* path, JsonDocument& doc);

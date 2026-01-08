@@ -4,8 +4,9 @@
 
 Scheduler::Scheduler(Configuration* config) {
     _config = config;
+    // TODO: Get timezone offset from config
     _timeClient = new NTPClient(_ntpUDP, _config->time.ntpServer.c_str(), 
-                                _config->time.timezoneOffset * 3600, NTP_UPDATE_INTERVAL);
+                                -10800, NTP_UPDATE_INTERVAL);
 }
 
 void Scheduler::begin() {

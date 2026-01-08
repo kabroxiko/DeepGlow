@@ -59,7 +59,15 @@ bool Configuration::load() {
     if (doc.containsKey("safety")) {
         JsonObject safetyObj = doc["safety"];
         safety.minTransitionTime = safetyObj["minTransitionTime"] | DEFAULT_MIN_TRANSITION_TIME;
-        safety.maxBrightness = safetyObj["maxBrightness"] | DEFAULT_MAX_BRIGHTNESS;
+        // Convert percent (0–100) to hardware value (1–255)
+        if (safetyObj.containsKey("maxBrightness")) {
+            int percent = safetyObj["maxBrightness"];
+            if (percent <= 0) safety.maxBrightness = 1;
+            else if (percent >= 100) safety.maxBrightness = 255;
+            else safety.maxBrightness = 1 + (254 * percent) / 100;
+        } else {
+            safety.maxBrightness = DEFAULT_MAX_BRIGHTNESS;
+        }
     }
     
     // Network Configuration
@@ -75,9 +83,10 @@ bool Configuration::load() {
     if (doc.containsKey("time")) {
         JsonObject timeObj = doc["time"];
         time.ntpServer = timeObj["ntpServer"] | DEFAULT_NTP_SERVER;
-        time.timezoneOffset = timeObj["timezoneOffset"] | DEFAULT_TIMEZONE_OFFSET;
+        time.timezone = timeObj["timezone"] | String("Etc/UTC");
         time.latitude = timeObj["latitude"] | 0.0;
         time.longitude = timeObj["longitude"] | 0.0;
+        time.gpsValid = timeObj["gpsValid"] | false;
         time.dstEnabled = timeObj["dstEnabled"] | false;
     }
     
@@ -114,7 +123,8 @@ bool Configuration::save() {
     // Safety Configuration
     JsonObject safetyObj = doc.createNestedObject("safety");
     safetyObj["minTransitionTime"] = safety.minTransitionTime;
-    safetyObj["maxBrightness"] = safety.maxBrightness;
+    // Convert hardware value (1–255) to percent (0–100) for API output
+    safetyObj["maxBrightness"] = (int)round(((safety.maxBrightness - 1) / 254.0) * 100);
     
     // Network Configuration
     JsonObject netObj = doc.createNestedObject("network");
@@ -126,9 +136,10 @@ bool Configuration::save() {
     // Time Configuration
     JsonObject timeObj = doc.createNestedObject("time");
     timeObj["ntpServer"] = time.ntpServer;
-    timeObj["timezoneOffset"] = time.timezoneOffset;
+    timeObj["timezone"] = time.timezone;
     timeObj["latitude"] = time.latitude;
     timeObj["longitude"] = time.longitude;
+    timeObj["gpsValid"] = time.gpsValid;
     timeObj["dstEnabled"] = time.dstEnabled;
     
     // Timers
@@ -208,6 +219,12 @@ bool Configuration::savePresets() {
     return saveToFile(PRESET_FILE, doc);
 }
 
+// Helper function to map percent (0-100) to hardware brightness (1-255)
+uint8_t percentToBrightness(uint8_t percent) {
+    if (percent <= 0) return 1;
+    if (percent >= 100) return 255;
+    return (uint8_t)(1 + ((254 * percent) / 100));
+}
 
 void Configuration::setDefaults() {
     led = LEDConfig();
@@ -227,7 +244,7 @@ void Configuration::setDefaults() {
 void Configuration::setDefaultPresets() {
     // Preset 0: Morning Sun (Sunrise)
     presets[0].name = "Morning Sun";
-    presets[0].brightness = 180;
+    presets[0].brightness = percentToBrightness(70); // 70%
     presets[0].effect = 15; // FX_MODE_FADE
     presets[0].params.speed = 80;
     presets[0].params.intensity = 200;
@@ -236,13 +253,13 @@ void Configuration::setDefaultPresets() {
 
     // Preset 1: Daylight
     presets[1].name = "Daylight";
-    presets[1].brightness = 200;
+    presets[1].brightness = percentToBrightness(100); // 100%
     presets[1].effect = 0; // FX_MODE_STATIC
     presets[1].params.color1 = 0xFFFFFF;  // White
 
     // Preset 2: Afternoon Ripple
     presets[2].name = "Afternoon Ripple";
-    presets[2].brightness = 180;
+    presets[2].brightness = percentToBrightness(70); // 70%
     presets[2].effect = 12; // FX_MODE_RAINBOW_CYCLE
     presets[2].params.speed = 100;
     presets[2].params.intensity = 150;
@@ -251,7 +268,7 @@ void Configuration::setDefaultPresets() {
 
     // Preset 3: Gentle Wave
     presets[3].name = "Gentle Wave";
-    presets[3].brightness = 120;
+    presets[3].brightness = percentToBrightness(47); // 47%
     presets[3].effect = 3; // FX_MODE_COLOR_WIPE
     presets[3].params.speed = 60;
     presets[3].params.intensity = 100;
@@ -260,7 +277,7 @@ void Configuration::setDefaultPresets() {
 
     // Preset 4: Coral Shimmer
     presets[4].name = "Coral Shimmer";
-    presets[4].brightness = 150;
+    presets[4].brightness = percentToBrightness(59); // 59%
     presets[4].effect = 21; // FX_MODE_TWINKLE_FADE
     presets[4].params.speed = 120;
     presets[4].params.intensity = 180;
@@ -271,7 +288,7 @@ void Configuration::setDefaultPresets() {
 
     // Preset 5: Deep Ocean
     presets[5].name = "Deep Ocean";
-    presets[5].brightness = 80;
+    presets[5].brightness = percentToBrightness(31); // 31%
     presets[5].effect = 37; // FX_MODE_CHASE_BLUE
     presets[5].params.speed = 40;
     presets[5].params.intensity = 60;
@@ -280,7 +297,7 @@ void Configuration::setDefaultPresets() {
 
     // Preset 6: Moonlight
     presets[6].name = "Moonlight";
-    presets[6].brightness = 30;
+    presets[6].brightness = percentToBrightness(12); // 12%
     presets[6].effect = 2; // FX_MODE_BREATH
     presets[6].params.speed = 50;
     presets[6].params.intensity = 40;
@@ -291,4 +308,22 @@ void Configuration::setDefaultPresets() {
         presets[i].name = "";
         presets[i].enabled = false;
     }
+}
+
+// Update location from GPS data
+void Configuration::updateLocationFromGPS(float lat, float lon, bool valid) {
+    time.latitude = lat;
+    time.longitude = lon;
+    time.gpsValid = valid;
+}
+
+// Get timezone offset in seconds (stub, needs library for real implementation)
+int Configuration::getTimezoneOffsetSeconds() {
+    // TODO: Use a timezone library to convert time.timezone to offset
+    // For now, return 0 for UTC
+    if (time.timezone == "Etc/UTC") return 0;
+    // Example: hardcoded offset for "America/Los_Angeles" (-8 hours)
+    if (time.timezone == "America/Los_Angeles") return -8 * 3600;
+    // Add more mappings or integrate a library
+    return 0;
 }

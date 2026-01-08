@@ -47,8 +47,10 @@ function displayConfig() {
     // Safety
     if (config.safety) {
         if (config.safety.maxBrightness !== undefined) {
-            document.getElementById('maxBrightness').value = config.safety.maxBrightness;
-            document.getElementById('maxBrightnessValue').textContent = config.safety.maxBrightness;
+            // Convert hardware value (1–255) to percent
+            const percent = Math.round(((config.safety.maxBrightness - 1) / 254) * 100);
+            document.getElementById('maxBrightness').value = percent;
+            document.getElementById('maxBrightnessValue').textContent = percent + '%';
         }
         if (config.safety.minTransitionTime !== undefined) {
             const minTransSeconds = Math.floor(Number(config.safety.minTransitionTime) / 1000);
@@ -58,7 +60,7 @@ function displayConfig() {
     }
     // Time
     if (config.time) {
-        if (config.time.timezoneOffset !== undefined) document.getElementById('timezoneOffset').value = config.time.timezoneOffset;
+        if (config.time.timezone) document.getElementById('timezone').value = config.time.timezone;
         if (config.time.latitude !== undefined) document.getElementById('latitude').value = config.time.latitude;
         if (config.time.longitude !== undefined) document.getElementById('longitude').value = config.time.longitude;
     }
@@ -73,11 +75,36 @@ window.addEventListener('DOMContentLoaded', () => {
     if (config.relayActiveHigh) document.getElementById('relayActiveHigh').value = config.relayActiveHigh;
     if (config.maxBrightness) document.getElementById('maxBrightness').value = config.maxBrightness;
     if (config.minTransition) document.getElementById('minTransition').value = config.minTransition;
-    if (config.timezoneOffset) document.getElementById('timezoneOffset').value = config.timezoneOffset;
+    if (config.timezone) document.getElementById('timezone').value = config.timezone;
+    // GPS button for location
+    const getLocationBtn = document.getElementById('getLocationBtn');
+    if (getLocationBtn) {
+        getLocationBtn.addEventListener('click', () => {
+            if (navigator.geolocation) {
+                getLocationBtn.disabled = true;
+                getLocationBtn.textContent = 'Locating...';
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        document.getElementById('latitude').value = pos.coords.latitude.toFixed(6);
+                        document.getElementById('longitude').value = pos.coords.longitude.toFixed(6);
+                        getLocationBtn.textContent = 'Get from GPS';
+                        getLocationBtn.disabled = false;
+                    },
+                    (err) => {
+                        alert('Could not get location: ' + err.message);
+                        getLocationBtn.textContent = 'Get from GPS';
+                        getLocationBtn.disabled = false;
+                    }
+                );
+            } else {
+                alert('Geolocation not supported');
+            }
+        });
+    }
     if (config.latitude) document.getElementById('latitude').value = config.latitude;
     if (config.longitude) document.getElementById('longitude').value = config.longitude;
     // Update display values if needed
-    document.getElementById('maxBrightnessValue').textContent = document.getElementById('maxBrightness').value;
+    document.getElementById('maxBrightnessValue').textContent = document.getElementById('maxBrightness').value + '%';
     document.getElementById('minTransitionValue').textContent = document.getElementById('minTransition').value;
 
     // Only run config logic if config elements exist (i.e., on config.html)
@@ -87,7 +114,7 @@ window.addEventListener('DOMContentLoaded', () => {
         const maxBrightnessValue = document.getElementById('maxBrightnessValue');
         if (maxBrightness && maxBrightnessValue) {
             maxBrightness.addEventListener('input', (e) => {
-                maxBrightnessValue.textContent = e.target.value;
+                maxBrightnessValue.textContent = e.target.value + '%';
             });
         }
         const minTransition = document.getElementById('minTransition');
@@ -115,12 +142,14 @@ window.addEventListener('DOMContentLoaded', () => {
             configUpdate.led = ledUpdate;
             // Safety
             const safetyUpdate = {};
-            safetyUpdate.maxBrightness = parseInt(document.getElementById('maxBrightness').value);
+            // Convert percent (0–100) to hardware value (1–255)
+            const percent = parseInt(document.getElementById('maxBrightness').value);
+            safetyUpdate.maxBrightness = percent <= 0 ? 1 : percent >= 100 ? 255 : Math.round(1 + (254 * percent / 100));
             safetyUpdate.minTransitionTime = Number(document.getElementById('minTransition').value) * 1000;
             configUpdate.safety = safetyUpdate;
             // Time
             const timeUpdate = {};
-            timeUpdate.timezoneOffset = parseInt(document.getElementById('timezoneOffset').value);
+            timeUpdate.timezone = document.getElementById('timezone').value;
             timeUpdate.latitude = parseFloat(document.getElementById('latitude').value);
             timeUpdate.longitude = parseFloat(document.getElementById('longitude').value);
             configUpdate.time = timeUpdate;
