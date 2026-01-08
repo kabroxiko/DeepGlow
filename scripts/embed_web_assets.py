@@ -3,13 +3,8 @@
 # PlatformIO pre-build script: embed web assets as .inc files
 Import("env")
 import os
-
 import subprocess
 import sys
-
-
-import tempfile
-
 
 # # Skip script if PlatformIO target is erase, or clean
 # import sys

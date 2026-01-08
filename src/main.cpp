@@ -65,11 +65,11 @@ void setup() {
     #ifdef DEBUG_SERIAL
     Serial.begin(115200);
     delay(1000);
+    #endif
     debugPrintln();
     debugPrintln("=================================");
     debugPrintln("  Aquarium LED Controller v1.0  ");
     debugPrintln("=================================");
-    #endif
     
     // List files in LittleFS for debugging
     LittleFS.begin();
@@ -89,18 +89,14 @@ void setup() {
     }
 
     // Load presets
-    debugPrintln("[DEBUG] About to load presets");
     if (!config.loadPresets()) {
         debugPrintln("Creating default presets");
         config.setDefaultPresets();
         config.savePresets();
     }
-    debugPrintln("[DEBUG] Presets loaded");
-
 
     // Initialize LEDs
     setupLEDs();
-    debugPrintln("[DEBUG] LEDs initialized");
 
     // Initialize transition engine brightness to default
     extern TransitionEngine transition;
@@ -109,7 +105,6 @@ void setup() {
 
     // Connect to WiFi
     setupWiFi();
-    debugPrintln("[DEBUG] WiFi setup complete");
 
     // Setup web server callbacks (moved up)
     webServer.onPowerChange(setPower);
@@ -157,41 +152,27 @@ void setup() {
         }
         delay(1000);
     }
-    debugPrintln("[DEBUG] NTP sync done");
 
     // Check if we should apply a scheduled preset on boot
     int8_t bootPreset = scheduler.getBootPreset();
     if (bootPreset >= 0 && bootPreset < MAX_PRESETS) {
-        #ifdef DEBUG_SERIAL
         debugPrint("Applying boot preset: ");
         debugPrintln(bootPreset);
-        #endif
         applyPreset(bootPreset);
-        #ifdef DEBUG_SERIAL
-        debugPrintln("[DEBUG] Boot preset applied");
-        #endif
     } else {
         // Apply last saved state
-        #ifdef DEBUG_SERIAL
         debugPrintln("Restoring last state");
-        #endif
         // Ensure transition starts from the actual brightness, not 0
         transition.forceCurrentBrightness(config.state.brightness);
         setEffect(config.state.effect, config.state.params);
         setBrightness(config.state.brightness);
         setPower(config.state.power);
-        #ifdef DEBUG_SERIAL
-        debugPrintln("[DEBUG] Last state restored");
-        #endif
     }
-
-    #ifdef DEBUG_SERIAL
     debugPrintln();
     debugPrintln("System ready!");
     debugPrint("IP Address: ");
     debugPrintln(WiFi.localIP());
     debugPrintln("=================================");
-    #endif
 }
 
 void loop() {
@@ -288,6 +269,11 @@ void setupLEDs() {
     }
     strip = new WS2812FX(count, pin, wsType);
     strip->init();
+    // Set all LEDs to off (black) at startup
+    for (uint16_t i = 0; i < strip->numPixels(); i++) {
+        strip->setPixelColor(i, 0);
+    }
+    strip->show();
     strip->setBrightness(config.state.brightness);
     strip->start();
     debugPrint("LEDs initialized (WS2812FX): ");
@@ -385,23 +371,19 @@ void updateLEDs() {
         strip->service();
         config.state.inTransition = false;
         config.state.brightness = 0;
+        // Power off relay when LEDs are off
+        digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH); // Relay off
         return;
     }
     extern TransitionEngine transition;
     uint8_t currentBrightness = transition.getCurrentBrightness();
-#ifdef DEBUG_SERIAL
-    static uint32_t lastDebug = 0;
-    uint32_t now = millis();
-    if (now - lastDebug > 50) { // Print every ~20 frames at 60fps
-        debugPrint("[DEBUG] Frame brightness: ");
-        debugPrintln(currentBrightness);
-        lastDebug = now;
-    }
-#endif
+    uint8_t prevBrightness = config.state.brightness;
     strip->setBrightness(currentBrightness);
     strip->service();
     config.state.inTransition = false;
     config.state.brightness = currentBrightness;
+    // Power on relay when brightness is above 0
+    digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW); // Relay on
 }
 
 void checkSchedule() {

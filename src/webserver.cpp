@@ -146,7 +146,6 @@ void WebServerManager::setupRoutes() {
                 if (cmd == "reboot") {
                     respJson = "{\"success\":true,\"message\":\"Rebooting\"}";
                 } else if (cmd == "update") {
-                    debugPrintln("[DEBUG] Update command received (simulate update logic)");
                     respJson = "{\"success\":true,\"message\":\"Update started\"}";
                 } else {
                     respJson = "{\"success\":false,\"error\":\"Unknown command\"}";
@@ -240,17 +239,6 @@ void WebServerManager::setupRoutes() {
     // Serve WiFi page for POST: robust handler parses body manually (WLED-style, minimal signature)
     _server->on("/wifi", HTTP_POST, 
         [this, logRequest](AsyncWebServerRequest* request) {
-            logRequest(request, "[DEBUG] /wifi POST (request handler)");
-            debugPrint("[DEBUG] /wifi POST Content-Type: ");
-            debugPrintln(request->contentType());
-            debugPrint("[DEBUG] /wifi POST Headers: ");
-            for (size_t i = 0; i < request->headers(); i++) {
-                debugPrint("    ");
-                debugPrint(request->headerName(i));
-                debugPrint(": ");
-                debugPrintln(request->header(i));
-            }
-            debugPrint("[DEBUG] /wifi POST Params: ");
             for (size_t i = 0; i < request->params(); i++) {
                 debugPrint("    ");
                 debugPrint(request->getParam(i)->name());
@@ -261,34 +249,23 @@ void WebServerManager::setupRoutes() {
             if (request->hasParam("ssid", true)) {
                 String ssid = urlDecode(request->getParam("ssid", true)->value());
                 String password = request->hasParam("password", true) ? urlDecode(request->getParam("password", true)->value()) : "";
-                debugPrint("[DEBUG] Fallback parsed ssid: "); debugPrintln(ssid);
-                debugPrint("[DEBUG] Fallback parsed password: "); debugPrintln(password);
                 if (ssid.length() > 0) {
                     _config->network.ssid = ssid;
                     _config->network.password = password;
-                    debugPrintln("[DEBUG] Saving config after WiFi form submit (fallback)...");
                     _config->save();
-                    debugPrintln("[DEBUG] Config saved. Rebooting...");
                     String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
                     request->send(200, "text/html", html);
                     delay(1000);
                     ESP.restart();
                     return;
                 }
-                debugPrintln("[DEBUG] SSID missing or POST parse failed (fallback), serving WiFi form again");
                 request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
             }
         }, 
         nullptr,
         [this, logRequest](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t, size_t) {
-            debugPrintln("[DEBUG] /wifi POST body handler CALLED");
-            logRequest(request, "[DEBUG] /wifi POST (body handler)");
-            debugPrint("[DEBUG] /wifi POST body length: ");
-            debugPrintln(len);
             String body;
             for (size_t i = 0; i < len; ++i) body += (char)data[i];
-            debugPrint("[DEBUG] /wifi POST raw body: ");
-            debugPrintln(body);
             String ssid, password;
             int ssidIdx = body.indexOf("ssid=");
             int passIdx = body.indexOf("password=");
@@ -300,21 +277,16 @@ void WebServerManager::setupRoutes() {
                 int amp = body.indexOf('&', passIdx);
                 password = urlDecode(body.substring(passIdx + 9, amp == -1 ? body.length() : amp));
             }
-            debugPrint("[DEBUG] parsed ssid: "); debugPrintln(ssid);
-            debugPrint("[DEBUG] parsed password: "); debugPrintln(password);
             if (ssid.length() > 0) {
                 _config->network.ssid = ssid;
                 _config->network.password = password;
-                debugPrintln("[DEBUG] Saving config after WiFi form submit...");
                 _config->save();
-                debugPrintln("[DEBUG] Config saved. Rebooting...");
                 String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
                 request->send(200, "text/html", html);
                 delay(1000);
                 ESP.restart();
                 return;
             }
-            debugPrintln("[DEBUG] SSID missing or POST parse failed, serving WiFi form again");
             request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
         }
     );
@@ -458,6 +430,7 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     }
     // Merge incoming state with current state
     uint8_t brightness = _config->state.brightness;
+    uint8_t old_brightness = _config->state.brightness;
     uint32_t transitionTime = _config->state.transitionTime;
     bool power = _config->state.power;
     uint8_t effect = _config->state.effect;
@@ -492,12 +465,13 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     if (_effectCallback) _effectCallback(effect, params);
     _config->state.transitionTime = transitionTime;
 
+    // Only respond and broadcast after state is updated
+    broadcastState();
     {
         AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
     }
-    broadcastState();
 }
 
 void WebServerManager::handleGetPresets(AsyncWebServerRequest* request) {
@@ -572,14 +546,8 @@ void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
 void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
     StaticJsonDocument<1024> doc;
     DeserializationError error = deserializeJson(doc, data, len);
-    debugPrintln("[DEBUG] handleSetConfig called");
-    String incomingJson;
-    serializeJson(doc, incomingJson);
-    debugPrint("[DEBUG] Incoming config JSON: ");
-    debugPrintln(incomingJson);
 
     if (error) {
-        debugPrintln("[DEBUG] JSON parse error in handleSetConfig");
         {
             AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
             for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
@@ -614,16 +582,13 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
 
     if (doc.containsKey("time")) {
         JsonObject timeObj = doc["time"];
-        _config->time.timezoneOffset = timeObj["timezoneOffset"] | _config->time.timezoneOffset;
+        _config->time.timezone = timeObj["timezone"] | _config->time.timezone;
         _config->time.latitude = timeObj["latitude"] | _config->time.latitude;
         _config->time.longitude = timeObj["longitude"] | _config->time.longitude;
         _config->time.dstEnabled = timeObj["dstEnabled"] | _config->time.dstEnabled;
     }
 
     bool saveResult = _config->save();
-    debugPrint("[DEBUG] Config save result: ");
-    debugPrintln(saveResult ? "success" : "FAIL");
-
     if (_configCallback) _configCallback();
 
     {
@@ -749,7 +714,7 @@ String WebServerManager::getConfigJSON() {
     
     JsonObject timeObj = doc.createNestedObject("time");
     timeObj["ntpServer"] = _config->time.ntpServer;
-    timeObj["timezoneOffset"] = _config->time.timezoneOffset;
+    timeObj["timezone"] = _config->time.timezone;
     timeObj["latitude"] = _config->time.latitude;
     timeObj["longitude"] = _config->time.longitude;
     timeObj["dstEnabled"] = _config->time.dstEnabled;
@@ -782,14 +747,6 @@ String WebServerManager::getTimersJSON() {
 
 bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transitionTime) {
     bool modified = false;
-    debugPrint("[DEBUG] applySafetyLimits: brightness in=" );
-    debugPrint((int)brightness);
-    debugPrint(", transitionTime in=");
-    debugPrint((unsigned long)transitionTime);
-    debugPrint(", minTransitionTime=");
-    debugPrint((unsigned long)_config->safety.minTransitionTime);
-    debugPrint(", maxBrightness=");
-    debugPrintln((int)_config->safety.maxBrightness);
 
     if (brightness > _config->safety.maxBrightness) {
         brightness = _config->safety.maxBrightness;
@@ -800,11 +757,6 @@ bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transiti
         transitionTime = _config->safety.minTransitionTime;
         modified = true;
     }
-
-    debugPrint("[DEBUG] applySafetyLimits: brightness out=" );
-    debugPrint((int)brightness);
-    debugPrint(", transitionTime out=");
-    debugPrintln((unsigned long)transitionTime);
     return modified;
 }
 

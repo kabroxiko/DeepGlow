@@ -60,12 +60,12 @@
                 <div class="config-grid">
                     <div class="config-item">
                         <label>Max Brightness (Fish Safety)</label>
-                        <input type="range" id="maxBrightness" min="50" max="255" value="200" class="slider-input">
-                        <span id="maxBrightnessValue">200</span>
+                        <input type="range" id="maxBrightness" min="0" max="100" value="80" class="slider-input">
+                        <span id="maxBrightnessValue">80%</span>
                     </div>
                     <div class="config-item">
                         <label>Min Transition Time (seconds)</label>
-                        <input type="range" id="minTransition" min="2" max="3600" value="5" class="slider-input">
+                        <input type="range" id="minTransition" min="2" max="28800" value="5" class="slider-input">
                         <span id="minTransitionValue">5</span>
                     </div>
                 </div>
@@ -76,12 +76,23 @@
                 <h2>Location & Time</h2>
                 <div class="config-grid">
                     <div class="config-item">
-                        <label>Timezone Offset (hours)</label>
-                        <input type="number" id="timezoneOffset" min="-12" max="12" value="0" class="text-input">
+                        <label>Timezone</label>
+                        <select id="timezone" class="select-input">
+                            <option value="Etc/UTC">UTC</option>
+                            <option value="America/New_York">America/New_York</option>
+                            <option value="America/Chicago">America/Chicago</option>
+                            <option value="America/Denver">America/Denver</option>
+                            <option value="America/Los_Angeles">America/Los_Angeles</option>
+                            <option value="Europe/London">Europe/London</option>
+                            <option value="Europe/Berlin">Europe/Berlin</option>
+                            <option value="Asia/Tokyo">Asia/Tokyo</option>
+                            <option value="Australia/Sydney">Australia/Sydney</option>
+                        </select>
                     </div>
                     <div class="config-item">
                         <label>Latitude</label>
                         <input type="number" id="latitude" min="-90" max="90" step="0.01" value="0" class="text-input">
+                        <button id="getLocationBtn" type="button" class="btn btn-info" style="margin-left:0.5em;">Get from GPS</button>
                     </div>
                     <div class="config-item">
                         <label>Longitude</label>

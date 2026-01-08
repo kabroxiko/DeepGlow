@@ -150,6 +150,28 @@ function initializeWebSocket() {
 }
 
 // Update UI with state from server
+// Stepped transform for transition time slider (even-distribution, decisecond/second/minute/hour)
+function steppedTransitionValue(val) {
+    // 0-9: 0-9s (1s step)
+    if (val <= 9) return val;
+    // 10-59: 10-59s (5s step)
+    if (val <= 59) return Math.round(val / 5) * 5;
+    // 60-599: 1-9m59s (10s step)
+    if (val <= 599) return Math.round(val / 10) * 10;
+    // 600-3599: 10m-59m59s (1m step)
+    if (val <= 3599) return Math.round(val / 60) * 60;
+    // 3600-28800: 1h-8h (5m step)
+    return Math.round(val / 300) * 300;
+}
+
+// Format transition time for display
+function formatTransitionTime(val) {
+    if (val < 60) return val + 's';
+    if (val < 3600) return (val / 60).toFixed(val % 60 === 0 ? 0 : 1) + 'm';
+    return (val / 3600).toFixed(val % 3600 === 0 ? 0 : 1) + 'h';
+}
+
+// Update UI with state from server
 function updateState(state) {
     currentState = state;
     // Show Quick Controls on first WebSocket message
@@ -165,10 +187,12 @@ function updateState(state) {
     }
 
     const brightnessSlider = document.getElementById('brightnessSlider');
-    if (brightnessSlider && brightnessSlider.value != state.brightness) {
-        brightnessSlider.value = state.brightness;
+    if (brightnessSlider) {
+        // Convert hardware value (1–255) to percent
+        const percent = Math.round(((state.brightness - 1) / 2.54));
+        if (brightnessSlider.value != percent) brightnessSlider.value = percent;
         const brightnessValue = document.getElementById('brightnessValue');
-        if (brightnessValue) brightnessValue.textContent = state.brightness;
+        if (brightnessValue) brightnessValue.textContent = percent + '%';
     }
 
     const effectSelect = document.getElementById('effectSelect');
@@ -180,11 +204,21 @@ function updateState(state) {
     if (typeof state.transitionTime !== 'undefined') {
         const transitionSlider = document.getElementById('transitionSlider');
         const transitionSeconds = Math.round(Number(state.transitionTime) / 1000);
-        if (transitionSlider && transitionSlider.value != transitionSeconds) {
-            transitionSlider.value = transitionSeconds;
+        if (transitionSlider) {
+            const sliderVal = (function secondsToSlider(seconds) {
+                seconds = parseInt(seconds);
+                if (seconds <= 59) return seconds - 1;
+                if (seconds <= 59 * 60) return 58 + Math.round((seconds - 60) / 60);
+                return 117 + Math.round((seconds - 3600) / 3600);
+            })(transitionSeconds);
+            if (transitionSlider.value != sliderVal) transitionSlider.value = sliderVal;
+            if (typeof updateExpoSlider === 'function') {
+                updateExpoSlider(sliderVal);
+            } else {
+                const transitionValue = document.getElementById('transitionValue');
+                if (transitionValue) transitionValue.textContent = formatTransitionTime(transitionSeconds);
+            }
         }
-        const transitionValue = document.getElementById('transitionValue');
-        if (transitionValue) transitionValue.textContent = transitionSeconds;
     }
 
     if (state.params) {
@@ -252,34 +286,122 @@ function updateState(state) {
 function setupEventListeners() {
     // Power toggle
     const powerToggle = document.getElementById('powerToggle');
+    // Transition time slider (expo-step)
+    const transitionSlider = document.getElementById('transitionSlider');
     if (powerToggle) {
         powerToggle.addEventListener('change', (e) => {
             sendState({ power: e.target.checked });
         });
     }
-    // Brightness slider
+    // Brightness slider (percent 0–100%)
     const brightnessSlider = document.getElementById('brightnessSlider');
     if (brightnessSlider) {
+        brightnessSlider.min = 0;
+        brightnessSlider.max = 100;
+        brightnessSlider.step = 1;
         brightnessSlider.addEventListener('input', (e) => {
+            const percent = parseInt(e.target.value);
+            const hwValue = Math.round(percent * 2.54) + 1; // 1–255
             const brightnessValue = document.getElementById('brightnessValue');
-            if (brightnessValue) brightnessValue.textContent = e.target.value;
+            if (brightnessValue) brightnessValue.textContent = percent + '%';
         });
         brightnessSlider.addEventListener('change', (e) => {
-            sendState({ brightness: parseInt(e.target.value) });
+            const percent = parseInt(e.target.value);
+            const hwValue = Math.round(percent * 2.54) + 1; // 1–255
+            sendState({ brightness: hwValue });
         });
     }
-    // Transition time slider
-    const transitionSlider = document.getElementById('transitionSlider');
-    if (transitionSlider) {
-        transitionSlider.addEventListener('input', (e) => {
-            const seconds = parseInt(e.target.value);
-            const transitionValue = document.getElementById('transitionValue');
-            if (transitionValue) transitionValue.textContent = seconds;
-        });
-        transitionSlider.addEventListener('change', (e) => {
-            const seconds = parseInt(e.target.value);
-            sendState({ transitionTime: Number(seconds) * 1000 });
-        });
+        if (transitionSlider) {
+            // Even distribution: seconds (1–59), minutes (1–59), hours (1–8)
+            // Slider range: 0–(59+59+8-1) = 0–125
+            // 0–58: seconds (1–59)
+            // 59–117: minutes (1–59)
+            // 118–125: hours (1–8)
+            function sliderToTime(val) {
+                val = parseInt(val);
+                if (val <= 58) return val + 1; // 1–59s
+                if (val <= 117) return (val - 58); // 1–59m
+                return (val - 117); // 1–8h
+            }
+            function timeToSeconds(time, segment) {
+                if (segment === 's') return time;
+                if (segment === 'm') return time * 60;
+                return time * 3600;
+            }
+            // Ensure max slider value (125) always maps to 8h (28800s)
+            function sliderToSeconds(val) {
+                val = parseInt(val);
+                if (val <= 58) return val + 1; // 1–59s
+                if (val <= 117) return (val - 58) * 60 + 60; // 1–59m
+                return (val - 117) * 3600 + 3600; // 1–8h
+            }
+            function secondsToSlider(seconds) {
+                seconds = parseInt(seconds);
+                if (seconds <= 59) return seconds - 1;
+                if (seconds <= 59 * 60) return 58 + Math.round((seconds - 60) / 60);
+                return 117 + Math.round((seconds - 3600) / 3600);
+            }
+            function formatExpoTime(val) {
+                if (val < 60) return val + 's';
+                if (val < 3600) return (val / 60) + 'm';
+                return (val / 3600) + 'h';
+            }
+            function updateExpoSlider(val) {
+                val = parseInt(val);
+                // Clamp value to slider range
+                if (val < 0) val = 0;
+                if (val > 125) val = 125;
+                const seconds = sliderToSeconds(val);
+
+                // Only update value if not already set
+                if (transitionSlider.value != val) transitionSlider.value = val;
+                const transitionValue = document.getElementById('transitionValue');
+                if (transitionValue) transitionValue.textContent = formatExpoTime(seconds);
+                return seconds;
+            }
+            transitionSlider.max = 125;
+            transitionSlider.min = 0;
+            transitionSlider.step = 1;
+            transitionSlider.addEventListener('input', (e) => {
+                updateExpoSlider(e.target.value);
+            });
+            transitionSlider.addEventListener('change', (e) => {
+                const seconds = updateExpoSlider(e.target.value);
+                sendState({ transitionTime: seconds * 1000 });
+            });
+            // On load, set slider to match state
+            if (typeof currentState.transitionTime !== 'undefined') {
+                const seconds = Math.round(Number(currentState.transitionTime) / 1000);
+                transitionSlider.value = secondsToSlider(seconds);
+                updateExpoSlider(transitionSlider.value);
+            }
+        // On load, set slider to match state
+        if (typeof currentState.transitionTime !== 'undefined') {
+            const t = Math.round(Number(currentState.transitionTime) / 1000);
+            transitionSlider.value = snapToStep(t);
+            updateExpoSlider(transitionSlider.value);
+        }
+    }
+
+    // Stepped transform for transition time slider (even-distribution, decisecond/second/minute/hour)
+    function steppedTransitionValue(val) {
+        // 0-9: 0-9s (1s step)
+        if (val <= 9) return val;
+        // 10-59: 10-59s (5s step)
+        if (val <= 59) return Math.round(val / 5) * 5;
+        // 60-599: 1-9m59s (10s step)
+        if (val <= 599) return Math.round(val / 10) * 10;
+        // 600-3599: 10m-59m59s (1m step)
+        if (val <= 3599) return Math.round(val / 60) * 60;
+        // 3600-28800: 1h-8h (5m step)
+        return Math.round(val / 300) * 300;
+    }
+
+    // Format transition time for display
+    function formatTransitionTime(val) {
+        if (val < 60) return val + 's';
+        if (val < 3600) return (val / 60).toFixed(val % 60 === 0 ? 0 : 1) + 'm';
+        return (val / 3600).toFixed(val % 3600 === 0 ? 0 : 1) + 'h';
     }
     // Effect selector
     const effectSelect = document.getElementById('effectSelect');
@@ -405,10 +527,12 @@ function displayPresets() {
             card.classList.add('active');
         }
         
+        // Convert hardware brightness (1–255) to percent (0–100)
+        const percent = Math.round(((preset.brightness - 1) / 254) * 100);
         card.innerHTML = `
             <div class="preset-name">${preset.name}</div>
             <div class="preset-info">Effect: ${effectNames[preset.effect]}</div>
-            <div class="preset-info">Brightness: ${preset.brightness}</div>
+            <div class="preset-info">Brightness: ${percent}%</div>
             <div class="preset-color-preview" style="background: linear-gradient(135deg, #${preset.params.color1.toString(16).padStart(6, '0')}, #${preset.params.color2.toString(16).padStart(6, '0')})"></div>
         `;
         
