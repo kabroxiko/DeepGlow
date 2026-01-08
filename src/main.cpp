@@ -102,6 +102,11 @@ void setup() {
     setupLEDs();
     debugPrintln("[DEBUG] LEDs initialized");
 
+    // Initialize transition engine brightness to default
+    extern TransitionEngine transition;
+    transition.forceCurrentBrightness(config.state.brightness); // Set current
+    transition.startTransition(config.state.brightness, 1);     // Set target
+
     // Connect to WiFi
     setupWiFi();
     debugPrintln("[DEBUG] WiFi setup complete");
@@ -382,7 +387,17 @@ void updateLEDs() {
         config.state.brightness = 0;
         return;
     }
-    uint8_t currentBrightness = config.state.brightness;
+    extern TransitionEngine transition;
+    uint8_t currentBrightness = transition.getCurrentBrightness();
+#ifdef DEBUG_SERIAL
+    static uint32_t lastDebug = 0;
+    uint32_t now = millis();
+    if (now - lastDebug > 50) { // Print every ~20 frames at 60fps
+        debugPrint("[DEBUG] Frame brightness: ");
+        debugPrintln(currentBrightness);
+        lastDebug = now;
+    }
+#endif
     strip->setBrightness(currentBrightness);
     strip->service();
     config.state.inTransition = false;
