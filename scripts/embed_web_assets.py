@@ -11,12 +11,12 @@ import sys
 import tempfile
 
 
-# Skip script if PlatformIO target is erase, or clean
-import sys
-pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
-if any(x in pio_targets for x in ['erase', 'clean']):
-	print('embed_web_assets.py: Skipping script for erase/clean target.')
-	sys.exit(0)
+# # Skip script if PlatformIO target is erase, or clean
+# import sys
+# pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
+# if any(x in pio_targets for x in ['erase', 'clean']):
+# 	print('embed_web_assets.py: Skipping script for erase/clean target.')
+# 	sys.exit(0)
 
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR = os.path.join(os.getcwd(), 'data')
@@ -66,6 +66,8 @@ ASSETS = [
 	('app.js', 'app_js.inc'),
 	('style.css', 'style_css.inc'),
 	('fflate.min.js', 'fflate_min_js.inc'),
+	('config.html', 'config_html.inc'),
+	('config.js', 'config_js.inc'),
 ]
 
 
