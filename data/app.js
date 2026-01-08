@@ -23,12 +23,12 @@ if (location.protocol === 'file:' || location.hostname === 'localhost' || locati
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     // Hide Quick Controls until first WebSocket message
-    document.querySelector('.card').style.display = 'none';
+    const quickControls = document.querySelector('.card');
+    if (quickControls && quickControls.style) quickControls.style.display = 'none';
     initializeWebSocket();
     setupEventListeners();
     loadPresets();
     loadTimers();
-    loadConfig();
 
     // OTA upload form handler
     const otaForm = document.getElementById('otaForm');
@@ -36,11 +36,13 @@ document.addEventListener('DOMContentLoaded', () => {
         otaForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const otaFileInput = document.getElementById('otaFile');
-            const otaFile = otaFileInput.files[0];
+            const otaFile = otaFileInput ? otaFileInput.files[0] : null;
             if (!otaFile) {
                 showToast('Please select a firmware file.');
                 return;
             }
+            const otaProgressBar = document.getElementById('otaProgressBar');
+            const otaProgressFill = document.getElementById('otaProgressFill');
             if (otaProgressBar && otaProgressFill) {
                 otaProgressBar.style.display = '';
                 otaProgressFill.style.width = '0%';
@@ -90,8 +92,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // OTA file input filename display and progress bar
     const otaFileInput = document.getElementById('otaFile');
     const otaFileName = document.getElementById('otaFileName');
-    const otaProgressBar = document.getElementById('otaProgressBar');
-    const otaProgressFill = document.getElementById('otaProgressFill');
     if (otaFileInput && otaFileName) {
         otaFileInput.addEventListener('change', function() {
             otaFileName.textContent = this.files && this.files.length > 0 ? this.files[0].name : 'No file chosen';
@@ -113,7 +113,8 @@ function initializeWebSocket() {
 
     ws.onopen = () => {
         console.log('[WS] Connected');
-        document.getElementById('statusIndicator').style.color = '#00cc88';
+        const statusIndicator = document.getElementById('statusIndicator');
+        if (statusIndicator && statusIndicator.style) statusIndicator.style.color = '#00cc88';
         if (reconnectInterval) {
             clearInterval(reconnectInterval);
             reconnectInterval = null;
@@ -132,8 +133,8 @@ function initializeWebSocket() {
 
     ws.onclose = () => {
         console.log('[WS] Disconnected');
-        document.getElementById('statusIndicator').style.color = '#ff4466';
-
+        const statusIndicator = document.getElementById('statusIndicator');
+        if (statusIndicator && statusIndicator.style) statusIndicator.style.color = '#ff4466';
         // Attempt to reconnect
         if (!reconnectInterval) {
             reconnectInterval = setInterval(() => {
@@ -153,24 +154,25 @@ function updateState(state) {
     currentState = state;
     // Show Quick Controls on first WebSocket message
     const quickControls = document.querySelector('.card');
-    if (quickControls && quickControls.style.display === 'none') {
+    if (quickControls && quickControls.style && quickControls.style.display === 'none') {
         quickControls.style.display = '';
     }
-    
+
     // Update controls without triggering events
     const powerToggle = document.getElementById('powerToggle');
-    if (powerToggle.checked !== state.power) {
+    if (powerToggle && powerToggle.checked !== state.power) {
         powerToggle.checked = state.power;
     }
-    
+
     const brightnessSlider = document.getElementById('brightnessSlider');
-    if (brightnessSlider.value != state.brightness) {
+    if (brightnessSlider && brightnessSlider.value != state.brightness) {
         brightnessSlider.value = state.brightness;
-        document.getElementById('brightnessValue').textContent = state.brightness;
+        const brightnessValue = document.getElementById('brightnessValue');
+        if (brightnessValue) brightnessValue.textContent = state.brightness;
     }
-    
+
     const effectSelect = document.getElementById('effectSelect');
-    if (effectSelect.value != state.effect) {
+    if (effectSelect && effectSelect.value != state.effect) {
         effectSelect.value = state.effect;
     }
 
@@ -178,27 +180,35 @@ function updateState(state) {
     if (typeof state.transitionTime !== 'undefined') {
         const transitionSlider = document.getElementById('transitionSlider');
         const transitionSeconds = Math.round(Number(state.transitionTime) / 1000);
-        if (transitionSlider.value != transitionSeconds) {
+        if (transitionSlider && transitionSlider.value != transitionSeconds) {
             transitionSlider.value = transitionSeconds;
         }
-        document.getElementById('transitionValue').textContent = transitionSeconds;
+        const transitionValue = document.getElementById('transitionValue');
+        if (transitionValue) transitionValue.textContent = transitionSeconds;
     }
 
     if (state.params) {
-        document.getElementById('speedSlider').value = state.params.speed;
-        document.getElementById('speedValue').textContent = state.params.speed;
-        
-        document.getElementById('intensitySlider').value = state.params.intensity;
-        document.getElementById('intensityValue').textContent = state.params.intensity;
-        
-        document.getElementById('color1Picker').value = '#' + state.params.color1.toString(16).padStart(6, '0');
-        document.getElementById('color2Picker').value = '#' + state.params.color2.toString(16).padStart(6, '0');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        if (speedSlider) speedSlider.value = state.params.speed;
+        if (speedValue) speedValue.textContent = state.params.speed;
+
+        const intensitySlider = document.getElementById('intensitySlider');
+        const intensityValue = document.getElementById('intensityValue');
+        if (intensitySlider) intensitySlider.value = state.params.intensity;
+        if (intensityValue) intensityValue.textContent = state.params.intensity;
+
+        const color1Picker = document.getElementById('color1Picker');
+        if (color1Picker) color1Picker.value = '#' + state.params.color1.toString(16).padStart(6, '0');
+        const color2Picker = document.getElementById('color2Picker');
+        if (color2Picker) color2Picker.value = '#' + state.params.color2.toString(16).padStart(6, '0');
     }
 
     // Synchronize clock with backend on first WS message, then advance locally
     if (state.time) {
         if (!clockSynced) {
-            document.getElementById('currentTime').textContent = state.time;
+            const currentTime = document.getElementById('currentTime');
+            if (currentTime) currentTime.textContent = state.time;
             // Parse time as HH:MM:SS
             const [h, m, s] = state.time.split(':').map(Number);
             const now = new Date();
@@ -209,18 +219,21 @@ function updateState(state) {
                 const hh = localClock.getHours().toString().padStart(2, '0');
                 const mm = localClock.getMinutes().toString().padStart(2, '0');
                 const ss = localClock.getSeconds().toString().padStart(2, '0');
-                document.getElementById('currentTime').textContent = `${hh}:${mm}:${ss}`;
+                const currentTime = document.getElementById('currentTime');
+                if (currentTime) currentTime.textContent = `${hh}:${mm}:${ss}`;
             }, 1000);
             clockSynced = true;
         }
     }
 
     if (state.sunrise) {
-        document.getElementById('sunriseTime').textContent = state.sunrise;
+        const sunriseTime = document.getElementById('sunriseTime');
+        if (sunriseTime) sunriseTime.textContent = state.sunrise;
     }
 
     if (state.sunset) {
-        document.getElementById('sunsetTime').textContent = state.sunset;
+        const sunsetTime = document.getElementById('sunsetTime');
+        if (sunsetTime) sunsetTime.textContent = state.sunset;
     }
 
     // Highlight active preset
@@ -238,94 +251,104 @@ function updateState(state) {
 // Setup event listeners
 function setupEventListeners() {
     // Power toggle
-    document.getElementById('powerToggle').addEventListener('change', (e) => {
-        sendState({ power: e.target.checked });
-    });
-    
+    const powerToggle = document.getElementById('powerToggle');
+    if (powerToggle) {
+        powerToggle.addEventListener('change', (e) => {
+            sendState({ power: e.target.checked });
+        });
+    }
     // Brightness slider
-    document.getElementById('brightnessSlider').addEventListener('input', (e) => {
-        document.getElementById('brightnessValue').textContent = e.target.value;
-    });
-    document.getElementById('brightnessSlider').addEventListener('change', (e) => {
-        sendState({ brightness: parseInt(e.target.value) });
-    });
-    
+    const brightnessSlider = document.getElementById('brightnessSlider');
+    if (brightnessSlider) {
+        brightnessSlider.addEventListener('input', (e) => {
+            const brightnessValue = document.getElementById('brightnessValue');
+            if (brightnessValue) brightnessValue.textContent = e.target.value;
+        });
+        brightnessSlider.addEventListener('change', (e) => {
+            sendState({ brightness: parseInt(e.target.value) });
+        });
+    }
     // Transition time slider
-    // Only update label on input
-    document.getElementById('transitionSlider').addEventListener('input', (e) => {
-        const seconds = parseInt(e.target.value);
-        document.getElementById('transitionValue').textContent = seconds;
-    });
-    // Only send to backend on release
-    document.getElementById('transitionSlider').addEventListener('change', (e) => {
-        const seconds = parseInt(e.target.value);
-        sendState({ transitionTime: Number(seconds) * 1000 });
-    });
-    
+    const transitionSlider = document.getElementById('transitionSlider');
+    if (transitionSlider) {
+        transitionSlider.addEventListener('input', (e) => {
+            const seconds = parseInt(e.target.value);
+            const transitionValue = document.getElementById('transitionValue');
+            if (transitionValue) transitionValue.textContent = seconds;
+        });
+        transitionSlider.addEventListener('change', (e) => {
+            const seconds = parseInt(e.target.value);
+            sendState({ transitionTime: Number(seconds) * 1000 });
+        });
+    }
     // Effect selector
-    document.getElementById('effectSelect').addEventListener('change', (e) => {
-        sendState({ effect: parseInt(e.target.value) });
-    });
-    
+    const effectSelect = document.getElementById('effectSelect');
+    if (effectSelect) {
+        effectSelect.addEventListener('change', (e) => {
+            sendState({ effect: parseInt(e.target.value) });
+        });
+    }
     // Speed slider
-    let speedTimeout;
-    document.getElementById('speedSlider').addEventListener('input', (e) => {
-        document.getElementById('speedValue').textContent = e.target.value;
-        clearTimeout(speedTimeout);
-        speedTimeout = setTimeout(() => {
-            sendState({ 
-                params: {
-                    ...currentState.params,
-                    speed: parseInt(e.target.value)
-                }
-            });
-        }, 300);
-    });
-    
+    const speedSlider = document.getElementById('speedSlider');
+    if (speedSlider) {
+        let speedTimeout;
+        speedSlider.addEventListener('input', (e) => {
+            const speedValue = document.getElementById('speedValue');
+            if (speedValue) speedValue.textContent = e.target.value;
+            clearTimeout(speedTimeout);
+            speedTimeout = setTimeout(() => {
+                sendState({ 
+                    params: {
+                        ...currentState.params,
+                        speed: parseInt(e.target.value)
+                    }
+                });
+            }, 300);
+        });
+    }
     // Intensity slider
-    let intensityTimeout;
-    document.getElementById('intensitySlider').addEventListener('input', (e) => {
-        document.getElementById('intensityValue').textContent = e.target.value;
-        clearTimeout(intensityTimeout);
-        intensityTimeout = setTimeout(() => {
+    const intensitySlider = document.getElementById('intensitySlider');
+    if (intensitySlider) {
+        let intensityTimeout;
+        intensitySlider.addEventListener('input', (e) => {
+            const intensityValue = document.getElementById('intensityValue');
+            if (intensityValue) intensityValue.textContent = e.target.value;
+            clearTimeout(intensityTimeout);
+            intensityTimeout = setTimeout(() => {
+                sendState({ 
+                    params: {
+                        ...currentState.params,
+                        intensity: parseInt(e.target.value)
+                    }
+                });
+            }, 300);
+        });
+    }
+    // Color pickers
+    const color1Picker = document.getElementById('color1Picker');
+    if (color1Picker) {
+        color1Picker.addEventListener('change', (e) => {
+            const color = parseInt(e.target.value.substring(1), 16);
             sendState({ 
                 params: {
                     ...currentState.params,
-                    intensity: parseInt(e.target.value)
+                    color1: color
                 }
             });
-        }, 300);
-    });
-    
-    // Color pickers
-    document.getElementById('color1Picker').addEventListener('change', (e) => {
-        const color = parseInt(e.target.value.substring(1), 16);
-        sendState({ 
-            params: {
-                ...currentState.params,
-                color1: color
-            }
         });
-    });
-    
-    document.getElementById('color2Picker').addEventListener('change', (e) => {
-        const color = parseInt(e.target.value.substring(1), 16);
-        sendState({ 
-            params: {
-                ...currentState.params,
-                color2: color
-            }
+    }
+    const color2Picker = document.getElementById('color2Picker');
+    if (color2Picker) {
+        color2Picker.addEventListener('change', (e) => {
+            const color = parseInt(e.target.value.substring(1), 16);
+            sendState({ 
+                params: {
+                    ...currentState.params,
+                    color2: color
+                }
+            });
         });
-    });
-    
-    // Configuration sliders
-    document.getElementById('maxBrightness').addEventListener('input', (e) => {
-        document.getElementById('maxBrightnessValue').textContent = e.target.value;
-    });
-    
-    document.getElementById('minTransition').addEventListener('input', (e) => {
-        document.getElementById('minTransitionValue').textContent = e.target.value;
-    });
+    }
 }
 
 // Send state update to server
@@ -368,6 +391,7 @@ function loadPresets() {
 
 function displayPresets() {
     const grid = document.getElementById('presetGrid');
+    if (!grid) return;
     grid.innerHTML = '';
     
     const effectNames = ['Solid', 'Ripple', 'Wave', 'Sunrise', 'Shimmer', 'Deep Ocean', 'Moonlight'];
@@ -433,188 +457,90 @@ function loadTimers() {
 }
 
 function displayTimers() {
-    const container = document.getElementById('scheduleTable');
+    const list = document.getElementById('timerList');
+    if (!list) return;
+    list.innerHTML = '';
     
-    const timerTypes = ['Regular', 'Sunrise', 'Sunset'];
-    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
-    let html = '<table><thead><tr><th>Time</th><th>Type</th><th>Days</th><th>Preset</th><th>Status</th></tr></thead><tbody>';
-    
-    timers.forEach(timer => {
-        if (!timer.enabled) return;
-        
-        let timeStr = '';
-        if (timer.type === 0) {
-            timeStr = `${timer.hour.toString().padStart(2, '0')}:${timer.minute.toString().padStart(2, '0')}`;
-        } else if (timer.type === 1) {
-            timeStr = `Sunrise ${timer.offset >= 0 ? '+' : ''}${timer.offset}m`;
-        } else {
-            timeStr = `Sunset ${timer.offset >= 0 ? '+' : ''}${timer.offset}m`;
-        }
-        
-        let daysStr = '';
-        for (let i = 0; i < 7; i++) {
-            if (timer.days & (1 << i)) {
-                daysStr += dayNames[i] + ' ';
-            }
-        }
-        
-        const statusClass = timer.enabled ? 'timer-enabled' : 'timer-disabled';
-        
-        html += `
-            <tr class="${statusClass}">
-                <td>${timeStr}</td>
-                <td>${timerTypes[timer.type]}</td>
-                <td>${daysStr}</td>
-                <td>${presets[timer.presetId]?.name || 'N/A'}</td>
-                <td>${timer.enabled ? '✓ Active' : '✗ Disabled'}</td>
-            </tr>
+    timers.forEach((timer, index) => {
+        const listItem = document.createElement('div');
+        listItem.className = 'timer-item';
+        listItem.innerHTML = `
+            <div class="timer-name">${timer.name}</div>
+            <div class="timer-time">${new Date(timer.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+            <div class="timer-days">${timer.days.join(', ')}</div>
         `;
+        
+        listItem.addEventListener('click', () => editTimer(index));
+        list.appendChild(listItem);
+    });
+}
+
+function editTimer(timerIndex) {
+    const timer = timers[timerIndex];
+    if (!timer) return;
+    
+    document.getElementById('timerName').value = timer.name;
+    document.getElementById('timerTime').value = new Date(timer.time).toISOString().substring(11, 16);
+    const days = timer.days || [];
+    ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach((day, index) => {
+        const checkbox = document.getElementById(`day-${day}`);
+        if (checkbox) checkbox.checked = days.includes(day);
     });
     
-    html += '</tbody></table>';
-    container.innerHTML = html;
+    document.getElementById('saveTimerButton').onclick = () => {
+        const name = document.getElementById('timerName').value;
+        const time = new Date(`1970-01-01T${document.getElementById('timerTime').value}:00Z`).getTime();
+        const days = [];
+        ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach((day) => {
+            const checkbox = document.getElementById(`day-${day}`);
+            if (checkbox && checkbox.checked) {
+                days.push(day);
+            }
+        });
+        
+        saveTimer({ name, time, days });
+    };
 }
 
-function showTimerEditor() {
-    showToast('Timer editor UI - To be implemented in full version');
-}
-
-// Load configuration
-function loadConfig() {
-    fetch(BASE_URL + '/api/config')
-        .then(async response => {
-            const text = await response.text();
-            if (!text) return {};
-            try { return JSON.parse(text); } catch { return {}; }
-        })
-        .then(data => {
-            config = data;
-
-            // Update config UI
-            if (data.led) {
-                document.getElementById('ledCount').value = data.led.count;
-                if (data.led.type) {
-                    document.getElementById('ledType').value = data.led.type;
-                }
-                if (typeof data.led.relayPin !== 'undefined') {
-                    document.getElementById('relayPin').value = data.led.relayPin;
-                }
-                if (typeof data.led.relayActiveHigh !== 'undefined') {
-                    document.getElementById('relayActiveHigh').value = String(data.led.relayActiveHigh);
-                }
-            }
-
-            if (data.safety) {
-                document.getElementById('maxBrightness').value = data.safety.maxBrightness;
-                document.getElementById('maxBrightnessValue').textContent = data.safety.maxBrightness;
-
-                const minTransSeconds = Math.floor(Number(data.safety.minTransitionTime) / 1000);
-                document.getElementById('minTransition').value = minTransSeconds;
-                document.getElementById('minTransitionValue').textContent = minTransSeconds;
-            }
-
-            if (data.time) {
-                document.getElementById('timezoneOffset').value = data.time.timezoneOffset;
-                document.getElementById('latitude').value = data.time.latitude;
-                document.getElementById('longitude').value = data.time.longitude;
-            }
-        })
-        .catch(error => console.error('Error loading config:', error));
-}
-
-function saveConfiguration() {
-    // Build configUpdate with only changed values
-    const configUpdate = {};
-    // LED
-    const ledUpdate = {};
-    const ledCount = parseInt(document.getElementById('ledCount').value);
-    if (!config.led || config.led.count !== ledCount) ledUpdate.count = ledCount;
-    const ledType = document.getElementById('ledType').value;
-    if (!config.led || config.led.type !== ledType) ledUpdate.type = ledType;
-    const relayPin = parseInt(document.getElementById('relayPin').value);
-    if (!config.led || config.led.relayPin !== relayPin) ledUpdate.relayPin = relayPin;
-    const relayActiveHigh = document.getElementById('relayActiveHigh').value === 'true';
-    if (!config.led || config.led.relayActiveHigh !== relayActiveHigh) ledUpdate.relayActiveHigh = relayActiveHigh;
-    if (Object.keys(ledUpdate).length > 0) configUpdate.led = ledUpdate;
-    // Safety
-    const safetyUpdate = {};
-    const maxBrightness = parseInt(document.getElementById('maxBrightness').value);
-    if (!config.safety || config.safety.maxBrightness !== maxBrightness) safetyUpdate.maxBrightness = maxBrightness;
-    const minTransitionTime = Number(document.getElementById('minTransition').value) * 1000;
-    if (!config.safety || config.safety.minTransitionTime !== minTransitionTime) safetyUpdate.minTransitionTime = minTransitionTime;
-    if (Object.keys(safetyUpdate).length > 0) configUpdate.safety = safetyUpdate;
-    // Time
-    const timeUpdate = {};
-    const timezoneOffset = parseInt(document.getElementById('timezoneOffset').value);
-    if (!config.time || config.time.timezoneOffset !== timezoneOffset) timeUpdate.timezoneOffset = timezoneOffset;
-    const latitude = parseFloat(document.getElementById('latitude').value);
-    if (!config.time || config.time.latitude !== latitude) timeUpdate.latitude = latitude;
-    const longitude = parseFloat(document.getElementById('longitude').value);
-    if (!config.time || config.time.longitude !== longitude) timeUpdate.longitude = longitude;
-    if (Object.keys(timeUpdate).length > 0) configUpdate.time = timeUpdate;
-    // Only send if something changed
-    if (Object.keys(configUpdate).length === 0) {
-        showToast('No changes to save.');
-        return;
-    }
-    fetch(BASE_URL + '/api/config', {
+function saveTimer(timer) {
+    fetch(BASE_URL + '/api/timer', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
         },
-        body: JSON.stringify(configUpdate)
+        body: JSON.stringify(timer)
     })
     .then(async response => {
-        const statusOk = response.ok;
-        let data = {};
-        try {
-            const text = await response.text();
-            if (text) data = JSON.parse(text);
-        } catch (e) {
-            // Ignore JSON parse error, treat as success if HTTP 200
-        }
-        return { statusOk, data };
+        const text = await response.text();
+        if (!text) return {};
+        try { return JSON.parse(text); } catch { return {}; }
     })
-    .then(({ statusOk, data }) => {
-        if (statusOk && (data.success === undefined || data.success === true)) {
-            showToast('Configuration saved! Changes take effect immediately.');
-            sendDebugWS('Config saved successfully');
+    .then(data => {
+        if (data.success) {
+            console.log('Timer saved');
+            loadTimers();
         } else {
-            showToast('Failed to save configuration');
-            sendDebugWS('Config save failed');
+            console.error('Failed to save timer');
         }
     })
-    .catch(error => {
-        console.error('Error:', error);
-        showToast('Error saving configuration');
-        sendDebugWS('Config save error: ' + error);
-    });
+    .catch(error => console.error('Error saving timer:', error));
 }
 
-// Toast notification (moved to top level)
+// Toast notifications
 function showToast(message, duration = 3000) {
-    const toast = document.getElementById('toast');
-    console.log('[TOAST]', message); // DEBUG: log to console
+    const toast = document.createElement('div');
+    toast.className = 'toast';
     toast.textContent = message;
-    toast.style.display = 'block';
-    toast.style.opacity = '0.95';
-    if (window._toastTimeout) {
-        clearTimeout(window._toastTimeout);
-    }
-    if (message === 'Uploading...') {
-        // Don't auto-hide, will be hidden by next toast
-        return;
-    }
-    window._toastTimeout = setTimeout(() => {
-        toast.style.opacity = '0';
-        setTimeout(() => { toast.style.display = 'none'; }, 300);
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 100);
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
     }, duration);
-}
-
-// Send debug message through WebSocket (moved to top level)
-function sendDebugWS(msg) {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ debug: msg }));
-    }
 }

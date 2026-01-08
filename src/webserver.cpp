@@ -6,6 +6,8 @@
 #include "web_assets/app_js.inc"
 #include "web_assets/style_css.inc"
 #include "web_assets/fflate_min_js.inc"
+#include "web_assets/config_html.inc"
+#include "web_assets/config_js.inc"
 
 #include "webserver.h"
 #if defined(ESP32)
@@ -118,6 +120,50 @@ void WebServerManager::setupWebSocket() {
 }
 
 void WebServerManager::setupRoutes() {
+    // System command API (reboot, update, etc.)
+    _server->on("/api/command", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(204);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
+    _server->on("/api/command", HTTP_POST, [](AsyncWebServerRequest* request) {
+        // If body handler is not called, treat as reboot for compatibility
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+        request->onDisconnect([]() { delay(100); ESP.restart(); });
+    },
+        NULL,
+        [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t, size_t) {
+            StaticJsonDocument<128> doc;
+            DeserializationError error = deserializeJson(doc, data, len);
+            String respJson;
+            int status = 200;
+            if (error || !doc.containsKey("command")) {
+                respJson = "{\"success\":false,\"error\":\"Invalid JSON or missing command\"}";
+            } else {
+                String cmd = doc["command"].as<String>();
+                if (cmd == "reboot") {
+                    respJson = "{\"success\":true,\"message\":\"Rebooting\"}";
+                } else if (cmd == "update") {
+                    debugPrintln("[DEBUG] Update command received (simulate update logic)");
+                    respJson = "{\"success\":true,\"message\":\"Update started\"}";
+                } else {
+                    respJson = "{\"success\":false,\"error\":\"Unknown command\"}";
+                }
+            }
+            AsyncWebServerResponse *resp = request->beginResponse(status, "application/json", respJson);
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+            // Actually perform the command after response
+            if (!error && doc.containsKey("command")) {
+                String cmd = doc["command"].as<String>();
+                if (cmd == "reboot") {
+                    request->onDisconnect([]() { delay(100); ESP.restart(); });
+                }
+            }
+        }
+    );
     // CORS preflight for OTA
     _server->on("/ota", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
         AsyncWebServerResponse *resp = request->beginResponse(204);
@@ -285,6 +331,14 @@ void WebServerManager::setupRoutes() {
     _server->on("/app.js", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /app.js");
         request->send_P(200, "application/javascript", web_app_js, web_app_js_len);
+    });
+    _server->on("/config.html", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
+        logRequest(request, "[DEBUG] /config.html");
+        request->send_P(200, "text/html", web_config_html, web_config_html_len);
+    });
+    _server->on("/config.js", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
+        logRequest(request, "[DEBUG] /config.js");
+        request->send_P(200, "application/javascript", web_config_js, web_config_js_len);
     });
     _server->on("/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request, "[DEBUG] /style.css");
