@@ -83,17 +83,9 @@ void setup() {
     LittleFS.begin();
 
     // Load configuration
-    debugPrintln("[DEBUG] Attempting to load config...");
     if (!config.load()) {
-        debugPrintln("[DEBUG] Config load failed, creating default configuration");
         config.setDefaults();
         config.save();
-    } else {
-        debugPrintln("[DEBUG] Config loaded successfully");
-        debugPrint("[DEBUG] Loaded SSID: ");
-        debugPrintln(config.network.ssid.c_str());
-        debugPrint("[DEBUG] Loaded Password: ");
-        debugPrintln(config.network.password.c_str());
     }
 
     // Load presets
@@ -169,12 +161,8 @@ void setup() {
     // Check if we should apply a scheduled preset on boot
     int8_t bootPreset = scheduler.getBootPreset();
     if (bootPreset >= 0 && bootPreset < MAX_PRESETS) {
-        debugPrint("Applying boot preset: ");
-        debugPrintln(bootPreset);
         applyPreset(bootPreset);
     } else {
-        // Apply last saved state
-        debugPrintln("Restoring last state");
         // Ensure transition starts from the actual brightness, not 0
         transition.forceCurrentBrightness(config.state.brightness);
         setEffect(config.state.effect, config.state.params);
@@ -209,13 +197,6 @@ void loop() {
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
         lastFrame = now;
         updateLEDs();
-    }
-    
-    // Save state periodically
-    // State saving to file removed; only update lastStateSave timestamp
-    if (millis() - lastStateSave > STATE_SAVE_INTERVAL) {
-        lastStateSave = millis();
-        transition.forceCurrentBrightness(config.state.brightness);
     }
 
     // Captive portal DNS handler (if in AP mode)
@@ -311,20 +292,26 @@ void applyPreset(uint8_t presetId) {
         debugPrintln("Invalid preset ID");
         return;
     }
-    debugPrint("Applying preset: ");
-    debugPrintln(config.presets[presetId].name);
     Preset& preset = config.presets[presetId];
+    // Get timer brightness percent if available
+    uint8_t timerBrightnessPercent = 100;
+    // Find active timer for this preset
+    for (size_t i = 0; i < config.timers.size(); i++) {
+        if (config.timers[i].presetId == presetId && config.timers[i].enabled) {
+            timerBrightnessPercent = config.timers[i].brightness;
+            break;
+        }
+    }
+    // Convert percent to 0-255
+    uint8_t brightnessValue = (uint8_t)((timerBrightnessPercent / 100.0) * 255);
+    // Apply safety limits
+    uint8_t safeBrightness = min(brightnessValue, config.safety.maxBrightness);
     // Start transitions
     uint32_t transTime = config.state.transitionTime;
-    // Ensure minimum transition time
     if (transTime < config.safety.minTransitionTime) {
         transTime = config.safety.minTransitionTime;
     }
-    // Apply safety limits to brightness
-    uint8_t safeBrightness = min(preset.brightness, config.safety.maxBrightness);
-    // Start transitions
     transition.startTransition(safeBrightness, transTime);
-    // No color transition, just set effect and color directly
     setEffect(preset.effect, preset.params);
     config.state.currentPreset = presetId;
     config.state.power = true;
@@ -381,8 +368,6 @@ void setEffect(uint8_t effect, const EffectParams& params) {
         strip->setMode(effect);
         strip->setColor(params.color1);
     }
-    debugPrint("Effect changed to: ");
-    debugPrintln(effect);
     webServer.broadcastState();
 }
 
@@ -420,21 +405,12 @@ void checkSchedule() {
 void checkAndApplyScheduleAfterBoot() {
     static bool scheduleApplied = false;
     if (!scheduleApplied) {
-        debugPrintln("[BOOT] Checking if time is valid for schedule...");
         if (scheduler.isTimeValid()) {
-            debugPrintln("[BOOT] Time is now valid!");
             int8_t bootPreset2 = scheduler.getBootPreset();
-            debugPrint("[BOOT] getBootPreset() returned: ");
-            debugPrintln(bootPreset2);
             if (bootPreset2 >= 0 && bootPreset2 < MAX_PRESETS) {
-                debugPrint("[BOOT] Time became valid, applying preset: ");
-                debugPrintln(bootPreset2);
                 applyPreset(bootPreset2);
-                scheduleApplied = true;
-            } else {
-                debugPrintln("[BOOT] No valid boot preset found after time became valid.");
-                scheduleApplied = true; // Prevent repeated checks
             }
+            scheduleApplied = true; 
         }
     }
 }

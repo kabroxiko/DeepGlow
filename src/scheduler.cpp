@@ -133,15 +133,6 @@ void Scheduler::calculateSunTimes() {
     
     _sunriseMinutes = calculateSunriseMinutes();
     _sunsetMinutes = calculateSunsetMinutes();
-    
-    debugPrint("Sunrise: ");
-    debugPrint(_sunriseMinutes / 60);
-    debugPrint(":");
-    debugPrintln(_sunriseMinutes % 60);
-    debugPrint("Sunset: ");
-    debugPrint(_sunsetMinutes / 60);
-    debugPrint(":");
-    debugPrintln(_sunsetMinutes % 60);
 }
 
 int Scheduler::calculateSunriseMinutes() {
@@ -229,13 +220,13 @@ int Scheduler::getTimerMinutes(const Timer& timer) {
             
         case TIMER_SUNRISE:
             if (_sunriseMinutes != -1) {
-                minutes = _sunriseMinutes + timer.offset;
+                minutes = _sunriseMinutes;
             }
             break;
             
         case TIMER_SUNSET:
             if (_sunsetMinutes != -1) {
-                minutes = _sunsetMinutes + timer.offset;
+                minutes = _sunsetMinutes;
             }
             break;
     }
@@ -253,11 +244,10 @@ int8_t Scheduler::checkTimers() {
     
     int currentMinutes = timeToMinutes(getCurrentHour(), getCurrentMinute());
     // Check all timers
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    for (size_t i = 0; i < _config->timers.size(); i++) {
         if (!isTimerActive(_config->timers[i], 0)) continue;
         int timerMinutes = getTimerMinutes(_config->timers[i]);
         if (timerMinutes == -1) continue;
-        // Trigger if current time matches timer time
         if (currentMinutes == timerMinutes) {
             debugPrint("Timer triggered: ");
             debugPrintln(i);
@@ -275,21 +265,16 @@ int8_t Scheduler::getBootPreset() {
     int8_t mostRecentPreset = -1;
     int mostRecentMinutes = -1;
     // Find the most recent timer that should have triggered
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    for (size_t i = 0; i < _config->timers.size(); i++) {
         if (!isTimerActive(_config->timers[i], 0)) continue;
         int timerMinutes = getTimerMinutes(_config->timers[i]);
         if (timerMinutes == -1) continue;
-        // Timer should have triggered if it's before current time
         if (timerMinutes <= currentMinutes) {
             if (timerMinutes > mostRecentMinutes) {
                 mostRecentMinutes = timerMinutes;
                 mostRecentPreset = _config->timers[i].presetId;
             }
         }
-    }
-    if (mostRecentPreset != -1) {
-        debugPrint("Boot preset from timer: ");
-        debugPrintln(mostRecentPreset);
     }
     return mostRecentPreset;
 }

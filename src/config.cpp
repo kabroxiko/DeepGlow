@@ -1,7 +1,7 @@
 #include "web_assets/config_default.inc"
 #include "web_assets/timezones_json.inc"
 #include "config.h"
-#include "debug.h"
+
 #include <vector>
 #include <LittleFS.h>
 
@@ -12,19 +12,10 @@ static bool ensureFilesystemMounted() {
     static bool mounted = false;
     if (!mounted) {
         if (!FILESYSTEM.begin()) {
-            #ifdef DEBUG_SERIAL
-            debugPrintln("[DEBUG] Filesystem mount failed! Attempting format...");
-            #endif
             if (!FILESYSTEM.format()) {
-                #ifdef DEBUG_SERIAL
-                debugPrintln("[DEBUG] Filesystem format failed! Filesystem may be read-only or partition is too small.");
-                #endif
                 return false;
             }
             if (!FILESYSTEM.begin()) {
-                #ifdef DEBUG_SERIAL
-                debugPrintln("[DEBUG] Filesystem mount failed after format!");
-                #endif
                 return false;
             }
         }
@@ -45,24 +36,9 @@ bool Configuration::loadFromFile(const char* path, JsonDocument& doc) {
     if (!ensureFilesystemMounted()) return false;
     File file = FILESYSTEM.open(path, "r");
     if (!file) {
-        #ifdef DEBUG_SERIAL
-        debugPrint("[DEBUG] Failed to open file for reading: ");
-        debugPrintln(path);
-        #endif
         return false;
     }
     size_t fileSize = file.size();
-    // Debug: print raw config file content to serial
-    #ifdef DEBUG_SERIAL
-    Serial.println("[DEBUG] --- Raw config file content ---");
-    String rawContent;
-    while (file.available()) {
-        char c = file.read();
-        rawContent += c;
-    }
-    Serial.println(rawContent);
-    file.seek(0, SeekSet); // Reset file pointer for parsing
-    #endif
     DeserializationError error = deserializeJson(doc, file);
     file.close();
 
@@ -77,42 +53,12 @@ bool Configuration::saveToFile(const char* path, const JsonDocument& doc) {
     if (!ensureFilesystemMounted()) return false;
     File file = FILESYSTEM.open(path, "w");
     if (!file) {
-        #ifdef DEBUG_SERIAL
-        debugPrint("[DEBUG] Failed to open file for writing: ");
-        debugPrintln(path);
-        #endif
         return false;
     }
-    #ifdef DEBUG_SERIAL
-    debugPrint("[DEBUG] Writing config to file: ");
-    debugPrintln(path);
-    String jsonStr;
-    serializeJson(doc, jsonStr);
-    debugPrintln("[DEBUG] --- JSON to write ---");
-    debugPrintln(jsonStr);
-    #endif
     size_t written = serializeJson(doc, file);
     file.flush();
     file.close();
-    delay(10); // Allow filesystem to flush writes
-    #ifdef DEBUG_SERIAL
-    debugPrint("[DEBUG] Bytes written: ");
-    debugPrintln((int)written);
-    // Re-open file to print its content after writing
-    File debugFile = FILESYSTEM.open(path, "r");
-    if (debugFile) {
-        debugPrintln("[DEBUG] --- File content after write ---");
-        String fileContent;
-        while (debugFile.available()) {
-            char c = debugFile.read();
-            fileContent += c;
-        }
-        debugPrintln(fileContent);
-        debugFile.close();
-    } else {
-        debugPrintln("[DEBUG] Failed to re-open file for reading after write.");
-    }
-    #endif
+    delay(10);
     return written > 0;
 }
 
@@ -181,14 +127,17 @@ bool Configuration::load() {
     // Timers
     if (doc.containsKey("timers")) {
         JsonArray timersArray = doc["timers"];
-        for (size_t i = 0; i < timersArray.size() && i < (MAX_TIMERS + MAX_SUN_TIMERS); i++) {
+        timers.clear();
+        for (size_t i = 0; i < timersArray.size(); i++) {
             JsonObject timerObj = timersArray[i];
-            timers[i].enabled = timerObj["enabled"];
-            timers[i].type = (TimerType)timerObj["type"];
-            timers[i].hour = timerObj["hour"];
-            timers[i].minute = timerObj["minute"];
-            timers[i].offset = timerObj["offset"];
-            timers[i].presetId = timerObj["presetId"];
+            Timer t;
+            t.enabled = timerObj["enabled"];
+            t.type = (TimerType)timerObj["type"];
+            t.hour = timerObj["hour"];
+            t.minute = timerObj["minute"];
+            t.presetId = timerObj["presetId"];
+            t.brightness = timerObj["brightness"] | 100;
+            timers.push_back(t);
         }
     }
 
@@ -233,14 +182,14 @@ bool Configuration::save() {
     
     // Timers
     JsonArray timersArray = doc.createNestedArray("timers");
-    for (size_t i = 0; i < (MAX_TIMERS + MAX_SUN_TIMERS); i++) {
+    for (size_t i = 0; i < timers.size(); i++) {
         JsonObject timerObj = timersArray.createNestedObject();
         timerObj["enabled"] = timers[i].enabled;
         timerObj["type"] = timers[i].type;
         timerObj["hour"] = timers[i].hour;
         timerObj["minute"] = timers[i].minute;
-        timerObj["offset"] = timers[i].offset;
         timerObj["presetId"] = timers[i].presetId;
+        timerObj["brightness"] = timers[i].brightness;
     }
     
     return saveToFile(CONFIG_FILE, doc);
@@ -280,7 +229,6 @@ bool Configuration::loadPresets() {
     for (size_t i = 0; i < presetsArray.size() && i < MAX_PRESETS; i++) {
         JsonObject presetObj = presetsArray[i];
         presets[i].name = presetObj["name"] | "";
-        presets[i].brightness = presetObj["brightness"] | 128;
         presets[i].effect = presetObj["effect"] | 0;
         presets[i].enabled = presetObj["enabled"] | true;
         if (presetObj.containsKey("params")) {
@@ -305,7 +253,6 @@ bool Configuration::savePresets() {
 
         JsonObject presetObj = presetsArray.createNestedObject();
         presetObj["name"] = presets[i].name;
-        presetObj["brightness"] = presets[i].brightness;
         presetObj["effect"] = presets[i].effect;
         presetObj["enabled"] = presets[i].enabled;
 
@@ -333,7 +280,7 @@ void Configuration::setDefaults() {
     time = TimeConfig();
     state = SystemState();
     // Zero-initialize timers; actual schedule will be loaded from config.json or default config
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    for (size_t i = 0; i < timers.size(); i++) {
         timers[i] = Timer();
     }
     savePresets();

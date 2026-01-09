@@ -541,7 +541,6 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
     } else {
         // Save preset data
         _config->presets[presetId].name = doc["name"] | "";
-        _config->presets[presetId].brightness = doc["brightness"] | 128;
         _config->presets[presetId].effect = (uint8_t)(int)doc["effect"];
         _config->presets[presetId].enabled = doc["enabled"] | true;
         
@@ -627,7 +626,7 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
     
     uint8_t timerId = doc["id"] | 0;
     
-    if (timerId >= MAX_TIMERS + MAX_SUN_TIMERS) {
+    if (timerId >= _config->timers.size()) {
         {
             AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid timer ID\"}");
             for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
@@ -640,8 +639,8 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
     _config->timers[timerId].type = (TimerType)(int)doc["type"];
     _config->timers[timerId].hour = doc["hour"] | 0;
     _config->timers[timerId].minute = doc["minute"] | 0;
-    _config->timers[timerId].offset = doc["offset"] | 0;
     _config->timers[timerId].presetId = doc["presetId"] | 0;
+    _config->timers[timerId].brightness = doc["brightness"] | 100;
     
     _config->save();
     
@@ -681,15 +680,15 @@ String WebServerManager::getStateJSON() {
     // Add schedule table (example: array of objects with time and action)
     JsonArray scheduleArray = doc.createNestedArray("schedule");
     // Example: populate with current timers as schedule (customize as needed)
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    for (size_t i = 0; i < _config->timers.size(); i++) {
         JsonObject schedObj = scheduleArray.createNestedObject();
         schedObj["id"] = i;
         schedObj["enabled"] = _config->timers[i].enabled;
         schedObj["type"] = _config->timers[i].type;
         schedObj["hour"] = _config->timers[i].hour;
         schedObj["minute"] = _config->timers[i].minute;
-        schedObj["offset"] = _config->timers[i].offset;
         schedObj["presetId"] = _config->timers[i].presetId;
+        schedObj["brightness"] = _config->timers[i].brightness;
     }
     String output;
     serializeJson(doc, output);
@@ -706,7 +705,6 @@ String WebServerManager::getPresetsJSON() {
         JsonObject presetObj = presetsArray.createNestedObject();
         presetObj["id"] = i;
         presetObj["name"] = _config->presets[i].name;
-        presetObj["brightness"] = _config->presets[i].brightness;
         presetObj["effect"] = _config->presets[i].effect;
         presetObj["enabled"] = _config->presets[i].enabled;
         
@@ -751,15 +749,24 @@ String WebServerManager::getConfigJSON() {
 
     // Add timers array to config JSON (not as 'schedule', but as 'timers' for consistency with upload)
     JsonArray timersArray = doc.createNestedArray("timers");
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    size_t timerCount = 0;
+    // Determine timer count from config object (timers loaded from config.json)
+    for (size_t i = 0; i < _config->timers.size(); i++) {
+        if (_config->timers[i].enabled || _config->timers[i].hour != 0 || _config->timers[i].minute != 0) {
+            timerCount++;
+        }
+    }
+    if (timerCount == 0) timerCount = _config->timers.size();
+    for (size_t i = 0; i < _config->timers.size(); i++) {
+        const auto& t = _config->timers[i];
         JsonObject timerObj = timersArray.createNestedObject();
         timerObj["id"] = i;
-        timerObj["enabled"] = _config->timers[i].enabled;
-        timerObj["type"] = _config->timers[i].type;
-        timerObj["hour"] = _config->timers[i].hour;
-        timerObj["minute"] = _config->timers[i].minute;
-        timerObj["offset"] = _config->timers[i].offset;
-        timerObj["presetId"] = _config->timers[i].presetId;
+        timerObj["enabled"] = t.enabled;
+        timerObj["type"] = t.type;
+        timerObj["hour"] = t.hour;
+        timerObj["minute"] = t.minute;
+        timerObj["presetId"] = t.presetId;
+        timerObj["brightness"] = t.brightness;
     }
     String output;
     serializeJson(doc, output);
@@ -770,13 +777,13 @@ String WebServerManager::getTimersJSON() {
     StaticJsonDocument<2048> doc;
     JsonArray timersArray = doc.createNestedArray("timers");
 
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    for (size_t i = 0; i < _config->timers.size(); i++) {
         // Only include timers that are enabled or have a nonzero hour/minute or non-empty name
         const auto& t = _config->timers[i];
         bool isActive = t.enabled || t.hour != 0 || t.minute != 0;
-#ifdef TIMER_NAME_SUPPORT
+    #ifdef TIMER_NAME_SUPPORT
         isActive = isActive || (t.name && t.name[0] != '\0');
-#endif
+    #endif
         if (!isActive) continue;
         JsonObject timerObj = timersArray.createNestedObject();
         timerObj["id"] = i;
@@ -784,8 +791,8 @@ String WebServerManager::getTimersJSON() {
         timerObj["type"] = t.type;
         timerObj["hour"] = t.hour;
         timerObj["minute"] = t.minute;
-        timerObj["offset"] = t.offset;
         timerObj["presetId"] = t.presetId;
+        timerObj["brightness"] = t.brightness;
     }
 
     String output;

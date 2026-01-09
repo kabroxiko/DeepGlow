@@ -284,6 +284,38 @@ body {
     border-color: var(--primary-color);
 }
 
+/* Modern select dropdown styling */
+select, .select-input {
+    background: var(--bg-light);
+    color: var(--text-primary);
+    border: 1.5px solid var(--secondary-color);
+    border-radius: 8px;
+    padding: 8px 32px 8px 12px;
+    font-size: 1.1em;
+    appearance: none;
+    box-shadow: 0 2px 8px var(--shadow);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    cursor: pointer;
+    min-width: 120px;
+    margin: 2px 0;
+}
+select:focus, .select-input:focus {
+    border-color: var(--accent-color);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-color);
+}
+select:hover, .select-input:hover {
+    border-color: var(--primary-color);
+}
+
+/* Custom arrow for select */
+select {
+    background-image: url('data:image/svg+xml;utf8,<svg fill="%23a0b8cc" height="16" viewBox="0 0 24 24" width="16" xmlns="http://www.w3.org/2000/svg"><path d="M7 10l5 5 5-5z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px 16px;
+}
+
 /* Color Input */
 .color-input {
     width: 100%;
@@ -589,6 +621,50 @@ tr:hover {
     min-height: 1.2em;
     font-size: 1em;
     text-align: center;
+}
+
+/* Modern time input styling */
+input[type="time"] {
+    background: var(--bg-light);
+    color: var(--text-primary);
+    border: 1.5px solid var(--secondary-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 1.1em;
+    box-shadow: 0 2px 8px var(--shadow);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-width: 100px;
+    margin: 2px 0;
+}
+input[type="time"]:focus {
+    border-color: var(--accent-color);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-color);
+}
+input[type="time"]:hover {
+    border-color: var(--primary-color);
+}
+
+/* Modern number input styling (brightness) */
+input[type="number"] {
+    background: var(--bg-light);
+    color: var(--text-primary);
+    border: 1.5px solid var(--secondary-color);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 1.1em;
+    box-shadow: 0 2px 8px var(--shadow);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    min-width: 70px;
+    margin: 2px 0;
+}
+input[type="number"]:focus {
+    border-color: var(--accent-color);
+    outline: none;
+    box-shadow: 0 0 0 2px var(--accent-color);
+}
+input[type="number"]:hover {
+    border-color: var(--primary-color);
 }
 
 /* Responsive */
