@@ -507,6 +507,7 @@ function loadPresets() {
         .then(data => {
             presets = data.presets || [];
             displayPresets();
+            renderBrightnessGraph();
         })
         .catch(error => console.error('Error loading presets:', error));
 }
@@ -576,27 +577,223 @@ function loadTimers() {
         .then(data => {
             timers = data.timers || [];
             displayTimers();
+            renderBrightnessGraph();
         })
         .catch(error => console.error('Error loading timers:', error));
 }
+// Render a 24h brightness graph reflecting scheduled preset brightness
+function renderBrightnessGraph() {
+    const ctx = document.getElementById('brightnessGraph');
+    if (!ctx || !Array.isArray(timers) || !Array.isArray(presets) || presets.length === 0) return;
+
+    // Prepare 24h data, 1 point per 10 minutes (144 points)
+    const pointsPerHour = 6;
+    const totalPoints = 24 * pointsPerHour;
+    const labels = [];
+    const data = new Array(totalPoints).fill(null);
+
+    // Build a list of timer events sorted by time
+    const events = timers
+        .filter(timer => timer.enabled && typeof timer.hour === 'number' && typeof timer.minute === 'number' && typeof timer.presetId === 'number')
+        .map(timer => ({
+            time: timer.hour * 60 + timer.minute,
+            presetId: timer.presetId
+        }))
+        .sort((a, b) => a.time - b.time);
+
+    // If no events, clear chart
+    if (events.length === 0) {
+        if (window.brightnessChart) {
+            window.brightnessChart.destroy();
+            window.brightnessChart = null;
+        }
+        return;
+    }
+
+    // For each 10-min interval, determine active preset and its brightness
+    let currentPresetId = events.length > 0 ? events[0].presetId : 0;
+    let eventIdx = 0;
+    for (let i = 0; i < totalPoints; i++) {
+        const minutes = i * 10;
+        // Advance to next event if time passed
+        while (eventIdx < events.length && minutes >= events[eventIdx].time) {
+            currentPresetId = events[eventIdx].presetId;
+            eventIdx++;
+        }
+        // Get brightness for current preset
+        let brightness = 0;
+        if (presets[currentPresetId] && typeof presets[currentPresetId].brightness === 'number') {
+            brightness = Math.round(((presets[currentPresetId].brightness - 1) / 254) * 100);
+        }
+        data[i] = brightness;
+        // Label every hour
+        labels.push(i % pointsPerHour === 0 ? (i / pointsPerHour).toString().padStart(2, '0') + ':00' : '');
+    }
+
+    // Calculate current time index using server time if available
+    let minutesNow = 0;
+    if (currentState && typeof currentState.time === 'string' && /^\d{2}:\d{2}:\d{2}$/.test(currentState.time)) {
+        const [h, m, s] = currentState.time.split(':').map(Number);
+        minutesNow = h * 60 + m;
+    } else {
+        const now = new Date();
+        minutesNow = now.getHours() * 60 + now.getMinutes();
+    }
+    const currentIndex = Math.floor(minutesNow / 10);
+
+    // Draw chart with vertical line for current time
+    const annotationPlugin = {
+        id: 'currentTimeLine',
+        afterDraw: chart => {
+            if (typeof currentIndex !== 'number' || currentIndex < 0 || currentIndex >= totalPoints) return;
+            const ctx = chart.ctx;
+            const xAxis = chart.scales.x;
+            const yAxis = chart.scales.y;
+            const x = xAxis.getPixelForValue(currentIndex);
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(x, yAxis.top);
+            ctx.lineTo(x, yAxis.bottom);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#FF4136';
+            ctx.setLineDash([4, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+    };
+
+    if (window.brightnessChart) {
+        window.brightnessChart.data.labels = labels;
+        window.brightnessChart.data.datasets[0].data = data;
+        window.brightnessChart.options.plugins.currentTimeLine = annotationPlugin;
+        window.brightnessChart.update();
+    } else {
+        window.brightnessChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Brightness (%)',
+                    data: data,
+                    borderColor: '#0074D9',
+                    backgroundColor: 'rgba(0,116,217,0.1)',
+                    fill: true,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                    tension: 0.2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    title: { display: false },
+                    currentTimeLine: annotationPlugin
+                },
+                scales: {
+                    x: {
+                        title: { display: true, text: 'Time (24h)' },
+                        ticks: { autoSkip: false, maxTicksLimit: 25 }
+                    },
+                    y: {
+                        title: { display: true, text: 'Brightness (%)' },
+                        min: 0, max: 100
+                    }
+                }
+            },
+            plugins: [annotationPlugin]
+        });
+    }
+}
 
 function displayTimers() {
-    const list = document.getElementById('timerList');
-    if (!list) return;
-    list.innerHTML = '';
-    
-    timers.forEach((timer, index) => {
-        const listItem = document.createElement('div');
-        listItem.className = 'timer-item';
-        listItem.innerHTML = `
-            <div class="timer-name">${timer.name}</div>
-            <div class="timer-time">${new Date(timer.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-            <div class="timer-days">${timer.days.join(', ')}</div>
-        `;
-        
-        listItem.addEventListener('click', () => editTimer(index));
-        list.appendChild(listItem);
+    const tableContainer = document.getElementById('scheduleTable');
+    if (!tableContainer) return;
+    tableContainer.innerHTML = '';
+
+    // Elegant table markup
+    const table = document.createElement('table');
+    table.className = 'schedule-table-inner';
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+        <tr>
+            <th>Time</th>
+            <th>Preset</th>
+            <th>Status</th>
+        </tr>
+    `;
+    table.appendChild(thead);
+    const tbody = document.createElement('tbody');
+
+    const effectNames = ['Solid', 'Ripple', 'Wave', 'Sunrise', 'Shimmer', 'Deep Ocean', 'Moonlight'];
+
+    // Use server time for schedule highlight
+    let activePresetId = null;
+    let nowMinutes = 0;
+    if (currentState && typeof currentState.time === 'string' && /^\d{2}:\d{2}:\d{2}$/.test(currentState.time)) {
+        const [h, m, s] = currentState.time.split(':').map(Number);
+        nowMinutes = h * 60 + m;
+    } else {
+        let now = new Date();
+        nowMinutes = now.getHours() * 60 + now.getMinutes();
+    }
+    let lastTimerIdx = -1;
+    let lastTimerTime = -1;
+    timers.forEach((timer, idx) => {
+        if (!timer.enabled || typeof timer.hour !== 'number' || typeof timer.minute !== 'number') return;
+        let timerTime = timer.hour * 60 + timer.minute;
+        if (timerTime <= nowMinutes && timerTime > lastTimerTime) {
+            lastTimerTime = timerTime;
+            lastTimerIdx = idx;
+        }
     });
+    if (lastTimerIdx >= 0 && timers[lastTimerIdx] && typeof timers[lastTimerIdx].presetId === 'number') {
+        activePresetId = timers[lastTimerIdx].presetId;
+    }
+
+    timers.forEach((timer, index) => {
+        if (!timer.enabled && !timer.name && (!timer.hour && !timer.minute)) return;
+        const name = timer.name || `Timer ${index+1}`;
+        let timeStr = '--:--';
+        if (typeof timer.hour === 'number' && typeof timer.minute === 'number') {
+            timeStr = `${timer.hour.toString().padStart(2, '0')}:${timer.minute.toString().padStart(2, '0')}`;
+        } else if (timer.time) {
+            const d = new Date(timer.time);
+            if (!isNaN(d.getTime())) {
+                timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            }
+        }
+        let presetStr = '--';
+        if (typeof timer.presetId === 'number' && Array.isArray(presets) && presets.length > 0) {
+            if (presets[timer.presetId] && presets[timer.presetId].name) {
+                presetStr = presets[timer.presetId].name;
+            } else {
+                const found = presets.find(p => p.id === timer.presetId || p.presetId === timer.presetId);
+                if (found && found.name) {
+                    presetStr = found.name;
+                } else {
+                    presetStr = `Preset ${timer.presetId}`;
+                }
+            }
+        }
+        const statusStr = timer.enabled ? '<span class="timer-enabled">Enabled</span>' : '<span class="timer-disabled">Disabled</span>';
+
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${timeStr}</td>
+            <td>${presetStr}</td>
+            <td>${statusStr}</td>
+        `;
+        // Highlight if this timer is the currently running preset
+        if (timer.presetId === activePresetId) {
+            row.classList.add('active-timer-row');
+        }
+        // Timer editing disabled: no editTimer UI present
+        tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    tableContainer.appendChild(table);
 }
 
 function editTimer(timerIndex) {

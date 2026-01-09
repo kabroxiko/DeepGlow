@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 # PlatformIO pre-build script: embed web assets as .inc files
-Import("env")
+# Import("env")
 import os
 import subprocess
 import sys
@@ -16,9 +16,18 @@ import sys
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR = os.path.join(os.getcwd(), 'data')
 OUT_DIR = os.path.join(os.getcwd(), 'src/web_assets')
+
 # Ensure output directory exists
 os.makedirs(OUT_DIR, exist_ok=True)
 
+
+# Only delete and regenerate .inc files for assets that have changed
+def asset_needs_update(src_path, inc_path):
+    if not os.path.exists(inc_path):
+        return True
+    src_mtime = os.path.getmtime(src_path)
+    inc_mtime = os.path.getmtime(inc_path)
+    return src_mtime > inc_mtime
 
 
 # Download fflate.min.js from CDN if not present
@@ -55,6 +64,8 @@ def ensure_terser():
 ensure_html_minifier()
 ensure_terser()
 
+
+# Add config.json as config_default.inc (no minification)
 ASSETS = [
 	('index.html', 'index_html.inc'),
 	('wifi.html', 'wifi_html.inc'),
@@ -63,6 +74,9 @@ ASSETS = [
 	('fflate.min.js', 'fflate_min_js.inc'),
 	('config.html', 'config_html.inc'),
 	('config.js', 'config_js.inc'),
+	('config.json', 'config_default.inc'),
+	('timezones.json', 'timezones_json.inc'),
+	('presets.json', 'presets_json.inc'),
 ]
 
 
@@ -180,9 +194,9 @@ def to_inc(infile, outfile, do_minify=True):
 			return False
 		array_decl = array_match.group(1)
 		len_decl = len_match.group(1)
-		# Compose both branches with full declaration
-		branch_esp = f"#if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)\nstatic const unsigned char {var_name}[] PROGMEM = {array_decl[array_decl.find('{'):array_decl.find('};')+2]}\n{len_decl}\n"
-		branch_else = f"#else\nstatic const unsigned char {var_name}[] = {array_decl[array_decl.find('{'):array_decl.find('};')+2]}\n{len_decl}\n#endif\n"
+		# Compose both branches with full declaration (no 'static' so symbols are externally visible)
+		branch_esp = f"#if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)\nconst unsigned char {var_name}[] PROGMEM = {array_decl[array_decl.find('{'):array_decl.find('};')+2]}\n{len_decl.replace('static ', '')}\n"
+		branch_else = f"#else\nconst unsigned char {var_name}[] = {array_decl[array_decl.find('{'):array_decl.find('};')+2]}\n{len_decl.replace('static ', '')}\n#endif\n"
 		with open(outfile_path, 'w', encoding='utf-8') as out:
 			out.write(branch_esp)
 			out.write(branch_else)
@@ -205,10 +219,21 @@ if minify_opt is None:
 	minify_opt = config.get('common', 'minify', fallback='true')
 do_minify = minify_opt.lower() in ('1', 'true', 'yes', 'on')
 
+
 all_ok = True
 for src, dst in ASSETS:
-	ok = to_inc(src, dst, do_minify)
-	all_ok = all_ok and ok
+	src_path = os.path.join(ASSET_DIR, src)
+	inc_path = os.path.join(OUT_DIR, dst)
+	if asset_needs_update(src_path, inc_path):
+		if os.path.exists(inc_path):
+			try:
+				os.remove(inc_path)
+			except Exception as e:
+				print(f'WARNING: Could not delete {inc_path}: {e}')
+		ok = to_inc(src, dst, do_minify)
+		all_ok = all_ok and ok
+	else:
+		print(f'Skipping unchanged asset: {src}')
 if all_ok:
 	print('Web assets embedded as .inc files.')
 else:

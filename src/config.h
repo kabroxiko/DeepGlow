@@ -3,6 +3,7 @@
 
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <vector>
 
 // Version
 #define FIRMWARE_VERSION "1.0.0"
@@ -80,7 +81,6 @@ struct TimeConfig {
     String timezone = "Etc/UTC"; // IANA timezone string, e.g. "America/Los_Angeles"
     float latitude = 0.0;
     float longitude = 0.0;
-    bool gpsValid = false; // true if GPS fix is available
     bool dstEnabled = false;
 };
 
@@ -96,7 +96,6 @@ struct Timer {
     TimerType type = TIMER_REGULAR;
     uint8_t hour = 0;
     uint8_t minute = 0;
-    uint8_t days = 0b1111111;  // All days
     int16_t offset = 0;        // For sunrise/sunset offset in minutes
     uint8_t presetId = 0;
 };
@@ -133,18 +132,20 @@ public:
     bool load();
     void resetPresetsFile();
     bool save();
+    bool factoryReset();
     bool loadPresets();
     bool savePresets();
     void setDefaults();
-    void setDefaultPresets();
 
     // GPS and timezone helpers
     void updateLocationFromGPS(float lat, float lon, bool valid);
     int getTimezoneOffsetSeconds(); // Returns offset in seconds for current timezone
+    std::vector<String> getSupportedTimezones();
+
+    bool saveToFile(const char* path, const JsonDocument& doc);
 
 private:
     bool loadFromFile(const char* path, JsonDocument& doc);
-    bool saveToFile(const char* path, const JsonDocument& doc);
 };
 
 #endif

@@ -15,13 +15,34 @@
             </a>
         </header>
         <div style="display:flex;justify-content:flex-end;margin-bottom:0.5em;">
+            <button id="downloadConfigButton" class="btn btn-secondary" style="margin-right:0.5em;">Download Config</button>
+            <label for="uploadConfigInput" class="btn btn-secondary" style="margin-right:0.5em;cursor:pointer;">Upload Config</label>
+            <input type="file" id="uploadConfigInput" accept=".json,application/json" style="display:none;">
             <button id="saveConfigButton" class="btn btn-primary">Save Configuration</button>
         </div>
         <div class="card-grid">
+                        <!-- WiFi Settings -->
+                        <section class="card">
+                            <h2>WiFi Settings</h2>
+                            <div class="config-grid">
+                                <div class="config-item">
+                                    <label>WiFi SSID</label>
+                                    <input type="text" id="wifiSsid" class="text-input" autocomplete="on">
+                                </div>
+                                <div class="config-item">
+                                    <label>WiFi Password</label>
+                                    <input type="password" id="wifiPassword" class="text-input" autocomplete="on">
+                                </div>
+                            </div>
+                        </section>
             <!-- LED Settings -->
             <section class="card">
                 <h2>LED Settings</h2>
                 <div class="config-grid">
+                    <div class="config-item">
+                        <label>LED Pin (GPIO)</label>
+                        <input type="number" id="ledPin" min="0" max="39" value="2" class="text-input">
+                    </div>
                     <div class="config-item">
                         <label>LED Count</label>
                         <input type="number" id="ledCount" min="1" max="512" value="60" class="text-input">
@@ -76,28 +97,29 @@
                 <h2>Location & Time</h2>
                 <div class="config-grid">
                     <div class="config-item">
+                        <label>NTP Server</label>
+                        <input type="text" id="ntpServer" class="text-input">
+                    </div>
+                    <div class="config-item">
                         <label>Timezone</label>
                         <select id="timezone" class="select-input">
-                            <option value="Etc/UTC">UTC</option>
-                            <option value="America/New_York">America/New_York</option>
-                            <option value="America/Chicago">America/Chicago</option>
-                            <option value="America/Denver">America/Denver</option>
-                            <option value="America/Los_Angeles">America/Los_Angeles</option>
-                            <option value="Europe/London">Europe/London</option>
-                            <option value="Europe/Berlin">Europe/Berlin</option>
-                            <option value="Asia/Tokyo">Asia/Tokyo</option>
-                            <option value="Australia/Sydney">Australia/Sydney</option>
+                            <!-- Options will be populated by config.js -->
                         </select>
+                    </div>
+                    <div class="config-item">
+                        <label><input type="checkbox" id="dstEnabled"> Summer Time (DST)</label>
                     </div>
                     <div class="config-item">
                         <label>Latitude</label>
                         <input type="number" id="latitude" min="-90" max="90" step="0.01" value="0" class="text-input">
-                        <button id="getLocationBtn" type="button" class="btn btn-info" style="margin-left:0.5em;">Get from GPS</button>
                     </div>
                     <div class="config-item">
                         <label>Longitude</label>
                         <input type="number" id="longitude" min="-180" max="180" step="0.01" value="0" class="text-input">
                     </div>
+                </div>
+                <div style="display:flex;justify-content:flex-end;margin-top:0.5em;">
+                    <button id="getLocationBtn" type="button" class="btn btn-info">Get from GPS</button>
                 </div>
             </section>
         </div>
@@ -123,7 +145,31 @@
             <div class="system-actions" style="margin-top: 1em;">
                 <button id="rebootButton" class="btn btn-warning">Reboot Device</button>
                 <button id="updateButton" class="btn btn-info">Check for Updates</button>
+                <button id="factoryResetButton" class="btn btn-danger" style="margin-left:0.5em;">Factory Reset</button>
                 <span id="systemStatus" class="system-status"></span>
+            </div>
+        </section>
+        <!-- Schedule Table -->
+        <section class="card">
+            <h2>Schedule</h2>
+            <div class="schedule-table">
+                <table id="scheduleTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Enabled</th>
+                            <th>Type</th>
+                            <th>Hour</th>
+                            <th>Minute</th>
+                            <th>Days</th>
+                            <th>Offset</th>
+                            <th>Preset</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Populated by config.js -->
+                    </tbody>
+                </table>
             </div>
         </section>
     </div>
