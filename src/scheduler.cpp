@@ -133,15 +133,6 @@ void Scheduler::calculateSunTimes() {
     
     _sunriseMinutes = calculateSunriseMinutes();
     _sunsetMinutes = calculateSunsetMinutes();
-    
-    debugPrint("Sunrise: ");
-    debugPrint(_sunriseMinutes / 60);
-    debugPrint(":");
-    debugPrintln(_sunriseMinutes % 60);
-    debugPrint("Sunset: ");
-    debugPrint(_sunsetMinutes / 60);
-    debugPrint(":");
-    debugPrintln(_sunsetMinutes % 60);
 }
 
 int Scheduler::calculateSunriseMinutes() {

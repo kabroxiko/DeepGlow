@@ -83,17 +83,9 @@ void setup() {
     LittleFS.begin();
 
     // Load configuration
-    debugPrintln("[DEBUG] Attempting to load config...");
     if (!config.load()) {
-        debugPrintln("[DEBUG] Config load failed, creating default configuration");
         config.setDefaults();
         config.save();
-    } else {
-        debugPrintln("[DEBUG] Config loaded successfully");
-        debugPrint("[DEBUG] Loaded SSID: ");
-        debugPrintln(config.network.ssid.c_str());
-        debugPrint("[DEBUG] Loaded Password: ");
-        debugPrintln(config.network.password.c_str());
     }
 
     // Load presets
@@ -169,12 +161,8 @@ void setup() {
     // Check if we should apply a scheduled preset on boot
     int8_t bootPreset = scheduler.getBootPreset();
     if (bootPreset >= 0 && bootPreset < MAX_PRESETS) {
-        debugPrint("Applying boot preset: ");
-        debugPrintln(bootPreset);
         applyPreset(bootPreset);
     } else {
-        // Apply last saved state
-        debugPrintln("Restoring last state");
         // Ensure transition starts from the actual brightness, not 0
         transition.forceCurrentBrightness(config.state.brightness);
         setEffect(config.state.effect, config.state.params);
@@ -421,21 +409,12 @@ void checkSchedule() {
 void checkAndApplyScheduleAfterBoot() {
     static bool scheduleApplied = false;
     if (!scheduleApplied) {
-        debugPrintln("[BOOT] Checking if time is valid for schedule...");
         if (scheduler.isTimeValid()) {
-            debugPrintln("[BOOT] Time is now valid!");
             int8_t bootPreset2 = scheduler.getBootPreset();
-            debugPrint("[BOOT] getBootPreset() returned: ");
-            debugPrintln(bootPreset2);
             if (bootPreset2 >= 0 && bootPreset2 < MAX_PRESETS) {
-                debugPrint("[BOOT] Time became valid, applying preset: ");
-                debugPrintln(bootPreset2);
                 applyPreset(bootPreset2);
-                scheduleApplied = true;
-            } else {
-                debugPrintln("[BOOT] No valid boot preset found after time became valid.");
-                scheduleApplied = true; // Prevent repeated checks
             }
+            scheduleApplied = true; 
         }
     }
 }
