@@ -1,12 +1,17 @@
 #include "scheduler.h"
 #include "debug.h"
 #include <math.h>
+#if defined(ESP8266)
+#include <ESP8266WiFi.h>
+#else
+#include <WiFi.h>
+#endif
 
 Scheduler::Scheduler(Configuration* config) {
     _config = config;
-    // TODO: Get timezone offset from config
-    _timeClient = new NTPClient(_ntpUDP, _config->time.ntpServer.c_str(), 
-                                -10800, NTP_UPDATE_INTERVAL);
+    int tzOffset = 0;
+    if (_config) tzOffset = _config->getTimezoneOffsetSeconds();
+    _timeClient = new NTPClient(_ntpUDP, _config->time.ntpServer.c_str(), tzOffset, NTP_UPDATE_INTERVAL);
 }
 
 void Scheduler::begin() {
@@ -15,45 +20,107 @@ void Scheduler::begin() {
 }
 
 void Scheduler::update() {
-    // Update NTP periodically
-    if (millis() - _lastNTPUpdate > NTP_UPDATE_INTERVAL) {
-        updateNTP();
+    // Completely disable NTP logic in AP mode (no time sync attempts)
+    #if defined(ESP8266)
+    bool apMode = (WiFi.getMode() == WIFI_AP);
+    #else
+    bool apMode = (WiFi.getMode() == WIFI_MODE_AP);
+    #endif
+    if (!apMode) {
+        // If time is not valid, force NTP update every second
+        if (!isTimeValid()) {
+            if (millis() - _lastNTPUpdate > 1000) {
+                debugPrintln("[DEBUG] Forcing NTP update (time not valid)");
+                updateNTP();
+            }
+        } else {
+            // Update NTP periodically
+            if (millis() - _lastNTPUpdate > NTP_UPDATE_INTERVAL) {
+                updateNTP();
+            }
+        }
+        // Update time client
+        _timeClient->update();
     }
-    
-    // Update time client
-    _timeClient->update();
-    
-    // Calculate sun times once per day at midnight or on first update
-    if (_sunriseMinutes == -1 || (getCurrentHour() == 0 && getCurrentMinute() == 0)) {
+    // Calculate sun times only once per day at midnight or on first update
+    static bool sunTimesCalculated = false;
+    if (_sunriseMinutes == -1 || (getCurrentHour() == 0 && getCurrentMinute() == 0 && !sunTimesCalculated)) {
         calculateSunTimes();
+        sunTimesCalculated = true;
+    }
+    // Reset flag after midnight
+    if (getCurrentHour() != 0 || getCurrentMinute() != 0) {
+        sunTimesCalculated = false;
     }
 }
 
 void Scheduler::updateNTP() {
+    if (_config) {
+        String ntpServer = _config->time.ntpServer;
+        if (ntpServer.length() == 0 || ntpServer == "null") {
+            debugPrintln("[WARN] No NTP server configured, skipping NTP update.");
+            return;
+        }
+    }
+    // Disable NTP update if in AP mode (no internet)
+    #if defined(ESP8266)
+    if (WiFi.getMode() == WIFI_AP) {
+        debugPrintln("[DEBUG] In AP mode, skipping NTP update.");
+        return;
+    }
+    #else
+    if (WiFi.getMode() == WIFI_MODE_AP) {
+        debugPrintln("[DEBUG] In AP mode, skipping NTP update.");
+        return;
+    }
+    #endif
     _timeClient->forceUpdate();
     _lastNTPUpdate = millis();
     debugPrintln("NTP time updated");
 }
 
 bool Scheduler::isTimeValid() {
-    return _timeClient->isTimeSet();
+        if (_config) {
+            String ntpServer = _config->time.ntpServer;
+            if (ntpServer.length() == 0 || ntpServer == "null") {
+                // Fallback: treat time as valid if NTP is disabled
+                return true;
+            }
+        }
+        return _timeClient->isTimeSet();
 }
 
 String Scheduler::getCurrentTime() {
-    return _timeClient->getFormattedTime();
+    // Get the current epoch time (UTC)
+    unsigned long epoch = _timeClient->getEpochTime();
+    int tzOffset = 0;
+    if (_config) tzOffset = _config->getTimezoneOffsetSeconds();
+    epoch += tzOffset;
+    // Calculate hours, minutes, seconds in local time
+    int hours = (epoch / 3600) % 24;
+    int minutes = (epoch / 60) % 60;
+    int seconds = epoch % 60;
+    char buffer[9];
+    snprintf(buffer, sizeof(buffer), "%02d:%02d:%02d", hours, minutes, seconds);
+    return String(buffer);
 }
 
 uint8_t Scheduler::getCurrentHour() {
-    return _timeClient->getHours();
+    unsigned long epoch = _timeClient->getEpochTime();
+    int tzOffset = 0;
+    if (_config) tzOffset = _config->getTimezoneOffsetSeconds();
+    epoch += tzOffset;
+    return (epoch / 3600) % 24;
 }
 
 uint8_t Scheduler::getCurrentMinute() {
-    return _timeClient->getMinutes();
+    unsigned long epoch = _timeClient->getEpochTime();
+    int tzOffset = 0;
+    if (_config) tzOffset = _config->getTimezoneOffsetSeconds();
+    epoch += tzOffset;
+    return (epoch / 60) % 60;
 }
 
-uint8_t Scheduler::getCurrentDayOfWeek() {
-    return _timeClient->getDay();
-}
 
 // Simplified sunrise calculation using sine approximation
 void Scheduler::calculateSunTimes() {
@@ -148,11 +215,8 @@ int Scheduler::timeToMinutes(uint8_t hour, uint8_t minute) {
 }
 
 bool Scheduler::isTimerActive(const Timer& timer, uint8_t dayOfWeek) {
-    if (!timer.enabled) return false;
-    
-    // Check if today is enabled (bit 0 = Sunday, bit 6 = Saturday)
-    uint8_t dayBit = 1 << dayOfWeek;
-    return (timer.days & dayBit) != 0;
+    // For aquariums, all timers are active every day if enabled
+    return timer.enabled;
 }
 
 int Scheduler::getTimerMinutes(const Timer& timer) {
@@ -188,15 +252,11 @@ int8_t Scheduler::checkTimers() {
     _lastTimerCheck = now;
     
     int currentMinutes = timeToMinutes(getCurrentHour(), getCurrentMinute());
-    uint8_t currentDay = getCurrentDayOfWeek();
-    
     // Check all timers
     for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
-        if (!isTimerActive(_config->timers[i], currentDay)) continue;
-        
+        if (!isTimerActive(_config->timers[i], 0)) continue;
         int timerMinutes = getTimerMinutes(_config->timers[i]);
         if (timerMinutes == -1) continue;
-        
         // Trigger if current time matches timer time
         if (currentMinutes == timerMinutes) {
             debugPrint("Timer triggered: ");
@@ -212,18 +272,13 @@ int8_t Scheduler::getBootPreset() {
     if (!isTimeValid()) return -1;
     
     int currentMinutes = timeToMinutes(getCurrentHour(), getCurrentMinute());
-    uint8_t currentDay = getCurrentDayOfWeek();
-    
     int8_t mostRecentPreset = -1;
     int mostRecentMinutes = -1;
-    
     // Find the most recent timer that should have triggered
     for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
-        if (!isTimerActive(_config->timers[i], currentDay)) continue;
-        
+        if (!isTimerActive(_config->timers[i], 0)) continue;
         int timerMinutes = getTimerMinutes(_config->timers[i]);
         if (timerMinutes == -1) continue;
-        
         // Timer should have triggered if it's before current time
         if (timerMinutes <= currentMinutes) {
             if (timerMinutes > mostRecentMinutes) {
@@ -232,11 +287,9 @@ int8_t Scheduler::getBootPreset() {
             }
         }
     }
-    
     if (mostRecentPreset != -1) {
         debugPrint("Boot preset from timer: ");
         debugPrintln(mostRecentPreset);
     }
-    
     return mostRecentPreset;
 }

@@ -49,6 +49,13 @@ uint32_t lastUpdate = 0;
 
 // Function declarations
 void setupWiFi();
+void printHeap(const char* tag) {
+    #if defined(ESP32)
+    debugPrint(tag);
+    debugPrint(F(" Heap: "));
+    debugPrintln(ESP.getFreeHeap());
+    #endif
+}
 void setupLEDs();
 void applyPreset(uint8_t presetId);
 void setPower(bool power);
@@ -56,6 +63,7 @@ void setBrightness(uint8_t brightness);
 void setEffect(uint8_t effect, const EffectParams& params);
 void updateLEDs();
 void checkSchedule();
+void checkAndApplyScheduleAfterBoot();
 
 void setup() {
     // Initialize relay pin from config
@@ -90,8 +98,7 @@ void setup() {
 
     // Load presets
     if (!config.loadPresets()) {
-        debugPrintln("Creating default presets");
-        config.setDefaultPresets();
+        debugPrintln("Failed to load presets");
         config.savePresets();
     }
 
@@ -104,7 +111,10 @@ void setup() {
     transition.startTransition(config.state.brightness, 1);     // Set target
 
     // Connect to WiFi
+
     setupWiFi();
+    printHeap("[DEBUG] After WiFi connect");
+    delay(500); // Give network stack time to settle
 
     // Setup web server callbacks (moved up)
     webServer.onPowerChange(setPower);
@@ -132,8 +142,11 @@ void setup() {
     });
 
     // Start web server (moved up)
+    debugPrintln("[DEBUG] Starting web server...");
+    printHeap("[DEBUG] Before webServer.begin");
     webServer.begin();
     debugPrintln("[DEBUG] Web server started");
+    printHeap("[DEBUG] After webServer.begin");
 
     // Initialize scheduler
     scheduler.begin();
@@ -168,6 +181,9 @@ void setup() {
         setBrightness(config.state.brightness);
         setPower(config.state.power);
     }
+
+    // Mark that we have not yet applied a schedule after time becomes valid
+    // (Handled in loop by checkAndApplyScheduleAfterBoot)
     debugPrintln();
     debugPrintln("System ready!");
     debugPrint("IP Address: ");
@@ -176,6 +192,7 @@ void setup() {
 }
 
 void loop() {
+    checkAndApplyScheduleAfterBoot();
     // Handle ArduinoOTA (ESP32 only)
     handleArduinoOTA();
     // Update all systems
@@ -246,6 +263,7 @@ void setupWiFi() {
 
 void setupLEDs() {
     if (strip) {
+        debugPrintln("[DEBUG] Deleting previous strip object");
         delete strip;
         strip = nullptr;
     }
@@ -268,6 +286,10 @@ void setupLEDs() {
         wsType = NEO_RGB + NEO_KHZ800;
     }
     strip = new WS2812FX(count, pin, wsType);
+    debugPrint("[DEBUG] Created WS2812FX object at pin ");
+    debugPrint(pin);
+    debugPrint(", count: ");
+    debugPrintln(count);
     strip->init();
     // Set all LEDs to off (black) at startup
     for (uint16_t i = 0; i < strip->numPixels(); i++) {
@@ -388,10 +410,31 @@ void updateLEDs() {
 
 void checkSchedule() {
     int8_t presetId = scheduler.checkTimers();
-    
     if (presetId >= 0 && presetId < MAX_PRESETS) {
-        debugPrint("Timer triggered, applying preset: ");
-        debugPrintln(presetId);
         applyPreset(presetId);
+    }
+}
+
+
+// Apply the correct schedule as soon as time becomes valid after boot (only once)
+void checkAndApplyScheduleAfterBoot() {
+    static bool scheduleApplied = false;
+    if (!scheduleApplied) {
+        debugPrintln("[BOOT] Checking if time is valid for schedule...");
+        if (scheduler.isTimeValid()) {
+            debugPrintln("[BOOT] Time is now valid!");
+            int8_t bootPreset2 = scheduler.getBootPreset();
+            debugPrint("[BOOT] getBootPreset() returned: ");
+            debugPrintln(bootPreset2);
+            if (bootPreset2 >= 0 && bootPreset2 < MAX_PRESETS) {
+                debugPrint("[BOOT] Time became valid, applying preset: ");
+                debugPrintln(bootPreset2);
+                applyPreset(bootPreset2);
+                scheduleApplied = true;
+            } else {
+                debugPrintln("[BOOT] No valid boot preset found after time became valid.");
+                scheduleApplied = true; // Prevent repeated checks
+            }
+        }
     }
 }

@@ -39,6 +39,7 @@ function loadConfig() {
 function displayConfig() {
     // LED
     if (config.led) {
+        if (config.led.pin !== undefined) document.getElementById('ledPin').value = config.led.pin;
         if (config.led.count !== undefined) document.getElementById('ledCount').value = config.led.count;
         if (config.led.type) document.getElementById('ledType').value = config.led.type;
         if (config.led.relayPin !== undefined) document.getElementById('relayPin').value = config.led.relayPin;
@@ -60,9 +61,40 @@ function displayConfig() {
     }
     // Time
     if (config.time) {
+        if (config.time.ntpServer !== undefined) document.getElementById('ntpServer').value = config.time.ntpServer;
         if (config.time.timezone) document.getElementById('timezone').value = config.time.timezone;
         if (config.time.latitude !== undefined) document.getElementById('latitude').value = config.time.latitude;
         if (config.time.longitude !== undefined) document.getElementById('longitude').value = config.time.longitude;
+        if (typeof config.time.dstEnabled !== 'undefined') document.getElementById('dstEnabled').checked = !!config.time.dstEnabled;
+    }
+
+    // Network (WiFi)
+    if (config.network) {
+        if (config.network.ssid !== undefined) document.getElementById('wifiSsid').value = config.network.ssid;
+        if (config.network.password !== undefined) document.getElementById('wifiPassword').value = config.network.password;
+    }
+
+    // Schedule Table
+    if (Array.isArray(config.schedule)) {
+        const table = document.getElementById('scheduleTable');
+        if (table) {
+            const tbody = table.querySelector('tbody');
+            tbody.innerHTML = '';
+            config.schedule.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.id}</td>
+                    <td class="${row.enabled ? 'timer-enabled' : 'timer-disabled'}">${row.enabled ? 'Yes' : 'No'}</td>
+                    <td>${row.type !== undefined ? row.type : ''}</td>
+                    <td>${row.hour !== undefined ? row.hour : ''}</td>
+                    <td>${row.minute !== undefined ? row.minute : ''}</td>
+                    <td>${row.days !== undefined ? row.days : ''}</td>
+                    <td>${row.offset !== undefined ? row.offset : ''}</td>
+                    <td>${row.presetId !== undefined ? row.presetId : ''}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
     }
 }
 
@@ -75,7 +107,27 @@ window.addEventListener('DOMContentLoaded', () => {
     if (config.relayActiveHigh) document.getElementById('relayActiveHigh').value = config.relayActiveHigh;
     if (config.maxBrightness) document.getElementById('maxBrightness').value = config.maxBrightness;
     if (config.minTransition) document.getElementById('minTransition').value = config.minTransition;
-    if (config.timezone) document.getElementById('timezone').value = config.timezone;
+
+    // Fetch supported timezones from backend and populate dropdown
+    const tzSelect = document.getElementById('timezone');
+    if (tzSelect) {
+        fetch(BASE_URL + '/api/timezones')
+            .then(resp => resp.json())
+            .then(timezones => {
+                tzSelect.innerHTML = '';
+                timezones.forEach(tz => {
+                    const opt = document.createElement('option');
+                    opt.value = tz;
+                    opt.textContent = tz;
+                    tzSelect.appendChild(opt);
+                });
+                // Set value from config if available
+                if (config.timezone) tzSelect.value = config.timezone;
+            })
+            .catch(() => {
+                // fallback: keep existing options
+            });
+    }
     // GPS button for location
     const getLocationBtn = document.getElementById('getLocationBtn');
     if (getLocationBtn) {
@@ -134,8 +186,8 @@ window.addEventListener('DOMContentLoaded', () => {
             const configUpdate = {};
             // LED
             const ledUpdate = {};
-            const ledCount = parseInt(document.getElementById('ledCount').value);
-            ledUpdate.count = ledCount;
+            ledUpdate.pin = parseInt(document.getElementById('ledPin').value);
+            ledUpdate.count = parseInt(document.getElementById('ledCount').value);
             ledUpdate.type = document.getElementById('ledType').value;
             ledUpdate.relayPin = parseInt(document.getElementById('relayPin').value);
             ledUpdate.relayActiveHigh = document.getElementById('relayActiveHigh').value === 'true';
@@ -149,10 +201,17 @@ window.addEventListener('DOMContentLoaded', () => {
             configUpdate.safety = safetyUpdate;
             // Time
             const timeUpdate = {};
+            timeUpdate.ntpServer = document.getElementById('ntpServer').value;
             timeUpdate.timezone = document.getElementById('timezone').value;
             timeUpdate.latitude = parseFloat(document.getElementById('latitude').value);
             timeUpdate.longitude = parseFloat(document.getElementById('longitude').value);
+            timeUpdate.dstEnabled = document.getElementById('dstEnabled').checked;
             configUpdate.time = timeUpdate;
+            // Network (WiFi)
+            const networkUpdate = {};
+            networkUpdate.ssid = document.getElementById('wifiSsid').value;
+            networkUpdate.password = document.getElementById('wifiPassword').value;
+            configUpdate.network = networkUpdate;
             fetch(BASE_URL + '/api/config', {
                 method: 'POST',
                 headers: {
@@ -167,13 +226,82 @@ window.addEventListener('DOMContentLoaded', () => {
             })
             .then(data => {
                 if (data.success === undefined || data.success) {
-                    console.log('Config saved');
+                    showToast('Config saved!', 2000);
                     loadConfig();
                 } else {
-                    console.error('Failed to save config');
+                    showToast('Failed to save config', 3000);
                 }
             })
             .catch(error => console.error('Error saving config:', error));
+        });
+    }
+
+    // Download config button
+    const downloadConfigButton = document.getElementById('downloadConfigButton');
+    if (downloadConfigButton) {
+        downloadConfigButton.addEventListener('click', () => {
+            fetch(BASE_URL + '/api/config')
+                .then(response => response.json())
+                .then(data => {
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'config.json';
+                    document.body.appendChild(a);
+                    a.click();
+                    setTimeout(() => {
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        showToast('Config downloaded!', 2000);
+                    }, 100);
+                })
+                .catch(() => showToast('Failed to download config', 3000));
+        });
+    }
+
+    // Upload config button (label triggers file input click)
+    const uploadConfigInput = document.getElementById('uploadConfigInput');
+    const uploadConfigLabel = document.querySelector('label[for="uploadConfigInput"]');
+    if (uploadConfigLabel && uploadConfigInput) {
+        uploadConfigLabel.addEventListener('click', (e) => {
+            e.preventDefault();
+            uploadConfigInput.click();
+        });
+    }
+    if (uploadConfigInput) {
+        uploadConfigInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const json = JSON.parse(e.target.result);
+                    // POST to backend
+                    fetch(BASE_URL + '/api/config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(json)
+                    })
+                    .then(async response => {
+                        const text = await response.text();
+                        if (!text) return {};
+                        try { return JSON.parse(text); } catch { return {}; }
+                    })
+                    .then(data => {
+                        if (data.success === undefined || data.success) {
+                            showToast('Config uploaded and applied!', 2500);
+                            loadConfig();
+                        } else {
+                            showToast('Failed to upload config.', 3000);
+                        }
+                    })
+                    .catch(error => showToast('Error uploading config: ' + error, 3000));
+                } catch (err) {
+                    showToast('Invalid config file: ' + err.message, 3000);
+                }
+            };
+            reader.readAsText(file);
         });
     }
 
@@ -199,6 +327,27 @@ window.addEventListener('DOMContentLoaded', () => {
                 systemStatus.textContent = 'Error: ' + e.message;
             }
             rebootButton.disabled = false;
+        });
+    }
+    // Factory Reset button
+    const factoryResetButton = document.getElementById('factoryResetButton');
+    if (factoryResetButton) {
+        factoryResetButton.addEventListener('click', async () => {
+            if (!confirm('Factory reset will erase all configuration and restore defaults. Continue?')) return;
+            factoryResetButton.disabled = true;
+            try {
+                const resp = await fetch(BASE_URL + '/api/factory_reset', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    showToast('Factory reset complete!', 2500);
+                    setTimeout(() => location.reload(), 1200);
+                } else {
+                    showToast('Factory reset failed: ' + (data.error || 'Unknown error'), 3000);
+                }
+            } catch (e) {
+                showToast('Factory reset failed: ' + e.message, 3000);
+            }
+            factoryResetButton.disabled = false;
         });
     }
     if (updateButton) {

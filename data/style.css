@@ -1,3 +1,10 @@
+/* Highlight the active timer row */
+.active-timer-row {
+    background: linear-gradient(90deg, #0074D9 0%, #00cc88 100%);
+    color: #fff;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(0,116,217,0.10);
+}
 /* System actions styling */
 .system-actions {
     margin-top: 2em;
@@ -32,9 +39,15 @@
     box-shadow: 0 4px 16px var(--shadow);
     font-size: 1.1rem;
     z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s, transform 0.3s;
+    border: 2px solid #00cc88;
+}
+.toast.show {
     opacity: 0.95;
-    transition: opacity 0.3s;
-    border: 2px solid red; /* DEBUG: highlight toast */
+    pointer-events: auto;
+    transform: translateX(-50%) scale(1.05);
 }
 :root {
     --primary-color: #0099cc;
@@ -114,7 +127,6 @@ body {
 .status-config-icon {
     font-size: 1.5rem;
     vertical-align: middle;
-}
 }
 
 .status-indicator {

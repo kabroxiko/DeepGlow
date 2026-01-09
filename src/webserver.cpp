@@ -19,6 +19,7 @@
 #include "transition.h"
 
 
+
 // Helper: CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
     {"Access-Control-Allow-Origin", "*"},
@@ -383,7 +384,21 @@ void WebServerManager::setupRoutes() {
         NULL, [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleSetConfig(request, data, len);
     });
-    
+    // Factory Reset API
+    _server->on("/api/factory_reset", HTTP_POST, [this](AsyncWebServerRequest* request) {
+        bool ok = _config->factoryReset();
+        if (ok) {
+            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Factory reset complete, rebooting...\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+            request->onDisconnect([]() { delay(100); ESP.restart(); });
+        } else {
+            AsyncWebServerResponse *resp = request->beginResponse(500, "application/json", "{\"success\":false,\"error\":\"Failed to delete config file\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
+    });
+
     // Timers API
     _server->on("/api/timers", HTTP_OPTIONS, [](AsyncWebServerRequest* request) {
         AsyncWebServerResponse *resp = request->beginResponse(204);
@@ -406,6 +421,20 @@ void WebServerManager::setupRoutes() {
     },
         NULL, [this](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
         handleSetTimer(request, data, len);
+    });
+    // Supported timezones API
+    _server->on("/api/timezones", HTTP_GET, [this](AsyncWebServerRequest* request) {
+        std::vector<String> tzList = _config->getSupportedTimezones();
+        StaticJsonDocument<2048> namesDoc;
+        JsonArray namesArr = namesDoc.to<JsonArray>();
+        for (const auto& tz : tzList) {
+            namesArr.add(tz);
+        }
+        String json;
+        serializeJson(namesArr, json);
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", json);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
     });
 }
 
@@ -544,55 +573,32 @@ void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
 }
 
 void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
-    StaticJsonDocument<1024> doc;
+    // Parse uploaded JSON and save as config.json, replacing the config file
+    DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, data, len);
-
     if (error) {
-        {
-            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-            request->send(resp);
-        }
+        AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
         return;
     }
-
-    // Update configuration
-    if (doc.containsKey("led")) {
-        JsonObject ledObj = doc["led"];
-        if (ledObj.containsKey("count")) {
-            _config->led.count = ledObj["count"];
-        }
-        if (ledObj.containsKey("type")) {
-            _config->led.type = ledObj["type"] | _config->led.type;
-        }
-        if (ledObj.containsKey("relayPin")) {
-            _config->led.relayPin = ledObj["relayPin"];
-        }
-        if (ledObj.containsKey("relayActiveHigh")) {
-            _config->led.relayActiveHigh = ledObj["relayActiveHigh"];
-        }
-        // Note: Changing LED pin/type/relay config may require reboot for some changes
+    // Accept and persist SSID/password if present in network object
+    if (doc.containsKey("network")) {
+        JsonObject netObj = doc["network"];
+        if (netObj.containsKey("ssid")) _config->network.ssid = netObj["ssid"].as<String>();
+        if (netObj.containsKey("password")) _config->network.password = netObj["password"].as<String>();
     }
-
-    if (doc.containsKey("safety")) {
-        JsonObject safetyObj = doc["safety"];
-        _config->safety.minTransitionTime = safetyObj["minTransitionTime"] | _config->safety.minTransitionTime;
-        _config->safety.maxBrightness = safetyObj["maxBrightness"] | _config->safety.maxBrightness;
-    }
-
-    if (doc.containsKey("time")) {
-        JsonObject timeObj = doc["time"];
-        _config->time.timezone = timeObj["timezone"] | _config->time.timezone;
-        _config->time.latitude = timeObj["latitude"] | _config->time.latitude;
-        _config->time.longitude = timeObj["longitude"] | _config->time.longitude;
-        _config->time.dstEnabled = timeObj["dstEnabled"] | _config->time.dstEnabled;
-    }
-
-    bool saveResult = _config->save();
-    if (_configCallback) _configCallback();
-
-    {
+    // Save the uploaded config as the new config.json
+    bool saveResult = _config->saveToFile(CONFIG_FILE, doc);
+    if (saveResult) {
+        // Reload the config from file so in-memory state matches uploaded config
+        _config->load();
+        if (_configCallback) _configCallback();
         AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    } else {
+        AsyncWebServerResponse *resp = request->beginResponse(500, "application/json", "{\"success\":false,\"error\":\"Failed to save config\"}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
     }
@@ -634,7 +640,6 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
     _config->timers[timerId].type = (TimerType)(int)doc["type"];
     _config->timers[timerId].hour = doc["hour"] | 0;
     _config->timers[timerId].minute = doc["minute"] | 0;
-    _config->timers[timerId].days = doc["days"] | 0b1111111;
     _config->timers[timerId].offset = doc["offset"] | 0;
     _config->timers[timerId].presetId = doc["presetId"] | 0;
     
@@ -657,7 +662,13 @@ String WebServerManager::getStateJSON() {
     doc["effect"] = _config->state.effect;
     doc["transitionTime"] = _config->state.transitionTime;
     doc["currentPreset"] = _config->state.currentPreset;
-    doc["time"] = _scheduler->getCurrentTime();
+    if (_scheduler->isTimeValid()) {
+        doc["time"] = _scheduler->getCurrentTime();
+        doc["timeValid"] = true;
+    } else {
+        doc["time"] = "syncing";
+        doc["timeValid"] = false;
+    }
     doc["sunrise"] = _scheduler->getSunriseTime();
     doc["sunset"] = _scheduler->getSunsetTime();
 
@@ -667,6 +678,19 @@ String WebServerManager::getStateJSON() {
     paramsObj["color1"] = _config->state.params.color1;
     paramsObj["color2"] = _config->state.params.color2;
 
+    // Add schedule table (example: array of objects with time and action)
+    JsonArray scheduleArray = doc.createNestedArray("schedule");
+    // Example: populate with current timers as schedule (customize as needed)
+    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+        JsonObject schedObj = scheduleArray.createNestedObject();
+        schedObj["id"] = i;
+        schedObj["enabled"] = _config->timers[i].enabled;
+        schedObj["type"] = _config->timers[i].type;
+        schedObj["hour"] = _config->timers[i].hour;
+        schedObj["minute"] = _config->timers[i].minute;
+        schedObj["offset"] = _config->timers[i].offset;
+        schedObj["presetId"] = _config->timers[i].presetId;
+    }
     String output;
     serializeJson(doc, output);
     return output;
@@ -699,26 +723,44 @@ String WebServerManager::getPresetsJSON() {
 }
 
 String WebServerManager::getConfigJSON() {
-    StaticJsonDocument<1024> doc;
-    
+    StaticJsonDocument<4096> doc;
     JsonObject ledObj = doc.createNestedObject("led");
     ledObj["pin"] = _config->led.pin;
     ledObj["count"] = _config->led.count;
     ledObj["type"] = _config->led.type;
     ledObj["relayPin"] = _config->led.relayPin;
     ledObj["relayActiveHigh"] = _config->led.relayActiveHigh;
-    
+
     JsonObject safetyObj = doc.createNestedObject("safety");
     safetyObj["minTransitionTime"] = _config->safety.minTransitionTime;
     safetyObj["maxBrightness"] = _config->safety.maxBrightness;
-    
+
     JsonObject timeObj = doc.createNestedObject("time");
     timeObj["ntpServer"] = _config->time.ntpServer;
     timeObj["timezone"] = _config->time.timezone;
     timeObj["latitude"] = _config->time.latitude;
     timeObj["longitude"] = _config->time.longitude;
     timeObj["dstEnabled"] = _config->time.dstEnabled;
-    
+
+    // Add network fields
+    JsonObject netObj = doc.createNestedObject("network");
+    netObj["hostname"] = _config->network.hostname;
+    netObj["apPassword"] = _config->network.apPassword;
+    netObj["ssid"] = _config->network.ssid;
+    netObj["password"] = _config->network.password;
+
+    // Add timers array to config JSON (not as 'schedule', but as 'timers' for consistency with upload)
+    JsonArray timersArray = doc.createNestedArray("timers");
+    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+        JsonObject timerObj = timersArray.createNestedObject();
+        timerObj["id"] = i;
+        timerObj["enabled"] = _config->timers[i].enabled;
+        timerObj["type"] = _config->timers[i].type;
+        timerObj["hour"] = _config->timers[i].hour;
+        timerObj["minute"] = _config->timers[i].minute;
+        timerObj["offset"] = _config->timers[i].offset;
+        timerObj["presetId"] = _config->timers[i].presetId;
+    }
     String output;
     serializeJson(doc, output);
     return output;
@@ -727,19 +769,25 @@ String WebServerManager::getConfigJSON() {
 String WebServerManager::getTimersJSON() {
     StaticJsonDocument<2048> doc;
     JsonArray timersArray = doc.createNestedArray("timers");
-    
+
     for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+        // Only include timers that are enabled or have a nonzero hour/minute or non-empty name
+        const auto& t = _config->timers[i];
+        bool isActive = t.enabled || t.hour != 0 || t.minute != 0;
+#ifdef TIMER_NAME_SUPPORT
+        isActive = isActive || (t.name && t.name[0] != '\0');
+#endif
+        if (!isActive) continue;
         JsonObject timerObj = timersArray.createNestedObject();
         timerObj["id"] = i;
-        timerObj["enabled"] = _config->timers[i].enabled;
-        timerObj["type"] = _config->timers[i].type;
-        timerObj["hour"] = _config->timers[i].hour;
-        timerObj["minute"] = _config->timers[i].minute;
-        timerObj["days"] = _config->timers[i].days;
-        timerObj["offset"] = _config->timers[i].offset;
-        timerObj["presetId"] = _config->timers[i].presetId;
+        timerObj["enabled"] = t.enabled;
+        timerObj["type"] = t.type;
+        timerObj["hour"] = t.hour;
+        timerObj["minute"] = t.minute;
+        timerObj["offset"] = t.offset;
+        timerObj["presetId"] = t.presetId;
     }
-    
+
     String output;
     serializeJson(doc, output);
     return output;
