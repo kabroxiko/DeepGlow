@@ -2,7 +2,6 @@
   "presets": [
     {
       "name": "Morning Sun",
-      "brightness": 179,
       "effect": 15,
       "enabled": true,
       "params": {
@@ -14,7 +13,6 @@
     },
     {
       "name": "Daylight",
-      "brightness": 255,
       "effect": 0,
       "enabled": true,
       "params": {
@@ -23,7 +21,6 @@
     },
     {
       "name": "Afternoon Ripple",
-      "brightness": 179,
       "effect": 12,
       "enabled": true,
       "params": {
@@ -35,7 +32,6 @@
     },
     {
       "name": "Gentle Wave",
-      "brightness": 120,
       "effect": 3,
       "enabled": true,
       "params": {
@@ -47,7 +43,6 @@
     },
     {
       "name": "Coral Shimmer",
-      "brightness": 151,
       "effect": 21,
       "enabled": true,
       "params": {
@@ -59,7 +54,6 @@
     },
     {
       "name": "Deep Ocean",
-      "brightness": 80,
       "effect": 37,
       "enabled": true,
       "params": {
@@ -71,7 +65,6 @@
     },
     {
       "name": "Moonlight",
-      "brightness": 31,
       "effect": 2,
       "enabled": true,
       "params": {

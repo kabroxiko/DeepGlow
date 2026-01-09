@@ -210,13 +210,6 @@ void loop() {
         lastFrame = now;
         updateLEDs();
     }
-    
-    // Save state periodically
-    // State saving to file removed; only update lastStateSave timestamp
-    if (millis() - lastStateSave > STATE_SAVE_INTERVAL) {
-        lastStateSave = millis();
-        transition.forceCurrentBrightness(config.state.brightness);
-    }
 
     // Captive portal DNS handler (if in AP mode)
     if (WiFi.getMode() == WIFI_AP) {
@@ -314,17 +307,25 @@ void applyPreset(uint8_t presetId) {
     debugPrint("Applying preset: ");
     debugPrintln(config.presets[presetId].name);
     Preset& preset = config.presets[presetId];
+    // Get timer brightness percent if available
+    uint8_t timerBrightnessPercent = 100;
+    // Find active timer for this preset
+    for (size_t i = 0; i < config.timers.size(); i++) {
+        if (config.timers[i].presetId == presetId && config.timers[i].enabled) {
+            timerBrightnessPercent = config.timers[i].brightness;
+            break;
+        }
+    }
+    // Convert percent to 0-255
+    uint8_t brightnessValue = (uint8_t)((timerBrightnessPercent / 100.0) * 255);
+    // Apply safety limits
+    uint8_t safeBrightness = min(brightnessValue, config.safety.maxBrightness);
     // Start transitions
     uint32_t transTime = config.state.transitionTime;
-    // Ensure minimum transition time
     if (transTime < config.safety.minTransitionTime) {
         transTime = config.safety.minTransitionTime;
     }
-    // Apply safety limits to brightness
-    uint8_t safeBrightness = min(preset.brightness, config.safety.maxBrightness);
-    // Start transitions
     transition.startTransition(safeBrightness, transTime);
-    // No color transition, just set effect and color directly
     setEffect(preset.effect, preset.params);
     config.state.currentPreset = presetId;
     config.state.power = true;

@@ -528,12 +528,9 @@ function displayPresets() {
             card.classList.add('active');
         }
         
-        // Convert hardware brightness (1–255) to percent (0–100)
-        const percent = Math.round(((preset.brightness - 1) / 254) * 100);
         card.innerHTML = `
             <div class="preset-name">${preset.name}</div>
             <div class="preset-info">Effect: ${effectNames[preset.effect]}</div>
-            <div class="preset-info">Brightness: ${percent}%</div>
             <div class="preset-color-preview" style="background: linear-gradient(135deg, #${preset.params.color1.toString(16).padStart(6, '0')}, #${preset.params.color2.toString(16).padStart(6, '0')})"></div>
         `;
         
@@ -594,10 +591,11 @@ function renderBrightnessGraph() {
 
     // Build a list of timer events sorted by time
     const events = timers
-        .filter(timer => timer.enabled && typeof timer.hour === 'number' && typeof timer.minute === 'number' && typeof timer.presetId === 'number')
-        .map(timer => ({
+        .filter(timer => timer.enabled && typeof timer.hour === 'number' && typeof timer.minute === 'number' && typeof timer.brightness === 'number')
+        .map((timer, idx) => ({
             time: timer.hour * 60 + timer.minute,
-            presetId: timer.presetId
+            brightness: timer.brightness,
+            index: idx
         }))
         .sort((a, b) => a.time - b.time);
 
@@ -610,21 +608,16 @@ function renderBrightnessGraph() {
         return;
     }
 
-    // For each 10-min interval, determine active preset and its brightness
-    let currentPresetId = events.length > 0 ? events[0].presetId : 0;
-    let eventIdx = 0;
+    // For each 10-min interval, determine active timer and its brightness
+    let currentEventIdx = 0;
     for (let i = 0; i < totalPoints; i++) {
         const minutes = i * 10;
         // Advance to next event if time passed
-        while (eventIdx < events.length && minutes >= events[eventIdx].time) {
-            currentPresetId = events[eventIdx].presetId;
-            eventIdx++;
+        while (currentEventIdx < events.length - 1 && minutes >= events[currentEventIdx + 1].time) {
+            currentEventIdx++;
         }
-        // Get brightness for current preset
-        let brightness = 0;
-        if (presets[currentPresetId] && typeof presets[currentPresetId].brightness === 'number') {
-            brightness = Math.round(((presets[currentPresetId].brightness - 1) / 254) * 100);
-        }
+        // Get brightness for current timer
+        let brightness = events[currentEventIdx].brightness;
         data[i] = brightness;
         // Label every hour
         labels.push(i % pointsPerHour === 0 ? (i / pointsPerHour).toString().padStart(2, '0') + ':00' : '');
@@ -720,6 +713,7 @@ function displayTimers() {
         <tr>
             <th>Time</th>
             <th>Preset</th>
+            <th>Brightness</th>
             <th>Status</th>
         </tr>
     `;
@@ -778,11 +772,12 @@ function displayTimers() {
             }
         }
         const statusStr = timer.enabled ? '<span class="timer-enabled">Enabled</span>' : '<span class="timer-disabled">Disabled</span>';
-
+        const brightStr = typeof timer.brightness === 'number' ? `${timer.brightness}%` : '--';
         const row = document.createElement('tr');
         row.innerHTML = `
             <td>${timeStr}</td>
             <td>${presetStr}</td>
+            <td>${brightStr}</td>
             <td>${statusStr}</td>
         `;
         // Highlight if this timer is the currently running preset

@@ -40,9 +40,6 @@
 
 // Limits
 #define MAX_PRESETS 16
-#define MAX_TIMERS 8
-#define MAX_SUN_TIMERS 2
-#define STATE_SAVE_INTERVAL 60000  // Save every 60 seconds
 
 
 // Presets now use WS2812FX native effect index directly (uint8_t)
@@ -96,13 +93,12 @@ struct Timer {
     TimerType type = TIMER_REGULAR;
     uint8_t hour = 0;
     uint8_t minute = 0;
-    int16_t offset = 0;        // For sunrise/sunset offset in minutes
     uint8_t presetId = 0;
+    uint8_t brightness = 100; // percent (0-100)
 };
 
 struct Preset {
     String name = "";
-    uint8_t brightness = 128;
     uint8_t effect = 0; // WS2812FX native effect index
     EffectParams params;
     bool enabled = true;
@@ -127,7 +123,7 @@ public:
     TimeConfig time;
     SystemState state;
     Preset presets[MAX_PRESETS];
-    Timer timers[MAX_TIMERS + MAX_SUN_TIMERS];
+    std::vector<Timer> timers;
 
     bool load();
     void resetPresetsFile();

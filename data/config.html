@@ -153,23 +153,22 @@
         <section class="card">
             <h2>Schedule</h2>
             <div class="schedule-table">
-                <table id="scheduleTable">
+                <table id="scheduleTableConfig">
                     <thead>
                         <tr>
-                            <th>ID</th>
                             <th>Enabled</th>
                             <th>Type</th>
-                            <th>Hour</th>
-                            <th>Minute</th>
-                            <th>Days</th>
-                            <th>Offset</th>
+                            <th>Time</th>
                             <th>Preset</th>
+                            <th>Brightness (%)</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Populated by config.js -->
+                        <!-- Timer rows will be rendered by config.js -->
                     </tbody>
                 </table>
+                <button id="addTimerButton" class="btn btn-secondary" style="margin-top:1em;">Add Timer</button>
             </div>
         </section>
     </div>

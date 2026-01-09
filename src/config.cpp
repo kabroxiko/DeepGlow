@@ -181,14 +181,17 @@ bool Configuration::load() {
     // Timers
     if (doc.containsKey("timers")) {
         JsonArray timersArray = doc["timers"];
-        for (size_t i = 0; i < timersArray.size() && i < (MAX_TIMERS + MAX_SUN_TIMERS); i++) {
+        timers.clear();
+        for (size_t i = 0; i < timersArray.size(); i++) {
             JsonObject timerObj = timersArray[i];
-            timers[i].enabled = timerObj["enabled"];
-            timers[i].type = (TimerType)timerObj["type"];
-            timers[i].hour = timerObj["hour"];
-            timers[i].minute = timerObj["minute"];
-            timers[i].offset = timerObj["offset"];
-            timers[i].presetId = timerObj["presetId"];
+            Timer t;
+            t.enabled = timerObj["enabled"];
+            t.type = (TimerType)timerObj["type"];
+            t.hour = timerObj["hour"];
+            t.minute = timerObj["minute"];
+            t.presetId = timerObj["presetId"];
+            t.brightness = timerObj["brightness"] | 100;
+            timers.push_back(t);
         }
     }
 
@@ -233,14 +236,14 @@ bool Configuration::save() {
     
     // Timers
     JsonArray timersArray = doc.createNestedArray("timers");
-    for (size_t i = 0; i < (MAX_TIMERS + MAX_SUN_TIMERS); i++) {
+    for (size_t i = 0; i < timers.size(); i++) {
         JsonObject timerObj = timersArray.createNestedObject();
         timerObj["enabled"] = timers[i].enabled;
         timerObj["type"] = timers[i].type;
         timerObj["hour"] = timers[i].hour;
         timerObj["minute"] = timers[i].minute;
-        timerObj["offset"] = timers[i].offset;
         timerObj["presetId"] = timers[i].presetId;
+        timerObj["brightness"] = timers[i].brightness;
     }
     
     return saveToFile(CONFIG_FILE, doc);
@@ -280,7 +283,6 @@ bool Configuration::loadPresets() {
     for (size_t i = 0; i < presetsArray.size() && i < MAX_PRESETS; i++) {
         JsonObject presetObj = presetsArray[i];
         presets[i].name = presetObj["name"] | "";
-        presets[i].brightness = presetObj["brightness"] | 128;
         presets[i].effect = presetObj["effect"] | 0;
         presets[i].enabled = presetObj["enabled"] | true;
         if (presetObj.containsKey("params")) {
@@ -305,7 +307,6 @@ bool Configuration::savePresets() {
 
         JsonObject presetObj = presetsArray.createNestedObject();
         presetObj["name"] = presets[i].name;
-        presetObj["brightness"] = presets[i].brightness;
         presetObj["effect"] = presets[i].effect;
         presetObj["enabled"] = presets[i].enabled;
 
@@ -333,7 +334,7 @@ void Configuration::setDefaults() {
     time = TimeConfig();
     state = SystemState();
     // Zero-initialize timers; actual schedule will be loaded from config.json or default config
-    for (int i = 0; i < MAX_TIMERS + MAX_SUN_TIMERS; i++) {
+    for (size_t i = 0; i < timers.size(); i++) {
         timers[i] = Timer();
     }
     savePresets();
