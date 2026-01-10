@@ -514,7 +514,8 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     }
     if (doc.containsKey("params")) {
         JsonObject paramsObj = doc["params"];
-        params.speed = paramsObj["speed"] | params.speed;
+        // Speed is now percent (0–100)
+        params.speed = paramsObj["speed"].isNull() ? params.speed : (uint8_t)paramsObj["speed"];
         params.intensity = paramsObj["intensity"] | params.intensity;
         params.color1 = paramsObj["color1"] | params.color1;
         params.color2 = paramsObj["color2"] | params.color2;
@@ -581,7 +582,7 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
         
         if (doc.containsKey("params")) {
             JsonObject paramsObj = doc["params"];
-            _config->presets[presetId].params.speed = paramsObj["speed"] | 128;
+            _config->presets[presetId].params.speed = paramsObj["speed"].isNull() ? 100 : (uint8_t)paramsObj["speed"];
             _config->presets[presetId].params.intensity = paramsObj["intensity"] | 128;
             _config->presets[presetId].params.color1 = paramsObj["color1"] | 0x0000FF;
             _config->presets[presetId].params.color2 = paramsObj["color2"] | 0x00FFFF;
