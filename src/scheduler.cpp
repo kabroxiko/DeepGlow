@@ -276,9 +276,5 @@ int8_t Scheduler::getBootPreset() {
             }
         }
     }
-    if (mostRecentPreset != -1) {
-        debugPrint("Boot preset from timer: ");
-        debugPrintln(mostRecentPreset);
-    }
     return mostRecentPreset;
 }
