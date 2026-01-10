@@ -292,8 +292,6 @@ void applyPreset(uint8_t presetId) {
         debugPrintln("Invalid preset ID");
         return;
     }
-    debugPrint("Applying preset: ");
-    debugPrintln(config.presets[presetId].name);
     Preset& preset = config.presets[presetId];
     // Get timer brightness percent if available
     uint8_t timerBrightnessPercent = 100;
@@ -370,8 +368,6 @@ void setEffect(uint8_t effect, const EffectParams& params) {
         strip->setMode(effect);
         strip->setColor(params.color1);
     }
-    debugPrint("Effect changed to: ");
-    debugPrintln(effect);
     webServer.broadcastState();
 }
 
