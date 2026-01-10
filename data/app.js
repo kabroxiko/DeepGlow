@@ -20,6 +20,9 @@ if (location.protocol === 'file:' || location.hostname === 'localhost' || locati
     }
 }
 
+// Global effect names list
+let effectNames = [];
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
     // Hide Quick Controls until first WebSocket message
@@ -27,8 +30,39 @@ document.addEventListener('DOMContentLoaded', () => {
     if (quickControls && quickControls.style) quickControls.style.display = 'none';
     initializeWebSocket();
     setupEventListeners();
-    loadPresets();
-    loadTimers();
+
+    // Only load effects, presets, and timers on the home page (index.html)
+    if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname === '/index.html') {
+        loadEffects().then(() => {
+            if (typeof loadPresets === 'function') loadPresets();
+            if (typeof loadTimers === 'function') loadTimers();
+        });
+    }
+
+// Load all available effects from backend
+function loadEffects() {
+    return fetch(BASE_URL + '/api/effects')
+        .then(async response => {
+            const text = await response.text();
+            if (!text) return [];
+            try { return JSON.parse(text); } catch { return []; }
+        })
+        .then(data => {
+            effectNames = (data && data.effects) ? data.effects.map(e => e.name) : [];
+            // Populate effectSelect dropdown
+            const effectSelect = document.getElementById('effectSelect');
+            if (effectSelect) {
+                effectSelect.innerHTML = '';
+                (data.effects || []).forEach(e => {
+                    const opt = document.createElement('option');
+                    opt.value = e.id;
+                    opt.textContent = e.name;
+                    effectSelect.appendChild(opt);
+                });
+            }
+        })
+        .catch(error => console.error('Error loading effects:', error));
+}
 
     // OTA upload form handler
     const otaForm = document.getElementById('otaForm');
@@ -497,6 +531,7 @@ function sendState(updates) {
 }
 
 // Load and display presets
+// Home page (index.html) only: loadPresets and loadTimers for independent schedule/preset display
 function loadPresets() {
     fetch(BASE_URL + '/api/presets')
         .then(async response => {
@@ -505,11 +540,26 @@ function loadPresets() {
             try { return JSON.parse(text); } catch { return {}; }
         })
         .then(data => {
-            presets = data.presets || [];
-            displayPresets();
-            renderBrightnessGraph();
+            presets = Array.isArray(data) ? data : (data.presets || []);
+            if (typeof displayPresets === 'function') displayPresets();
+            if (typeof renderBrightnessGraph === 'function') renderBrightnessGraph();
         })
         .catch(error => console.error('Error loading presets:', error));
+}
+
+function loadTimers() {
+    fetch(BASE_URL + '/api/timers')
+        .then(async response => {
+            const text = await response.text();
+            if (!text) return {};
+            try { return JSON.parse(text); } catch { return {}; }
+        })
+        .then(data => {
+            timers = Array.isArray(data) ? data : (data.timers || []);
+            if (typeof displayTimers === 'function') displayTimers();
+            if (typeof renderBrightnessGraph === 'function') renderBrightnessGraph();
+        })
+        .catch(error => console.error('Error loading timers:', error));
 }
 
 function displayPresets() {
@@ -517,23 +567,19 @@ function displayPresets() {
     if (!grid) return;
     grid.innerHTML = '';
     
-    const effectNames = ['Solid', 'Ripple', 'Wave', 'Sunrise', 'Shimmer', 'Deep Ocean', 'Moonlight'];
-    
     presets.forEach((preset, index) => {
         if (!preset.enabled && index > 0) return;
-        
         const card = document.createElement('div');
         card.className = 'preset-card';
         if (currentState.currentPreset === index) {
             card.classList.add('active');
         }
-        
+        const effectName = effectNames[preset.effect] || `Effect #${preset.effect}`;
         card.innerHTML = `
             <div class="preset-name">${preset.name}</div>
-            <div class="preset-info">Effect: ${effectNames[preset.effect]}</div>
+            <div class="preset-info">Effect: ${effectName}</div>
             <div class="preset-color-preview" style="background: linear-gradient(135deg, #${preset.params.color1.toString(16).padStart(6, '0')}, #${preset.params.color2.toString(16).padStart(6, '0')})"></div>
         `;
-        
         card.addEventListener('click', () => applyPreset(index));
         grid.appendChild(card);
     });
@@ -564,20 +610,7 @@ function applyPreset(presetId) {
 }
 
 // Load and display timers
-function loadTimers() {
-    fetch(BASE_URL + '/api/timers')
-        .then(async response => {
-            const text = await response.text();
-            if (!text) return {};
-            try { return JSON.parse(text); } catch { return {}; }
-        })
-        .then(data => {
-            timers = data.timers || [];
-            displayTimers();
-            renderBrightnessGraph();
-        })
-        .catch(error => console.error('Error loading timers:', error));
-}
+// Removed loadTimers (timers are part of config API)
 // Render a 24h brightness graph reflecting scheduled preset brightness
 function renderBrightnessGraph() {
     const ctx = document.getElementById('brightnessGraph');
