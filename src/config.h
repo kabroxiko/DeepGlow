@@ -69,7 +69,7 @@ struct TimeConfig {
 };
 
 struct EffectParams {
-    uint8_t speed = 128;
+    uint8_t speed = 100; // percent (0–100)
     uint8_t intensity = 128;
     uint32_t color1 = 0x0000FF;  // Blue
     uint32_t color2 = 0x00FFFF;  // Cyan

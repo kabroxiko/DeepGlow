@@ -167,16 +167,11 @@ void setup() {
         }
     });
 
-    // Start web server (moved up)
-    debugPrintln("[DEBUG] Starting web server...");
-    printHeap("[DEBUG] Before webServer.begin");
+    // Start web server
     webServer.begin();
-    debugPrintln("[DEBUG] Web server started");
-    printHeap("[DEBUG] After webServer.begin");
 
     // Initialize scheduler
     scheduler.begin();
-    debugPrintln("[DEBUG] Scheduler initialized");
 
     // Setup ArduinoOTA (ESP32 only)
     setupArduinoOTA(config.network.hostname.c_str());
@@ -214,26 +209,24 @@ void setup() {
 }
 
 void loop() {
+    // Prioritize OTA: if OTA is in progress, only handle OTA and show debug dots
+    if (otaInProgress) {
+        handleArduinoOTA();
+        // Show debug dots handled in OTA progress callback
+        return;
+    }
     checkAndApplyScheduleAfterBoot();
-    // Handle ArduinoOTA (ESP32 only)
     handleArduinoOTA();
-    // Update all systems
     scheduler.update();
     webServer.update();
     transition.update();
-    
-    // Check schedule every loop (scheduler has internal rate limiting)
     checkSchedule();
-    
-    // Update LEDs at target frame rate (manual timing)
     static uint32_t lastFrame = 0;
     uint32_t now = millis();
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
         lastFrame = now;
         updateLEDs();
     }
-
-    // Captive portal DNS handler (if in AP mode)
     if (WiFi.getMode() == WIFI_AP) {
         handleCaptivePortalDns();
     }
@@ -241,10 +234,6 @@ void loop() {
 
 void setupWiFi() {
     debugPrint("Connecting to WiFi");
-    Serial.print("[DEBUG] WiFi SSID: ");
-    Serial.println(config.network.ssid);
-    Serial.print("[DEBUG] WiFi Password: ");
-    Serial.println(config.network.password);
     // Set hostname
     #ifdef ESP8266
         WiFi.hostname(config.network.hostname);
@@ -259,8 +248,6 @@ void setupWiFi() {
         while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
             delay(500);
             debugPrint(".");
-            Serial.print("[DEBUG] WiFi.status(): ");
-            Serial.println(WiFi.status());
             attempts++;
         }
         // If not connected, try a second round of retries (total up to 60s)

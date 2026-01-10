@@ -76,18 +76,19 @@ void setBrightness(uint8_t brightness) {
 }
 
 void setEffect(uint8_t effect, const EffectParams& params) {
-	       state.effect = effect;
-	       state.params = params;
-	       if (strip) {
-		       strip->setMode(effect);
-		       strip->setColor(params.color1);
-		       strip->setSpeed(params.speed);
-		       // If your WS2812FX library supports intensity, set it here:
-		       #ifdef WS2812FX_HAS_INTENSITY
-		       strip->setIntensity(params.intensity);
-		       #endif
-	       }
-	       webServer.broadcastState();
+	state.effect = effect;
+	state.params = params;
+	if (strip) {
+		strip->setMode(effect);
+		strip->setColor(params.color1);
+		// Convert percent (0–100) to WS2812FX speed (0–65535, 0=fastest)
+		uint16_t ws_speed = 65535 - (params.speed * 65535 / 100);
+		strip->setSpeed(ws_speed);
+		// If your WS2812FX library supports intensity, set it here:
+		#ifdef WS2812FX_HAS_INTENSITY
+		strip->setIntensity(params.intensity);
+		#endif
+	}
 }
 
 void updateLEDs() {

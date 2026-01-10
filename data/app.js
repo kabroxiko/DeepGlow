@@ -28,7 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hide Quick Controls until first WebSocket message
     const quickControls = document.querySelector('.card');
     if (quickControls && quickControls.style) quickControls.style.display = 'none';
-    initializeWebSocket();
+    // Only connect WebSocket if not on config.html
+    if (!window.location.pathname.endsWith('config.html')) {
+        initializeWebSocket();
+    }
     setupEventListeners();
 
     // Only load effects, presets, and timers on the home page (index.html)
@@ -259,7 +262,7 @@ function updateState(state) {
         const speedSlider = document.getElementById('speedSlider');
         const speedValue = document.getElementById('speedValue');
         if (speedSlider) speedSlider.value = state.params.speed;
-        if (speedValue) speedValue.textContent = state.params.speed;
+        if (speedValue && speedSlider) speedValue.textContent = state.params.speed + '%';
 
         const intensitySlider = document.getElementById('intensitySlider');
         const intensityValue = document.getElementById('intensityValue');
@@ -450,13 +453,14 @@ function setupEventListeners() {
         let speedTimeout;
         speedSlider.addEventListener('input', (e) => {
             const speedValue = document.getElementById('speedValue');
-            if (speedValue) speedValue.textContent = e.target.value;
+            const percent = parseInt(e.target.value);
+            if (speedValue) speedValue.textContent = percent + '%';
             clearTimeout(speedTimeout);
             speedTimeout = setTimeout(() => {
                 sendState({ 
                     params: {
                         ...currentState.params,
-                        speed: parseInt(e.target.value)
+                        speed: percent
                     }
                 });
             }, 300);
