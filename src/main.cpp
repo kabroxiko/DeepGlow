@@ -53,6 +53,12 @@ uint32_t lastUpdate = 0;
 // Track last timers for schedule update
 std::vector<Timer> lastTimers;
 
+// Manual override for preset selection
+bool manualPresetOverrideActive = false;
+uint32_t manualPresetOverrideTimestamp = 0;
+uint8_t manualPresetOverrideId = 0;
+const uint32_t MANUAL_OVERRIDE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
 // Function declarations
 void setupWiFi();
 void printHeap(const char* tag) {
@@ -352,6 +358,11 @@ void applyPreset(uint8_t presetId) {
     config.state.power = true;
     config.state.inTransition = true;
     webServer.broadcastState();
+
+    // Set manual override flag and timestamp
+    manualPresetOverrideActive = true;
+    manualPresetOverrideTimestamp = millis();
+    manualPresetOverrideId = presetId;
 }
 
 void setPower(bool power) {
@@ -425,6 +436,25 @@ void updateLEDs() {
 }
 
 void checkSchedule() {
+    // If manual override is active and not expired, skip schedule enforcement
+    if (manualPresetOverrideActive) {
+        uint32_t now = millis();
+        if (now - manualPresetOverrideTimestamp < MANUAL_OVERRIDE_TIMEOUT_MS) {
+            // Check if a timer event should clear override
+            int8_t scheduledPresetId = scheduler.getBootPreset();
+            if (scheduledPresetId >= 0 && scheduledPresetId < MAX_PRESETS && scheduledPresetId != manualPresetOverrideId) {
+                // Timer event: clear override and apply scheduled preset
+                manualPresetOverrideActive = false;
+                applyPreset(scheduledPresetId);
+            }
+            // Otherwise, keep manual override
+            return;
+        } else {
+            // Timeout expired, clear override
+            manualPresetOverrideActive = false;
+        }
+    }
+    // Normal schedule enforcement
     int8_t presetId = scheduler.getBootPreset();
     if (presetId >= 0 && presetId < MAX_PRESETS) {
         if (presetId != config.state.currentPreset) {
