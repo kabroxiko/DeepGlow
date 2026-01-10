@@ -95,6 +95,14 @@ struct Timer {
     uint8_t minute = 0;
     uint8_t presetId = 0;
     uint8_t brightness = 100; // percent (0-100)
+    bool operator==(const Timer& other) const {
+        return enabled == other.enabled &&
+                type == other.type &&
+                hour == other.hour &&
+                minute == other.minute &&
+                presetId == other.presetId &&
+                brightness == other.brightness;
+    }
 };
 
 struct Preset {
@@ -139,9 +147,7 @@ public:
     std::vector<String> getSupportedTimezones();
 
     bool saveToFile(const char* path, const JsonDocument& doc);
-
-private:
-    bool loadFromFile(const char* path, JsonDocument& doc);
+    bool loadFromFile(const char* path, JsonDocument& doc); // <-- move to public
 };
 
 #endif

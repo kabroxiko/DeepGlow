@@ -31,6 +31,9 @@
 #include "debug.h"
 #include "ota.h"
 
+// Track last configuration for change detection
+Configuration lastConfiguration;
+
 // Global objects
 Configuration config;
 Scheduler scheduler(&config);
@@ -46,6 +49,9 @@ WS2812FX* strip = nullptr;
 // Timing
 uint32_t lastStateSave = 0;
 uint32_t lastUpdate = 0;
+
+// Track last timers for schedule update
+std::vector<Timer> lastTimers;
 
 // Function declarations
 void setupWiFi();
@@ -87,6 +93,8 @@ void setup() {
         config.setDefaults();
         config.save();
     }
+    // Ensure lastConfiguration matches loaded config at boot
+    lastConfiguration = config;
 
     // Load presets
     if (!config.loadPresets()) {
@@ -114,23 +122,48 @@ void setup() {
     webServer.onEffectChange(setEffect);
     webServer.onPresetApply(applyPreset);
     webServer.onConfigChange([]() {
-        debugPrintln("Configuration updated, recalculating sun times and reinitializing LEDs");
         // Immediately apply relay pin and logic changes
         pinMode(config.led.relayPin, OUTPUT);
-        // Set relay to current state with new logic
         digitalWrite(config.led.relayPin, config.state.power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
-        scheduler.calculateSunTimes();
-        // Save current transition state
-        uint8_t prevBrightness = transition.getCurrentBrightness();
-        uint32_t prevColor1 = transition.getCurrentColor1();
-        uint32_t prevColor2 = transition.getCurrentColor2();
-        setupLEDs();
-        transition = TransitionEngine();
-        // Restore previous state to new transition engine
-        transition.startTransition(prevBrightness, 0);
-        transition.startColorTransition(prevColor1, prevColor2, 0);
-        // If you have custom effect objects, re-create them here as well
-        updateLEDs();
+        // Only recalculate sun times if location changed
+        bool locationChanged = config.time.latitude != lastConfiguration.time.latitude || config.time.longitude != lastConfiguration.time.longitude;
+        if (locationChanged) {
+            scheduler.calculateSunTimes();
+            lastConfiguration.time.latitude = config.time.latitude;
+            lastConfiguration.time.longitude = config.time.longitude;
+        }
+        // Only update schedule if timers changed
+        bool timersChanged = config.timers != lastConfiguration.timers;
+        if (timersChanged) {
+            scheduler.begin(); // or scheduler.update() if begin is too heavy
+            lastConfiguration.timers = config.timers;
+        }
+        // Only reinitialize LEDs if hardware config changed
+        bool ledChanged = config.led.pin != lastConfiguration.led.pin ||
+                          config.led.count != lastConfiguration.led.count ||
+                          config.led.type != lastConfiguration.led.type ||
+                          config.led.colorOrder != lastConfiguration.led.colorOrder;
+        if (ledChanged) {
+            setupLEDs();
+            lastConfiguration.led.pin = config.led.pin;
+            lastConfiguration.led.count = config.led.count;
+            lastConfiguration.led.type = config.led.type;
+            lastConfiguration.led.colorOrder = config.led.colorOrder;
+        }
+        // Only reset transition engine and update LEDs if LED config changed
+        if (ledChanged) {
+            uint8_t prevBrightness = transition.getCurrentBrightness();
+            uint32_t prevColor1 = transition.getCurrentColor1();
+            uint32_t prevColor2 = transition.getCurrentColor2();
+            transition = TransitionEngine();
+            transition.startTransition(prevBrightness, 0);
+            transition.startColorTransition(prevColor1, prevColor2, 0);
+            updateLEDs();
+            // Restore effect, brightness, and power after reinitializing LEDs
+            setEffect(config.state.effect, config.state.params);
+            setBrightness(config.state.brightness);
+            setPower(config.state.power);
+        }
     });
 
     // Start web server (moved up)
@@ -213,15 +246,29 @@ void setupWiFi() {
     #else
         WiFi.setHostname(config.network.hostname.c_str());
     #endif
-    
     // Connect to WiFi
     if (config.network.ssid.length() > 0) {
         WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
         int attempts = 0;
-        while (WiFi.status() != WL_CONNECTED && attempts < 30) {
+        int maxAttempts = 60; // 60 x 500ms = 30s (double previous)
+        while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
             delay(500);
             debugPrint(".");
             attempts++;
+        }
+        // If not connected, try a second round of retries (total up to 60s)
+        if (WiFi.status() != WL_CONNECTED) {
+            debugPrintln();
+            debugPrintln("First WiFi attempt failed, retrying...");
+            WiFi.disconnect();
+            delay(1000);
+            WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
+            attempts = 0;
+            while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
+                delay(500);
+                debugPrint(".");
+                attempts++;
+            }
         }
         if (WiFi.status() == WL_CONNECTED) {
             debugPrintln();
@@ -244,7 +291,6 @@ void setupWiFi() {
 
 void setupLEDs() {
     if (strip) {
-        debugPrintln("[DEBUG] Deleting previous strip object");
         delete strip;
         strip = nullptr;
     }
@@ -267,24 +313,13 @@ void setupLEDs() {
         wsType = NEO_RGB + NEO_KHZ800;
     }
     strip = new WS2812FX(count, pin, wsType);
-    debugPrint("[DEBUG] Created WS2812FX object at pin ");
-    debugPrint(pin);
-    debugPrint(", count: ");
-    debugPrintln(count);
     strip->init();
-    // Set all LEDs to off (black) at startup
-    for (uint16_t i = 0; i < strip->numPixels(); i++) {
-        strip->setPixelColor(i, 0);
-    }
+    // Set default effect: solid black (STATIC, color 0x000000)
+    strip->setMode(0); // 0 = STATIC
+    strip->setColor(0x000000); // black
+    strip->setBrightness(0); // off
     strip->show();
-    strip->setBrightness(config.state.brightness);
     strip->start();
-    debugPrint("LEDs initialized (WS2812FX): ");
-    debugPrint(count);
-    debugPrint(" type: ");
-    debugPrint(type);
-    debugPrint(" order: ");
-    debugPrintln(order);
 }
 
 void applyPreset(uint8_t presetId) {
@@ -337,8 +372,6 @@ void setPower(bool power) {
     if (transition.getCurrentBrightness() != targetBrightness || !transition.isTransitioning()) {
         transition.startTransition(targetBrightness, transTime);
     }
-    debugPrint("Power: ");
-    debugPrintln(power ? "ON" : "OFF");
     webServer.broadcastState();
 }
 
@@ -354,8 +387,6 @@ void setBrightness(uint8_t brightness) {
             transition.forceCurrentBrightness(config.state.brightness);
         }
         transition.startTransition(brightness, transTime);
-        debugPrint("Brightness: ");
-        debugPrintln(brightness);
         webServer.broadcastState();
     }
 }
@@ -394,9 +425,11 @@ void updateLEDs() {
 }
 
 void checkSchedule() {
-    int8_t presetId = scheduler.checkTimers();
+    int8_t presetId = scheduler.getBootPreset();
     if (presetId >= 0 && presetId < MAX_PRESETS) {
-        applyPreset(presetId);
+        if (presetId != config.state.currentPreset) {
+            applyPreset(presetId);
+        }
     }
 }
 
