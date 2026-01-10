@@ -22,6 +22,7 @@
 #define FILESYSTEM LittleFS
 
 #include "config.h"
+#include "presets.h"
 // #include "effects.h" // Custom effects disabled, using WS2812FX native effects only
 #include "scheduler.h"
 #include "transition.h"
@@ -30,6 +31,8 @@
 #include <Arduino.h>
 #include "debug.h"
 #include "ota.h"
+#include "config.h"
+#include "state.h"
 
 // Track last configuration for change detection
 Configuration lastConfiguration;
@@ -66,11 +69,6 @@ void printHeap(const char* tag) {
     #endif
 }
 void setupLEDs();
-void applyPreset(uint8_t presetId, bool setManualOverride = false);
-void setPower(bool power);
-void setBrightness(uint8_t brightness);
-void setEffect(uint8_t effect, const EffectParams& params);
-void updateLEDs();
 void checkSchedule();
 void checkAndApplyScheduleAfterBoot();
 
@@ -100,9 +98,9 @@ void setup() {
     lastConfiguration = config;
 
     // Load presets
-    if (!config.loadPresets()) {
+    if (!loadPresets(config.presets)) {
         debugPrintln("Failed to load presets");
-        config.savePresets();
+        savePresets(config.presets);
     }
 
     // Initialize LEDs
@@ -110,8 +108,8 @@ void setup() {
 
     // Initialize transition engine brightness to default
     extern TransitionEngine transition;
-    transition.forceCurrentBrightness(config.state.brightness); // Set current
-    transition.startTransition(config.state.brightness, 1);     // Set target
+    transition.forceCurrentBrightness(state.brightness); // Set current
+    transition.startTransition(state.brightness, 1);     // Set target
 
     // Connect to WiFi
 
@@ -127,7 +125,7 @@ void setup() {
     webServer.onConfigChange([]() {
         // Immediately apply relay pin and logic changes
         pinMode(config.led.relayPin, OUTPUT);
-        digitalWrite(config.led.relayPin, config.state.power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
+        digitalWrite(config.led.relayPin, state.power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
         // Only recalculate sun times if location changed
         bool locationChanged = config.time.latitude != lastConfiguration.time.latitude || config.time.longitude != lastConfiguration.time.longitude;
         if (locationChanged) {
@@ -163,9 +161,9 @@ void setup() {
             transition.startColorTransition(prevColor1, prevColor2, 0);
             updateLEDs();
             // Restore effect, brightness, and power after reinitializing LEDs
-            setEffect(config.state.effect, config.state.params);
-            setBrightness(config.state.brightness);
-            setPower(config.state.power);
+            setEffect(state.effect, state.params);
+            setBrightness(state.brightness);
+            setPower(state.power);
         }
     });
 
@@ -200,10 +198,10 @@ void setup() {
         applyPreset(bootPreset);
     } else {
         // Ensure transition starts from the actual brightness, not 0
-        transition.forceCurrentBrightness(config.state.brightness);
-        setEffect(config.state.effect, config.state.params);
-        setBrightness(config.state.brightness);
-        setPower(config.state.power);
+        transition.forceCurrentBrightness(state.brightness);
+        setEffect(state.effect, state.params);
+        setBrightness(state.brightness);
+        setPower(state.power);
     }
 
     // Mark that we have not yet applied a schedule after time becomes valid
@@ -243,6 +241,10 @@ void loop() {
 
 void setupWiFi() {
     debugPrint("Connecting to WiFi");
+    Serial.print("[DEBUG] WiFi SSID: ");
+    Serial.println(config.network.ssid);
+    Serial.print("[DEBUG] WiFi Password: ");
+    Serial.println(config.network.password);
     // Set hostname
     #ifdef ESP8266
         WiFi.hostname(config.network.hostname);
@@ -257,6 +259,8 @@ void setupWiFi() {
         while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
             delay(500);
             debugPrint(".");
+            Serial.print("[DEBUG] WiFi.status(): ");
+            Serial.println(WiFi.status());
             attempts++;
         }
         // If not connected, try a second round of retries (total up to 60s)
@@ -270,6 +274,8 @@ void setupWiFi() {
             while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
                 delay(500);
                 debugPrint(".");
+                Serial.print("[DEBUG] WiFi.status(): ");
+                Serial.println(WiFi.status());
                 attempts++;
             }
         }
@@ -325,108 +331,6 @@ void setupLEDs() {
     strip->start();
 }
 
-void applyPreset(uint8_t presetId, bool setManualOverride) {
-    if (presetId >= config.getPresetCount() || !config.presets[presetId].enabled) {
-        debugPrintln("Invalid preset ID");
-        return;
-    }
-    Preset& preset = config.presets[presetId];
-    // Get timer brightness percent if available
-    uint8_t timerBrightnessPercent = 100;
-    // Find active timer for this preset
-    for (size_t i = 0; i < config.timers.size(); i++) {
-        if (config.timers[i].presetId == presetId && config.timers[i].enabled) {
-            timerBrightnessPercent = config.timers[i].brightness;
-            break;
-        }
-    }
-    // Convert percent to 0-255
-    uint8_t brightnessValue = (uint8_t)((timerBrightnessPercent / 100.0) * 255);
-    // Apply safety limits
-    uint8_t safeBrightness = min(brightnessValue, config.safety.maxBrightness);
-    // Start transitions
-    uint32_t transTime = config.state.transitionTime;
-    if (transTime < config.safety.minTransitionTime) {
-        transTime = config.safety.minTransitionTime;
-    }
-    transition.startTransition(safeBrightness, transTime);
-    setEffect(preset.effect, preset.params);
-    config.state.currentPreset = presetId;
-    config.state.power = true;
-    config.state.inTransition = true;
-    webServer.broadcastState();
-
-}
-
-void setPower(bool power) {
-    if (config.state.power == power) {
-        return;
-    }
-    config.state.power = power;
-    // Control relay
-    digitalWrite(config.led.relayPin, power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
-    uint8_t targetBrightness = power ? config.state.brightness : 0;
-    uint32_t transTime = config.state.transitionTime;
-    if (transTime < config.safety.minTransitionTime) {
-        transTime = config.safety.minTransitionTime;
-    }
-    if (power) {
-        transition.forceCurrentBrightness(config.state.brightness);
-    }
-    if (transition.getCurrentBrightness() != targetBrightness || !transition.isTransitioning()) {
-        transition.startTransition(targetBrightness, transTime);
-    }
-    webServer.broadcastState();
-}
-
-void setBrightness(uint8_t brightness) {
-    brightness = min(brightness, config.safety.maxBrightness);
-    uint32_t transTime = config.state.transitionTime;
-    if (transTime < config.safety.minTransitionTime) {
-        transTime = config.safety.minTransitionTime;
-    }
-    uint8_t current = transition.getCurrentBrightness();
-    if (brightness != current) {
-        if (!transition.isTransitioning()) {
-            transition.forceCurrentBrightness(config.state.brightness);
-        }
-        transition.startTransition(brightness, transTime);
-        webServer.broadcastState();
-    }
-}
-
-void setEffect(uint8_t effect, const EffectParams& params) {
-    config.state.effect = effect;
-    config.state.params = params;
-    // Set WS2812FX effect and color
-    if (strip) {
-        strip->setMode(effect);
-        strip->setColor(params.color1);
-    }
-    webServer.broadcastState();
-}
-
-void updateLEDs() {
-    // Only update brightness and call WS2812FX service
-    if (!config.state.power) {
-        strip->setBrightness(0);
-        strip->service();
-        config.state.inTransition = false;
-        config.state.brightness = 0;
-        // Power off relay when LEDs are off
-        digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH); // Relay off
-        return;
-    }
-    extern TransitionEngine transition;
-    uint8_t currentBrightness = transition.getCurrentBrightness();
-    uint8_t prevBrightness = config.state.brightness;
-    strip->setBrightness(currentBrightness);
-    strip->service();
-    config.state.inTransition = false;
-    config.state.brightness = currentBrightness;
-    // Power on relay when brightness is above 0
-    digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW); // Relay on
-}
 
 void checkSchedule() {
     // Always apply the most recent valid scheduled preset for the current time
