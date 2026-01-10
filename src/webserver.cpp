@@ -526,7 +526,7 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
     
     uint8_t presetId = doc["id"] | 0;
     
-    if (presetId >= MAX_PRESETS) {
+    if (presetId >= _config->getPresetCount()) {
         {
             AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid preset ID\"}");
             for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
@@ -714,7 +714,7 @@ String WebServerManager::getPresetsJSON() {
     StaticJsonDocument<4096> doc;
     JsonArray presetsArray = doc.createNestedArray("presets");
     
-    for (int i = 0; i < MAX_PRESETS; i++) {
+        for (size_t i = 0; i < _config->getPresetCount(); i++) {
         if (_config->presets[i].name.length() == 0 && i > 0) continue;
         
         JsonObject presetObj = presetsArray.createNestedObject();
