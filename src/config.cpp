@@ -226,18 +226,21 @@ bool Configuration::loadPresets() {
     }
     if (!loaded) return false;
     JsonArray presetsArray = doc["presets"];
-    for (size_t i = 0; i < presetsArray.size() && i < MAX_PRESETS; i++) {
+    presets.clear();
+    for (size_t i = 0; i < presetsArray.size(); i++) {
         JsonObject presetObj = presetsArray[i];
-        presets[i].name = presetObj["name"] | "";
-        presets[i].effect = presetObj["effect"] | 0;
-        presets[i].enabled = presetObj["enabled"] | true;
+        Preset p;
+        p.name = presetObj["name"] | "";
+        p.effect = presetObj["effect"] | 0;
+        p.enabled = presetObj["enabled"] | true;
         if (presetObj.containsKey("params")) {
             JsonObject paramsObj = presetObj["params"];
-            presets[i].params.speed = paramsObj["speed"] | 128;
-            presets[i].params.intensity = paramsObj["intensity"] | 128;
-            presets[i].params.color1 = paramsObj["color1"] | 0x0000FF;
-            presets[i].params.color2 = paramsObj["color2"] | 0x00FFFF;
+            p.params.speed = paramsObj["speed"] | 128;
+            p.params.intensity = paramsObj["intensity"] | 128;
+            p.params.color1 = paramsObj["color1"] | 0x0000FF;
+            p.params.color2 = paramsObj["color2"] | 0x00FFFF;
         }
+        presets.push_back(p);
     }
     return true;
 }
@@ -248,14 +251,12 @@ bool Configuration::savePresets() {
     DynamicJsonDocument doc(capacity);
     JsonArray presetsArray = doc.createNestedArray("presets");
 
-    for (size_t i = 0; i < MAX_PRESETS; i++) {
+    for (size_t i = 0; i < presets.size(); i++) {
         if (presets[i].name.length() == 0 && i > 0) continue;
-
         JsonObject presetObj = presetsArray.createNestedObject();
         presetObj["name"] = presets[i].name;
         presetObj["effect"] = presets[i].effect;
         presetObj["enabled"] = presets[i].enabled;
-
         JsonObject paramsObj = presetObj.createNestedObject("params");
         paramsObj["speed"] = presets[i].params.speed;
         paramsObj["intensity"] = presets[i].params.intensity;

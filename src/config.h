@@ -39,7 +39,6 @@
 #define PRESET_FILE "/presets.json"
 
 // Limits
-#define MAX_PRESETS 16
 
 
 // Presets now use WS2812FX native effect index directly (uint8_t)
@@ -130,7 +129,9 @@ public:
     NetworkConfig network;
     TimeConfig time;
     SystemState state;
-    Preset presets[MAX_PRESETS];
+    std::vector<Preset> presets;
+
+    size_t getPresetCount() const { return presets.size(); }
     std::vector<Timer> timers;
 
     bool load();

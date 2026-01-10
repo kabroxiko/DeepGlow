@@ -53,11 +53,8 @@ uint32_t lastUpdate = 0;
 // Track last timers for schedule update
 std::vector<Timer> lastTimers;
 
-// Manual override for preset selection
-bool manualPresetOverrideActive = false;
-uint32_t manualPresetOverrideTimestamp = 0;
-uint8_t manualPresetOverrideId = 0;
-const uint32_t MANUAL_OVERRIDE_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+// Track last scheduled preset applied by timer
+int8_t lastScheduledPreset = -1;
 
 // Function declarations
 void setupWiFi();
@@ -69,7 +66,7 @@ void printHeap(const char* tag) {
     #endif
 }
 void setupLEDs();
-void applyPreset(uint8_t presetId);
+void applyPreset(uint8_t presetId, bool setManualOverride = false);
 void setPower(bool power);
 void setBrightness(uint8_t brightness);
 void setEffect(uint8_t effect, const EffectParams& params);
@@ -126,7 +123,7 @@ void setup() {
     webServer.onPowerChange(setPower);
     webServer.onBrightnessChange(setBrightness);
     webServer.onEffectChange(setEffect);
-    webServer.onPresetApply(applyPreset);
+    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, false); });
     webServer.onConfigChange([]() {
         // Immediately apply relay pin and logic changes
         pinMode(config.led.relayPin, OUTPUT);
@@ -198,8 +195,8 @@ void setup() {
     }
 
     // Check if we should apply a scheduled preset on boot
-    int8_t bootPreset = scheduler.getBootPreset();
-    if (bootPreset >= 0 && bootPreset < MAX_PRESETS) {
+    int8_t bootPreset = scheduler.getCurrentScheduledPreset();
+    if (bootPreset >= 0 && bootPreset < config.getPresetCount()) {
         applyPreset(bootPreset);
     } else {
         // Ensure transition starts from the actual brightness, not 0
@@ -328,8 +325,8 @@ void setupLEDs() {
     strip->start();
 }
 
-void applyPreset(uint8_t presetId) {
-    if (presetId >= MAX_PRESETS || !config.presets[presetId].enabled) {
+void applyPreset(uint8_t presetId, bool setManualOverride) {
+    if (presetId >= config.getPresetCount() || !config.presets[presetId].enabled) {
         debugPrintln("Invalid preset ID");
         return;
     }
@@ -359,10 +356,6 @@ void applyPreset(uint8_t presetId) {
     config.state.inTransition = true;
     webServer.broadcastState();
 
-    // Set manual override flag and timestamp
-    manualPresetOverrideActive = true;
-    manualPresetOverrideTimestamp = millis();
-    manualPresetOverrideId = presetId;
 }
 
 void setPower(bool power) {
@@ -436,29 +429,12 @@ void updateLEDs() {
 }
 
 void checkSchedule() {
-    // If manual override is active and not expired, skip schedule enforcement
-    if (manualPresetOverrideActive) {
-        uint32_t now = millis();
-        if (now - manualPresetOverrideTimestamp < MANUAL_OVERRIDE_TIMEOUT_MS) {
-            // Check if a timer event should clear override
-            int8_t scheduledPresetId = scheduler.getBootPreset();
-            if (scheduledPresetId >= 0 && scheduledPresetId < MAX_PRESETS && scheduledPresetId != manualPresetOverrideId) {
-                // Timer event: clear override and apply scheduled preset
-                manualPresetOverrideActive = false;
-                applyPreset(scheduledPresetId);
-            }
-            // Otherwise, keep manual override
-            return;
-        } else {
-            // Timeout expired, clear override
-            manualPresetOverrideActive = false;
-        }
-    }
-    // Normal schedule enforcement
-    int8_t presetId = scheduler.getBootPreset();
-    if (presetId >= 0 && presetId < MAX_PRESETS) {
-        if (presetId != config.state.currentPreset) {
-            applyPreset(presetId);
+    // Always apply the most recent valid scheduled preset for the current time
+    int8_t scheduledPresetId = scheduler.getCurrentScheduledPreset();
+    if (scheduledPresetId >= 0 && scheduledPresetId < config.getPresetCount()) {
+        if (scheduledPresetId != lastScheduledPreset) {
+            applyPreset(scheduledPresetId, false);
+            lastScheduledPreset = scheduledPresetId;
         }
     }
 }
@@ -469,9 +445,10 @@ void checkAndApplyScheduleAfterBoot() {
     static bool scheduleApplied = false;
     if (!scheduleApplied) {
         if (scheduler.isTimeValid()) {
-            int8_t bootPreset2 = scheduler.getBootPreset();
-            if (bootPreset2 >= 0 && bootPreset2 < MAX_PRESETS) {
-                applyPreset(bootPreset2);
+            int8_t bootPreset2 = scheduler.getCurrentScheduledPreset();
+            if (bootPreset2 >= 0 && bootPreset2 < config.getPresetCount()) {
+                applyPreset(bootPreset2, false);
+                lastScheduledPreset = bootPreset2;
             }
             scheduleApplied = true; 
         }
