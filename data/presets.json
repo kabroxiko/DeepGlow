@@ -42,6 +42,16 @@
       }
     },
     {
+      "name": "Moonlight",
+      "effect": 2,
+      "enabled": true,
+      "params": {
+        "speed": 50,
+        "intensity": 40,
+        "color1": 657056
+      }
+    },
+    {
       "name": "Coral Shimmer",
       "effect": 21,
       "enabled": true,
@@ -61,16 +71,6 @@
         "intensity": 60,
         "color1": 128,
         "color2": 205
-      }
-    },
-    {
-      "name": "Moonlight",
-      "effect": 2,
-      "enabled": true,
-      "params": {
-        "speed": 50,
-        "intensity": 40,
-        "color1": 657056
       }
     }
   ]

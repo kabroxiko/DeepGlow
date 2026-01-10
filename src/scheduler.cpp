@@ -30,7 +30,6 @@ void Scheduler::update() {
         // If time is not valid, force NTP update every second
         if (!isTimeValid()) {
             if (millis() - _lastNTPUpdate > 1000) {
-                debugPrintln("[DEBUG] Forcing NTP update (time not valid)");
                 updateNTP();
             }
         } else {
@@ -58,19 +57,19 @@ void Scheduler::updateNTP() {
     if (_config) {
         String ntpServer = _config->time.ntpServer;
         if (ntpServer.length() == 0 || ntpServer == "null") {
-            debugPrintln("[WARN] No NTP server configured, skipping NTP update.");
+            debugPrintln("No NTP server configured, skipping NTP update.");
             return;
         }
     }
     // Disable NTP update if in AP mode (no internet)
     #if defined(ESP8266)
     if (WiFi.getMode() == WIFI_AP) {
-        debugPrintln("[DEBUG] In AP mode, skipping NTP update.");
+        debugPrintln("In AP mode, skipping NTP update.");
         return;
     }
     #else
     if (WiFi.getMode() == WIFI_MODE_AP) {
-        debugPrintln("[DEBUG] In AP mode, skipping NTP update.");
+        debugPrintln("In AP mode, skipping NTP update.");
         return;
     }
     #endif
@@ -235,26 +234,32 @@ int Scheduler::getTimerMinutes(const Timer& timer) {
 }
 
 int8_t Scheduler::checkTimers() {
-    if (!isTimeValid()) return -1;
-    
+    if (!isTimeValid()) {
+        return -1;
+    }
     // Check only once per minute
     uint32_t now = millis();
-    if (now - _lastTimerCheck < 60000) return -1;
+    if (now - _lastTimerCheck < 60000) {
+        return -1;
+    }
     _lastTimerCheck = now;
-    
-    int currentMinutes = timeToMinutes(getCurrentHour(), getCurrentMinute());
+    int hour = getCurrentHour();
+    int minute = getCurrentMinute();
+    int currentMinutes = timeToMinutes(hour, minute);
     // Check all timers
     for (size_t i = 0; i < _config->timers.size(); i++) {
-        if (!isTimerActive(_config->timers[i], 0)) continue;
-        int timerMinutes = getTimerMinutes(_config->timers[i]);
-        if (timerMinutes == -1) continue;
+        const Timer& t = _config->timers[i];
+        if (!isTimerActive(t, 0)) {
+            continue;
+        }
+        int timerMinutes = getTimerMinutes(t);
+        if (timerMinutes == -1) {
+            continue;
+        }
         if (currentMinutes == timerMinutes) {
-            debugPrint("Timer triggered: ");
-            debugPrintln(i);
-            return _config->timers[i].presetId;
+            return t.presetId;
         }
     }
-    
     return -1;
 }
 

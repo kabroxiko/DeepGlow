@@ -572,11 +572,27 @@ void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
 }
 
 void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
-    // Parse uploaded JSON and save as config.json, replacing the config file
+    // Parse uploaded JSON
     DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, data, len);
     if (error) {
         AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+        return;
+    }
+    // Load current config from file for comparison
+    DynamicJsonDocument currentDoc(4096);
+    bool loaded = _config->loadFromFile(CONFIG_FILE, currentDoc);
+    bool isDifferent = true;
+    if (loaded) {
+        String incoming, stored;
+        serializeJson(doc, incoming);
+        serializeJson(currentDoc, stored);
+        isDifferent = (incoming != stored);
+    }
+    if (!isDifferent) {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"No changes detected\"}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
         return;
@@ -590,7 +606,6 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
     // Save the uploaded config as the new config.json
     bool saveResult = _config->saveToFile(CONFIG_FILE, doc);
     if (saveResult) {
-        // Reload the config from file so in-memory state matches uploaded config
         _config->load();
         if (_configCallback) _configCallback();
         AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
