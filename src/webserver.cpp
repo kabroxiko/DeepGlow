@@ -29,7 +29,7 @@ static bool effectsCacheReady = false;
 
 void buildEffectsCache() {
     if (!strip) return;
-    StaticJsonDocument<1024> doc;
+    StaticJsonDocument<4096> doc;
     JsonArray effects = doc.createNestedArray("effects");
     uint8_t count = strip->getModeCount();
     for (uint8_t i = 0; i < count; i++) {
