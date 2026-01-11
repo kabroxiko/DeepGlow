@@ -58,25 +58,42 @@ static String urlDecode(const String& input);
 // Place at the very end of the file, after all other code
 void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
     // Actual OTA update logic
+    static unsigned int lastDot = 0;
     if (index == 0) {
     #if defined(ESP32)
+        debugPrintln("[OTA API] Begin OTA update");
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
     #elif defined(ESP8266)
+        debugPrintln("[OTA API] Begin OTA update");
         if (!Update.begin(total)) {
     #endif
             Update.printError(Serial);
+            debugPrintln("[OTA API] Update.begin() failed");
         }
     }
     if (Update.write(data, len) != len) {
         Update.printError(Serial);
+        debugPrintln("[OTA API] Update.write() failed");
+    }
+    // Print progress dots every 10%
+    if (total > 0) {
+        unsigned int dot = ((index + len) * 100) / total;
+        while (lastDot < dot) {
+            debugPrint(".");
+            lastDot++;
+        }
     }
     if (index + len == total) {
+        lastDot = 0; // reset for next OTA
         bool ok = Update.end(true);
         AsyncWebServerResponse *resp = nullptr;
+        debugPrintln();
         if (ok) {
+            debugPrintln("[OTA API] OTA update finished, rebooting");
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
         } else {
             Update.printError(Serial);
+            debugPrintln("[OTA API] OTA update failed at end");
             resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
         }
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
@@ -574,6 +591,11 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
     // Apply or save preset
     if (doc.containsKey("apply") && doc["apply"]) {
         if (_presetCallback) _presetCallback(presetId);
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
     } else {
         // Save preset data
         _config->presets[presetId].name = doc["name"] | "";
@@ -587,16 +609,13 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
             _config->presets[presetId].params.color1 = paramsObj["color1"] | 0x0000FF;
             _config->presets[presetId].params.color2 = paramsObj["color2"] | 0x00FFFF;
         }
-        
         savePresets(_config->presets);
+        {
+            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            request->send(resp);
+        }
     }
-    
-    {
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        request->send(resp);
-    }
-    broadcastState();
 }
 
 void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
@@ -730,10 +749,8 @@ String WebServerManager::getStateJSON() {
     doc["currentPreset"] = state.currentPreset;
     if (_scheduler->isTimeValid()) {
         doc["time"] = _scheduler->getCurrentTime();
-        doc["timeValid"] = true;
     } else {
-        doc["time"] = "syncing";
-        doc["timeValid"] = false;
+        doc["time"] = "--:--";
     }
     doc["sunrise"] = _scheduler->getSunriseTime();
     doc["sunset"] = _scheduler->getSunsetTime();
@@ -744,19 +761,6 @@ String WebServerManager::getStateJSON() {
     paramsObj["color1"] = state.params.color1;
     paramsObj["color2"] = state.params.color2;
 
-    // Add schedule table (example: array of objects with time and action)
-    JsonArray scheduleArray = doc.createNestedArray("schedule");
-    // Example: populate with current timers as schedule (customize as needed)
-    for (size_t i = 0; i < _config->timers.size(); i++) {
-        JsonObject schedObj = scheduleArray.createNestedObject();
-        schedObj["id"] = i;
-        schedObj["enabled"] = _config->timers[i].enabled;
-        schedObj["type"] = _config->timers[i].type;
-        schedObj["hour"] = _config->timers[i].hour;
-        schedObj["minute"] = _config->timers[i].minute;
-        schedObj["presetId"] = _config->timers[i].presetId;
-        schedObj["brightness"] = _config->timers[i].brightness;
-    }
     String output;
     serializeJson(doc, output);
     return output;

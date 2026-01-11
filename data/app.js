@@ -28,7 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Hide Quick Controls until first WebSocket message
     const quickControls = document.querySelector('.card');
     if (quickControls && quickControls.style) quickControls.style.display = 'none';
-    initializeWebSocket();
+    // Only connect WebSocket if not on config.html
+    if (!window.location.pathname.endsWith('config.html')) {
+        initializeWebSocket();
+    }
     setupEventListeners();
 
     // Only load effects, presets, and timers on the home page (index.html)
