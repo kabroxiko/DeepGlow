@@ -34,6 +34,8 @@
 #include "config.h"
 #include "state.h"
 
+#include "display.h"
+
 // Track last configuration for change detection
 Configuration lastConfiguration;
 
@@ -88,6 +90,9 @@ void setup() {
     
     // List files in LittleFS for debugging
     LittleFS.begin();
+
+    // Initialize display (test)
+    setup_display();
 
     // Load configuration
     if (!config.load()) {
@@ -226,6 +231,23 @@ void loop() {
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
         lastFrame = now;
         updateLEDs();
+        // Only update display if status changes
+        static String lastPreset;
+        static bool lastPower = false;
+        static uint8_t lastBrightness = 0;
+        static String lastIp;
+        String presetName = "-";
+        if (state.currentPreset < config.getPresetCount()) {
+            presetName = config.presets[state.currentPreset].name;
+        }
+        String ipStr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
+        if (presetName != lastPreset || state.power != lastPower || state.brightness != lastBrightness || ipStr != lastIp) {
+            display_status(presetName.c_str(), state.power, state.brightness, ipStr.c_str());
+            lastPreset = presetName;
+            lastPower = state.power;
+            lastBrightness = state.brightness;
+            lastIp = ipStr;
+        }
     }
     if (WiFi.getMode() == WIFI_AP) {
         handleCaptivePortalDns();
