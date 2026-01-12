@@ -534,8 +534,17 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         // Speed is now percent (0–100)
         params.speed = paramsObj["speed"].isNull() ? params.speed : (uint8_t)paramsObj["speed"];
         params.intensity = paramsObj["intensity"] | params.intensity;
-        params.color1 = paramsObj["color1"] | params.color1;
-        params.color2 = paramsObj["color2"] | params.color2;
+        // Parse hex string (e.g. "#FFA000") to uint32_t
+        if (paramsObj["color1"].is<const char*>()) {
+            const char* hex = paramsObj["color1"];
+            if (hex[0] == '#') hex++;
+            params.color1 = (uint32_t)strtoul(hex, nullptr, 16);
+        }
+        if (paramsObj["color2"].is<const char*>()) {
+            const char* hex = paramsObj["color2"];
+            if (hex[0] == '#') hex++;
+            params.color2 = (uint32_t)strtoul(hex, nullptr, 16);
+        }
     }
 
     // Apply safety limits for brightness and/or transitionTime
@@ -606,8 +615,20 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
             JsonObject paramsObj = doc["params"];
             _config->presets[presetId].params.speed = paramsObj["speed"].isNull() ? 100 : (uint8_t)paramsObj["speed"];
             _config->presets[presetId].params.intensity = paramsObj["intensity"] | 128;
-            _config->presets[presetId].params.color1 = paramsObj["color1"] | 0x0000FF;
-            _config->presets[presetId].params.color2 = paramsObj["color2"] | 0x00FFFF;
+            if (paramsObj["color1"].is<const char*>()) {
+                const char* hex = paramsObj["color1"];
+                if (hex[0] == '#') hex++;
+                _config->presets[presetId].params.color1 = (uint32_t)strtoul(hex, nullptr, 16);
+            } else {
+                _config->presets[presetId].params.color1 = 0x0000FF;
+            }
+            if (paramsObj["color2"].is<const char*>()) {
+                const char* hex = paramsObj["color2"];
+                if (hex[0] == '#') hex++;
+                _config->presets[presetId].params.color2 = (uint32_t)strtoul(hex, nullptr, 16);
+            } else {
+                _config->presets[presetId].params.color2 = 0x00FFFF;
+            }
         }
         savePresets(_config->presets);
         {
