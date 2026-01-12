@@ -22,9 +22,14 @@ uint16_t custom_blend_fx(void) {
   // Palette cycling: use color1/color2 as palette endpoints
   uint32_t palette[4] = { seg->colors[0], seg->colors[1], seg->colors[0], seg->colors[1] };
   auto paletteColor = [&](uint8_t idx) -> uint32_t {
-    // Simple 2-color palette cycling
-    float t = (sin((idx / 255.0 + shift / 64.0) * 3.14159 * 2) + 1.0) * 0.5;
-    return strip->color_blend(palette[0], palette[1], (uint8_t)(t * 255));
+    // Stronger color cycling: sharper sine, full 0-255 blend
+    float phase = (idx * 0.25f + shift) * 0.10f; // Increase frequency and phase shift
+    float t = (sin(phase) + 1.0f) * 0.5f; // 0..1
+    // Clamp and exaggerate blend
+    uint8_t blendVal = (uint8_t)(t * 255.0f);
+    if (blendVal < 64) blendVal = 0; // Snap to color1
+    else if (blendVal > 191) blendVal = 255; // Snap to color2
+    return strip->color_blend(palette[0], palette[1], blendVal);
   };
 
   for (unsigned i = 0; i < pixelLen; i++) {
