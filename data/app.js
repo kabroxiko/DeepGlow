@@ -225,8 +225,7 @@ function updateState(state) {
 
     const brightnessSlider = document.getElementById('brightnessSlider');
     if (brightnessSlider) {
-        // Convert hardware value (1–255) to percent
-        const percent = Math.round(((state.brightness - 1) / 2.54));
+        const percent = state.brightness;
         if (brightnessSlider.value != percent) brightnessSlider.value = percent;
         const brightnessValue = document.getElementById('brightnessValue');
         if (brightnessValue) brightnessValue.textContent = percent + '%';
@@ -338,14 +337,12 @@ function setupEventListeners() {
         brightnessSlider.step = 1;
         brightnessSlider.addEventListener('input', (e) => {
             const percent = parseInt(e.target.value);
-            const hwValue = Math.round(percent * 2.54) + 1; // 1–255
             const brightnessValue = document.getElementById('brightnessValue');
             if (brightnessValue) brightnessValue.textContent = percent + '%';
         });
         brightnessSlider.addEventListener('change', (e) => {
             const percent = parseInt(e.target.value);
-            const hwValue = Math.round(percent * 2.54) + 1; // 1–255
-            sendState({ brightness: hwValue });
+            sendState({ brightness: percent });
         });
     }
         if (transitionSlider) {
