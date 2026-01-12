@@ -51,12 +51,22 @@ function loadEffects() {
             try { return JSON.parse(text); } catch { return []; }
         })
         .then(data => {
-            effectNames = (data && data.effects) ? data.effects.map(e => e.name) : [];
+            let effects = (data && data.effects) ? data.effects : [];
+            // Always add custom effects if not present
+            const customEffects = [
+                { id: 72, name: 'Blend' }
+            ];
+            customEffects.forEach(custom => {
+                if (!effects.some(e => e.id === custom.id)) {
+                    effects.push(custom);
+                }
+            });
+            effectNames = effects.map(e => e.name);
             // Populate effectSelect dropdown
             const effectSelect = document.getElementById('effectSelect');
             if (effectSelect) {
                 effectSelect.innerHTML = '';
-                (data.effects || []).forEach(e => {
+                effects.forEach(e => {
                     const opt = document.createElement('option');
                     opt.value = e.id;
                     opt.textContent = e.name;
