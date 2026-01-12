@@ -94,6 +94,83 @@
         "color1": 16776960,
         "color2": 16711680
       }
+    },
+    {
+      "name": "Rainbow",
+      "effect": 35,
+      "enabled": true,
+      "params": {
+        "speed": 50,
+        "intensity": 128,
+        "color1": 16711680,
+        "color2": 65280
+      }
+    },
+    {
+      "name": "Chase",
+      "effect": 8,
+      "enabled": true,
+      "params": {
+        "speed": 60,
+        "intensity": 128,
+        "color1": 16776960,
+        "color2": 255
+      }
+    },
+    {
+      "name": "Comet",
+      "effect": 37,
+      "enabled": true,
+      "params": {
+        "speed": 40,
+        "intensity": 200,
+        "color1": 16711935,
+        "color2": 16777215
+      }
+    },
+    {
+      "name": "Twinkle",
+      "effect": 44,
+      "enabled": true,
+      "params": {
+        "speed": 50,
+        "intensity": 180,
+        "color1": 65535,
+        "color2": 16777215
+      }
+    },
+    {
+      "name": "Color Wipe",
+      "effect": 1,
+      "enabled": true,
+      "params": {
+        "speed": 60,
+        "intensity": 128,
+        "color1": 255,
+        "color2": 16711680
+      }
+    },
+    {
+      "name": "Fireworks",
+      "effect": 27,
+      "enabled": true,
+      "params": {
+        "speed": 50,
+        "intensity": 220,
+        "color1": 16753920,
+        "color2": 16777215
+      }
+    }
+    ,
+    {
+      "name": "Blend (Custom)",
+      "effect": 72,
+      "enabled": true,
+      "params": {
+        "speed": 50,
+        "color1": 16744192,
+        "color2": 16776960
+      }
     }
   ]
 }

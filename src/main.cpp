@@ -23,7 +23,7 @@
 
 #include "config.h"
 #include "presets.h"
-// #include "effects.h" // Custom effects disabled, using WS2812FX native effects only
+#include "effects.h"
 #include "scheduler.h"
 #include "transition.h"
 #include "webserver.h"
@@ -332,10 +332,11 @@ void setupLEDs() {
     }
     strip = new WS2812FX(count, pin, wsType);
     strip->init();
-    // Set default effect: solid black (STATIC, color 0x000000)
-    strip->setMode(0); // 0 = STATIC
-    strip->setColor(0x000000); // black
-    strip->setBrightness(0); // off
+    // Register custom blend effect (first custom slot, mode 72)
+    strip->setCustomMode(F("Blend"), custom_blend_fx);
+    strip->setMode(0); // Static mode
+    strip->setColor(0x000000); // Black
+    strip->setBrightness(0); // Off
     strip->show();
     strip->start();
 }

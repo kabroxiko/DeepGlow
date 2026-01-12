@@ -5,6 +5,7 @@
 #include <WS2812FX.h>
 #include "config.h"
 
+// Custom blend effect mimicking WLED mode_blends
+uint16_t custom_blend_fx(void);
 
-
-#endif
+#endif // EFFECTS_H
