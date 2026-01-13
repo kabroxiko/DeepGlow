@@ -28,10 +28,8 @@ const std::vector<EffectRegistryEntry>& getEffectRegistry();
 void _registerEffect(const char* name, uint16_t (*handler)());
 
 // Solid color effect
-uint16_t solid_effect(uint32_t color1, uint32_t color2);
 uint16_t solid_effect();
 // Blend effect mimicking WLED mode_blends
-uint16_t blend_effect(uint32_t color1, uint32_t color2);
 uint16_t blend_effect();
 extern void* strip;
 

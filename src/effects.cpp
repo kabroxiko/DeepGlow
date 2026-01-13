@@ -61,9 +61,9 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   return rb3 | wg3;
 }
 
-// Solid color effect: fills the strip with color1
+// Solid color effect: fills the strip with color[0]
 uint16_t solid_effect() {
-  extern uint32_t color[2];
+  extern uint32_t color[8];
   if (!strip) return 0;
   extern SystemState state;
   uint8_t brightness = state.brightness;

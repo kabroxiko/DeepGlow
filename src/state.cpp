@@ -105,7 +105,6 @@ void setBrightness(uint8_t brightness) {
 
 
 void setEffect(uint8_t effect, const EffectParams& params) {
-	// Always use color[0/1] for color1/color2
 	state.effect = effect;
 	state.params = params;
 	state.params.colors.clear();
