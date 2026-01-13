@@ -1,6 +1,7 @@
 {
   "presets": [
     {
+      "id": 0,
       "name": "Morning Sun",
       "effect": 15,
       "enabled": true,
@@ -11,6 +12,7 @@
       }
     },
     {
+      "id": 1,
       "name": "Daylight",
       "effect": 0,
       "enabled": true,
@@ -19,6 +21,7 @@
       }
     },
     {
+      "id": 2,
       "name": "Afternoon Ripple",
       "effect": 12,
       "enabled": true,
@@ -29,6 +32,7 @@
       }
     },
     {
+      "id": 3,
       "name": "Gentle Wave",
       "effect": 3,
       "enabled": true,
@@ -39,6 +43,7 @@
       }
     },
     {
+      "id": 4,
       "name": "Moonlight",
       "effect": 2,
       "enabled": true,
@@ -49,6 +54,7 @@
       }
     },
     {
+      "id": 5,
       "name": "Coral Shimmer",
       "effect": 21,
       "enabled": true,
@@ -59,6 +65,7 @@
       }
     },
     {
+      "id": 6,
       "name": "Deep Ocean",
       "effect": 37,
       "enabled": true,
@@ -69,6 +76,7 @@
       }
     },
     {
+      "id": 7,
       "name": "Sunrise",
       "effect": 18,
       "enabled": true,
@@ -79,6 +87,7 @@
       }
     },
     {
+      "id": 8,
       "name": "Sunset",
       "effect": 19,
       "enabled": true,
@@ -89,6 +98,7 @@
       }
     },
     {
+      "id": 9,
       "name": "Rainbow",
       "effect": 35,
       "enabled": true,
@@ -99,6 +109,7 @@
       }
     },
     {
+      "id": 10,
       "name": "Chase",
       "effect": 8,
       "enabled": true,
@@ -109,6 +120,7 @@
       }
     },
     {
+      "id": 11,
       "name": "Comet",
       "effect": 37,
       "enabled": true,
@@ -119,6 +131,7 @@
       }
     },
     {
+      "id": 12,
       "name": "Twinkle",
       "effect": 44,
       "enabled": true,
@@ -129,6 +142,7 @@
       }
     },
     {
+      "id": 13,
       "name": "Color Wipe",
       "effect": 1,
       "enabled": true,
@@ -139,6 +153,7 @@
       }
     },
     {
+      "id": 14,
       "name": "Fireworks",
       "effect": 27,
       "enabled": true,
@@ -150,6 +165,7 @@
     }
     ,
     {
+      "id": 15,
       "name": "Blend",
       "effect": 1,
       "enabled": true,

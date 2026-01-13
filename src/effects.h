@@ -33,4 +33,14 @@ uint16_t solid_effect();
 uint16_t blend_effect();
 extern void* strip;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void updatePixelCount();
+
+#ifdef __cplusplus
+}
+#endif
+
 #endif // EFFECTS_H

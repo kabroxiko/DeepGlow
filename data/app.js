@@ -590,6 +590,8 @@ function loadPresets() {
             presets = Array.isArray(data) ? data : (data.presets || []);
             if (typeof displayPresets === 'function') displayPresets();
             if (typeof renderBrightnessGraph === 'function') renderBrightnessGraph();
+            // If timers are already loaded, update timer table
+            if (Array.isArray(timers) && timers.length > 0 && typeof displayTimers === 'function') displayTimers();
         })
         .catch(error => console.error('Error loading presets:', error));
 }
@@ -603,7 +605,8 @@ function loadTimers() {
         })
         .then(data => {
             timers = Array.isArray(data) ? data : (data.timers || []);
-            if (typeof displayTimers === 'function') displayTimers();
+            // Only display timers if presets are loaded
+            if (Array.isArray(presets) && presets.length > 0 && typeof displayTimers === 'function') displayTimers();
             if (typeof renderBrightnessGraph === 'function') renderBrightnessGraph();
         })
         .catch(error => console.error('Error loading timers:', error));
@@ -613,11 +616,12 @@ function displayPresets() {
     const grid = document.getElementById('presetGrid');
     if (!grid) return;
     grid.innerHTML = '';
-    presets.forEach((preset, index) => {
-        if (!preset.enabled && index > 0) return;
+    presets.forEach((preset) => {
+        if (!preset.enabled && preset.id > 0) return;
         const card = document.createElement('div');
         card.className = 'preset-card';
-        if (currentState.currentPreset === index) {
+        // Highlight if this preset is active (by id)
+        if (currentState.currentPreset !== undefined && presets.find(p => p.id === currentState.currentPreset)?.id === preset.id) {
             card.classList.add('active');
         }
         const effectName = effectNames[preset.effect] || `Effect #${preset.effect}`;
@@ -630,7 +634,7 @@ function displayPresets() {
             <div class="preset-info">Effect: ${effectName}</div>
             <div class="preset-color-preview" style="${previewStyle}"></div>
         `;
-        card.addEventListener('click', () => applyPreset(index));
+        card.addEventListener('click', () => applyPreset(preset.id));
         grid.appendChild(card);
     });
     cachedCurrentPreset = currentState.currentPreset;
@@ -654,6 +658,9 @@ function applyPreset(presetId) {
     })
     .then(data => {
         if (data.success) {
+            // Optionally update currentState.currentPreset to presetId for immediate UI feedback
+            currentState.currentPreset = presetId;
+            displayPresets();
             console.log('Preset applied:', presetId);
         }
     })
@@ -844,15 +851,12 @@ function displayTimers() {
         }
         let presetStr = '--';
         if (typeof timer.presetId === 'number' && Array.isArray(presets) && presets.length > 0) {
-            if (presets[timer.presetId] && presets[timer.presetId].name) {
-                presetStr = presets[timer.presetId].name;
+            // Only find by id property (robust)
+            let found = presets.find(p => p.id === timer.presetId || p.presetId === timer.presetId);
+            if (found && found.name) {
+                presetStr = found.name;
             } else {
-                const found = presets.find(p => p.id === timer.presetId || p.presetId === timer.presetId);
-                if (found && found.name) {
-                    presetStr = found.name;
-                } else {
-                    presetStr = `Preset ${timer.presetId}`;
-                }
+                presetStr = `Preset ${timer.presetId}`;
             }
         }
         const statusStr = timer.enabled ? '<span class="timer-enabled">Enabled</span>' : '<span class="timer-disabled">Disabled</span>';
@@ -864,8 +868,8 @@ function displayTimers() {
             <td>${brightStr}</td>
             <td>${statusStr}</td>
         `;
-        // Highlight if this timer is the currently running preset
-        if (timer.presetId === activePresetId) {
+        // Highlight only the timer row that matches the current time (lastTimerIdx)
+        if (index === lastTimerIdx) {
             row.classList.add('active-timer-row');
         }
         // Timer editing disabled: no editTimer UI present

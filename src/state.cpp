@@ -20,11 +20,21 @@ extern void* strip;
 extern int8_t lastScheduledPreset;
 
 void applyPreset(uint8_t presetId, bool setManualOverride) {
-	if (presetId >= config.getPresetCount() || !config.presets[presetId].enabled) {
+	// Find preset by id
+	debugPrint("applyPreset called with id: ");
+	debugPrintln(presetId);
+	debugPrint("Loaded preset ids: ");
+	for (const auto& p : config.presets) {
+		debugPrint(p.id);
+		debugPrint(", ");
+	}
+	debugPrintln("");
+	auto it = std::find_if(config.presets.begin(), config.presets.end(), [presetId](const Preset& p) { return p.id == presetId; });
+	if (it == config.presets.end() || !it->enabled) {
 		debugPrintln("Invalid preset ID");
 		return;
 	}
-	Preset& preset = config.presets[presetId];
+	Preset& preset = *it;
 	uint8_t timerBrightnessPercent = 100;
 	for (size_t i = 0; i < config.timers.size(); i++) {
 		if (config.timers[i].presetId == presetId && config.timers[i].enabled) {
@@ -58,7 +68,7 @@ void applyPreset(uint8_t presetId, bool setManualOverride) {
 		snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
 		state.params.colors.push_back(String(hex));
 	}
-	state.currentPreset = presetId;
+	state.currentPreset = preset.id;
 	state.power = true;
 	state.inTransition = true;
 	webServer.broadcastState();
@@ -124,6 +134,11 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 	if (!strip) return;
 	const auto& reg = getEffectRegistry();
 	if (effect < reg.size() && reg[effect].handler) {
+		// Update global effect speed if present in params
+		if (params.speed > 0) {
+			extern volatile uint8_t g_effectSpeed;
+			g_effectSpeed = params.speed;
+		}
 		reg[effect].handler();
 	}
 }

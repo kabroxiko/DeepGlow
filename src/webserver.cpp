@@ -562,51 +562,43 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
         return;
     }
     
-    uint8_t presetId = doc["id"] | 0;
-    
-    if (presetId >= _config->getPresetCount()) {
-        {
-            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid preset ID\"}");
-            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-            request->send(resp);
-        }
+    int reqId = doc["id"] | -1;
+    auto it = std::find_if(_config->presets.begin(), _config->presets.end(), [reqId](const Preset& p) { return p.id == reqId; });
+    if (it == _config->presets.end()) {
+        AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid preset ID\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
         return;
     }
-    
     // Apply or save preset
     if (doc.containsKey("apply") && doc["apply"]) {
-        if (_presetCallback) _presetCallback(presetId);
-        {
-            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
-            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-            request->send(resp);
-        }
+        if (_presetCallback) _presetCallback(it->id);
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
     } else {
         // Save preset data
-        _config->presets[presetId].name = doc["name"] | "";
-        _config->presets[presetId].effect = (uint8_t)(int)doc["effect"];
-        _config->presets[presetId].enabled = doc["enabled"] | true;
-        
+        it->name = doc["name"] | "";
+        it->effect = (uint8_t)(int)doc["effect"];
+        it->enabled = doc["enabled"] | true;
         if (doc.containsKey("params")) {
             JsonObject paramsObj = doc["params"];
-            _config->presets[presetId].params.speed = paramsObj["speed"].isNull() ? 100 : (uint8_t)paramsObj["speed"];
-            _config->presets[presetId].params.intensity = paramsObj["intensity"] | 128;
-            _config->presets[presetId].params.colors.clear();
+            it->params.speed = paramsObj["speed"].isNull() ? 100 : (uint8_t)paramsObj["speed"];
+            it->params.intensity = paramsObj["intensity"] | 128;
+            it->params.colors.clear();
             if (paramsObj.containsKey("colors")) {
                 JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
                 for (JsonVariant v : colorsArr) {
                     if (v.is<const char*>()) {
-                        _config->presets[presetId].params.colors.push_back(String(v.as<const char*>()));
+                        it->params.colors.push_back(String(v.as<const char*>()));
                     }
                 }
             }
         }
         savePresets(_config->presets);
-        {
-            AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
-            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-            request->send(resp);
-        }
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
     }
 }
 

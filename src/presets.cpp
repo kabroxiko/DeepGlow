@@ -55,6 +55,7 @@ bool loadPresets(std::vector<Preset>& presets) {
     for (size_t i = 0; i < presetsArray.size(); i++) {
         JsonObject presetObj = presetsArray[i];
         Preset p;
+        p.id = presetObj["id"] | i;
         p.name = presetObj["name"] | "";
         p.effect = presetObj["effect"] | 0;
         p.enabled = presetObj["enabled"] | true;

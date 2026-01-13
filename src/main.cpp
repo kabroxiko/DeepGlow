@@ -13,6 +13,7 @@
 
 #include <Arduino.h>
 #include <NeoPixelBus.h> // Added for NeoPixelBus migration
+#include <memory>
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
 #else
@@ -25,6 +26,7 @@
 #include "presets.h"
 #include "effects.h"
 #include "scheduler.h"
+#include "bus_manager.h"
 #include "transition.h"
 #include "webserver.h"
 #include "captive_portal.h"
@@ -35,6 +37,10 @@
 #include "state.h"
 
 #include "display.h"
+
+
+// Global BusManager instance
+BusManager busManager;
 
 // Track last configuration for change detection
 Configuration lastConfiguration;
@@ -78,6 +84,7 @@ void printHeap(const char* tag) {
     #endif
 }
 void setupLEDs();
+void addBusToManager();
 void checkSchedule();
 void checkAndApplyScheduleAfterBoot();
 
@@ -115,8 +122,10 @@ void setup() {
         savePresets(config.presets);
     }
 
-    // Initialize LEDs
+
+    // Initialize LEDs and BusManager
     setupLEDs();
+    updatePixelCount();
 
     // Initialize transition engine brightness to default
     extern TransitionEngine transition;
@@ -158,6 +167,7 @@ void setup() {
                           config.led.colorOrder != lastConfiguration.led.colorOrder;
         if (ledChanged) {
             setupLEDs();
+            updatePixelCount();
             lastConfiguration.led.pin = config.led.pin;
             lastConfiguration.led.count = config.led.count;
             lastConfiguration.led.type = config.led.type;
@@ -313,6 +323,8 @@ void setupWiFi() {
 }
 
 void setupLEDs() {
+    // Remove all buses from manager (by re-creating it)
+    busManager = BusManager();
     if (strip) {
         LedType prevType = getLedType(lastConfiguration.led.type);
         String prevOrder = lastConfiguration.led.colorOrder;
@@ -335,15 +347,24 @@ void setupLEDs() {
         strip = new NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>(count, pin);
         ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Begin();
         ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Show();
+        busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::SK6812)));
+        if (count > 0) {
+            for (uint16_t i = 0; i < count; ++i) {
+                busManager.setPixelColor(i, 0xFFFFFF); // White
+            }
+            busManager.show();
+        }
     } else {
         if (colorOrder.equalsIgnoreCase("RGB")) {
             strip = new NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
             ((NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Begin();
             ((NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Show();
+            busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::WS2812B_RGB)));
         } else {
             strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
             ((NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Begin();
             ((NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Show();
+            busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::WS2812B_GRB)));
         }
     }
 }
@@ -352,7 +373,8 @@ void setupLEDs() {
 void checkSchedule() {
     // Always apply the most recent valid scheduled preset for the current time
     int8_t scheduledPresetId = scheduler.getCurrentScheduledPreset();
-    if (scheduledPresetId >= 0 && scheduledPresetId < config.getPresetCount()) {
+    auto it = std::find_if(config.presets.begin(), config.presets.end(), [scheduledPresetId](const Preset& p) { return p.id == scheduledPresetId; });
+    if (it != config.presets.end()) {
         if (scheduledPresetId != lastScheduledPreset) {
             applyPreset(scheduledPresetId, false);
             lastScheduledPreset = scheduledPresetId;
@@ -367,7 +389,8 @@ void checkAndApplyScheduleAfterBoot() {
     if (!scheduleApplied) {
         if (scheduler.isTimeValid()) {
             int8_t bootPreset2 = scheduler.getCurrentScheduledPreset();
-            if (bootPreset2 >= 0 && bootPreset2 < config.getPresetCount()) {
+            auto it = std::find_if(config.presets.begin(), config.presets.end(), [bootPreset2](const Preset& p) { return p.id == bootPreset2; });
+            if (it != config.presets.end()) {
                 applyPreset(bootPreset2, false);
                 lastScheduledPreset = bootPreset2;
             }
