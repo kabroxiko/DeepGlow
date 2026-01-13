@@ -9,8 +9,8 @@ SystemState state;
 
 extern BusManager busManager;
 
-// Global user-selected colors (always reflect last user action, up to 8 colors)
-uint32_t color[8] = {0x0000FF, 0x00FFFF}; // Default Blue, Default Cyan
+// Global user-selected colors (dynamic)
+std::vector<uint32_t> color = {0x0000FF, 0x00FFFF}; // Default Blue, Default Cyan
 
 extern Configuration config;
 extern Scheduler scheduler;
@@ -138,12 +138,16 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 
 // Call this when user changes color from UI/API
 void setUserColor(const uint32_t* newColor, size_t count) {
-	// Accept up to 8 colors from newColor
-	for (size_t i = 0; i < 8; ++i) {
-		color[i] = (i < count) ? newColor[i] : (i == 0 ? 0x0000FF : 0x00FFFF);
+	color.clear();
+	for (size_t i = 0; i < count; ++i) {
+		color.push_back(newColor[i]);
+	}
+	if (color.empty()) {
+		color.push_back(0x0000FF);
+		color.push_back(0x00FFFF);
 	}
 	state.params.colors.clear();
-	for (size_t i = 0; i < count; ++i) {
+	for (size_t i = 0; i < color.size(); ++i) {
 		char hex[10];
 		snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
 		state.params.colors.push_back(String(hex));

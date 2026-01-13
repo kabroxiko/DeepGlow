@@ -52,14 +52,14 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
 
 // Solid color effect: fills the strip with color[0]
 uint16_t solid_effect() {
-  extern uint32_t color[8];
+  extern std::vector<uint32_t> color;
   BusNeoPixel* neo = busManager.getNeoPixelBus();
   if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
   uint8_t brightness = state.brightness;
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
   // Use only the first color in the array
-  uint32_t solidColor = color[0];
+  uint32_t solidColor = color.empty() ? 0x0000FF : color[0];
   uint8_t r = scale((solidColor >> 16) & 0xFF);
   uint8_t g = scale((solidColor >> 8) & 0xFF);
   uint8_t b = scale(solidColor & 0xFF);
@@ -73,7 +73,7 @@ REGISTER_EFFECT("Solid", solid_effect);
 
 // Blend effect: smoothly blend between two colors using WLED's mode_blends logic
 uint16_t blend_effect() {
-  extern uint32_t color[2];
+  extern std::vector<uint32_t> color;
   BusNeoPixel* neo = busManager.getNeoPixelBus();
   if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
@@ -87,6 +87,7 @@ uint16_t blend_effect() {
   blend = (uint8_t)std::max(0, std::min(255, blend + direction * step));
   if (blend == 0 || blend == 255) direction = -direction;
 
+  if (color.size() < 2) return 0;
   for (uint16_t i = 0; i < busManager.getPixelCount(); i++) {
     uint32_t blended = color_blend(color[0], color[1], blend);
     uint8_t r = scale((blended >> 16) & 0xFF);
