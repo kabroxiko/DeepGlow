@@ -94,7 +94,7 @@ struct Timer {
 struct Preset {
     uint8_t id = 0;
     String name = "";
-    uint8_t effect = 0; // Effect index (NeoPixelBus)
+    uint8_t effect = 0;
     EffectParams params;
     bool enabled = true;
 };

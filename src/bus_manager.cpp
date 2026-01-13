@@ -1,6 +1,35 @@
 #include "bus_manager.h"
 #include <NeoPixelBus.h>
 
+BusNeoPixel* BusManager::getNeoPixelBus() {
+    for (const auto& bus : buses) {
+        // Only use static_cast since we control the bus type
+        BusNeoPixel* neo = static_cast<BusNeoPixel*>(bus.get());
+        if (neo) return neo;
+    }
+    return nullptr;
+}
+
+void BusManager::turnOffLEDs() {
+    BusNeoPixel* neo = getNeoPixelBus();
+    if (!neo || !neo->getStrip()) return;
+    if (neo->getType() == BusNeoPixelType::SK6812) {
+        auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)neo->getStrip();
+        RgbwColor off(0, 0, 0, 0);
+        for (uint16_t i = 0; i < s->PixelCount(); i++) {
+            s->SetPixelColor(i, off);
+        }
+        s->Show();
+    } else {
+        auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)neo->getStrip();
+        RgbColor off(0, 0, 0);
+        for (uint16_t i = 0; i < s->PixelCount(); i++) {
+            s->SetPixelColor(i, off);
+        }
+        s->Show();
+    }
+}
+
 // Example implementation for NeoPixelBus wrapper
 void BusNeoPixel::show() {
     if (!_strip) {
@@ -63,19 +92,16 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
 
 void BusManager::cleanupStrip() {
     if (!buses.empty()) {
-        BusNeoPixel* neo = dynamic_cast<BusNeoPixel*>(buses.front().get());
+        BusNeoPixel* neo = static_cast<BusNeoPixel*>(buses.front().get());
         if (neo) {
-            void* strip = neo->_strip;
-            BusNeoPixelType prevType = neo->_type;
-            String prevOrder = "GRB";
+            void* strip = neo->getStrip();
+            BusNeoPixelType prevType = neo->getType();
             if (prevType == BusNeoPixelType::SK6812) {
                 delete (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+            } else if (prevType == BusNeoPixelType::WS2812B_RGB) {
+                delete (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
             } else {
-                if (prevType == BusNeoPixelType::WS2812B_RGB) {
-                    delete (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-                } else {
-                    delete (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-                }
+                delete (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
             }
         }
         buses.clear();

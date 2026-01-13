@@ -12,7 +12,6 @@
  */
 
 #include <Arduino.h>
-#include <NeoPixelBus.h> // Added for NeoPixelBus migration
 #include <memory>
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -21,6 +20,7 @@
 #endif
 #include <LittleFS.h>
 #define FILESYSTEM LittleFS
+#include <type_traits>
 
 #include "config.h"
 #include "presets.h"
@@ -50,16 +50,6 @@ Configuration config;
 Scheduler scheduler(&config);
 TransitionEngine transition;
 WebServerManager webServer(&config, &scheduler);
-
-// LED array
-#include <type_traits>
-
-// NeoPixelBus LED object (support both WS2812B and SK6812)
-typedef enum { LED_WS2812B, LED_SK6812 } LedType;
-LedType getLedType(const String& type) {
-    if (type.equalsIgnoreCase("SK6812")) return LED_SK6812;
-    return LED_WS2812B;
-}
 
 // Use void* for runtime type switching
 void* strip = nullptr;

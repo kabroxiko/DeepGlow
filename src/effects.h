@@ -2,7 +2,6 @@
 #define EFFECTS_H
 
 #include <Arduino.h>
-#include <NeoPixelBus.h> // Added for NeoPixelBus migration
 #include "config.h"
 #include <vector>
 

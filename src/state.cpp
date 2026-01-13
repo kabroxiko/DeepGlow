@@ -1,13 +1,13 @@
-#include <NeoPixelBus.h> // Added for NeoPixelBus migration
+#include "bus_manager.h"
 #include "state.h"
 #include "effects.h"
 #include "transition.h"
 #include "webserver.h"
 #include "display.h"
-#include <NeoPixelBus.h>
 
 SystemState state;
 
+extern BusManager busManager;
 
 // Global user-selected colors (always reflect last user action, up to 8 colors)
 uint32_t color[8] = {0x0000FF, 0x00FFFF}; // Default Blue, Default Cyan
@@ -123,7 +123,8 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 			break;
 		}
 	}
-	if (!strip) return;
+	BusNeoPixel* neo = busManager.getNeoPixelBus();
+	if (!neo || !neo->getStrip()) return;
 	const auto& reg = getEffectRegistry();
 	if (effect < reg.size() && reg[effect].handler) {
 		// Update global effect speed if present in params
@@ -151,23 +152,10 @@ void setUserColor(const uint32_t* newColor, size_t count) {
 }
 
 void updateLEDs() {
-	if (!strip) return;
+	BusNeoPixel* neo = busManager.getNeoPixelBus();
+	if (!neo || !neo->getStrip()) return;
 	if (!state.power) {
-		if (config.led.type.equalsIgnoreCase("SK6812")) {
-			auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
-			RgbwColor off(0, 0, 0, 0);
-			for (uint16_t i = 0; i < s->PixelCount(); i++) {
-				s->SetPixelColor(i, off);
-			}
-			s->Show();
-		} else {
-			auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-			RgbColor off(0, 0, 0);
-			for (uint16_t i = 0; i < s->PixelCount(); i++) {
-				s->SetPixelColor(i, off);
-			}
-			s->Show();
-		}
+		busManager.turnOffLEDs();
 		state.inTransition = false;
 		state.brightness = 0;
 		digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
@@ -178,8 +166,6 @@ void updateLEDs() {
 	}
 	uint8_t currentBrightness = transition.getCurrentBrightness();
 	uint8_t prevBrightness = state.brightness;
-	// NeoPixelBus does not support setBrightness directly; scale color values instead
-	// Implement brightness scaling logic here if needed
 	state.inTransition = false;
 	state.brightness = currentBrightness;
 	digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);

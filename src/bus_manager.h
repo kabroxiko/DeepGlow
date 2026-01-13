@@ -16,7 +16,6 @@ public:
     virtual uint16_t getLength() const = 0;
 };
 
-// Example: NeoPixelBus wrapper
 enum class BusNeoPixelType { SK6812, WS2812B_RGB, WS2812B_GRB };
 class BusNeoPixel : public Bus {
 public:
@@ -24,7 +23,9 @@ public:
     void show() override;
     void setPixelColor(uint16_t pix, uint32_t color) override;
     uint16_t getLength() const override { return _len; }
-private:
+    void* getStrip() const { return _strip; }
+    BusNeoPixelType getType() const { return _type; }
+protected:
     void* _strip;
     uint16_t _len;
     BusNeoPixelType _type;
@@ -33,6 +34,8 @@ private:
 // BusManager holds all buses and routes calls
 class BusManager {
 public:
+    void turnOffLEDs();
+    BusNeoPixel* getNeoPixelBus();
     void addBus(std::unique_ptr<Bus> bus) { buses.push_back(std::move(bus)); }
     void setupStrip(const String& type, const String& colorOrder, uint8_t pin, uint16_t count);
     void cleanupStrip();

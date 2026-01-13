@@ -53,7 +53,8 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
 // Solid color effect: fills the strip with color[0]
 uint16_t solid_effect() {
   extern uint32_t color[8];
-  if (!strip) return 0;
+  BusNeoPixel* neo = busManager.getNeoPixelBus();
+  if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
   uint8_t brightness = state.brightness;
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
@@ -73,7 +74,8 @@ REGISTER_EFFECT("Solid", solid_effect);
 // Blend effect: smoothly blend between two colors using WLED's mode_blends logic
 uint16_t blend_effect() {
   extern uint32_t color[2];
-  if (!strip) return 0;
+  BusNeoPixel* neo = busManager.getNeoPixelBus();
+  if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
   uint8_t brightness = state.brightness;
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
