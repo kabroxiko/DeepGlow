@@ -7,8 +7,7 @@
       "params": {
         "speed": 90,
         "intensity": 200,
-        "color1": "#FFA000",
-        "color2": "#FFFF00"
+        "colors": ["#FFA000", "#FFFF00"]
       }
     },
     {
@@ -16,7 +15,7 @@
       "effect": 0,
       "enabled": true,
       "params": {
-        "color1": "#FFFFFF"
+        "colors": ["#FFFFFF"]
       }
     },
     {
@@ -26,8 +25,7 @@
       "params": {
         "speed": 80,
         "intensity": 150,
-        "color1": "#0057FF",
-        "color2": "#00FFFF"
+        "colors": ["#0057FF", "#00FFFF"]
       }
     },
     {
@@ -37,8 +35,7 @@
       "params": {
         "speed": 80,
         "intensity": 100,
-        "color1": "#00BFFF",
-        "color2": "#FFFFFF"
+        "colors": ["#00BFFF", "#FFFFFF"]
       }
     },
     {
@@ -48,7 +45,7 @@
       "params": {
         "speed": 80,
         "intensity": 40,
-        "color1": "#0A0800"
+        "colors": ["#0A0800"]
       }
     },
     {
@@ -58,8 +55,7 @@
       "params": {
         "speed": 5,
         "intensity": 180,
-        "color1": "#FF8800",
-        "color2": "#FFA000"
+        "colors": ["#FF8800", "#FFA000"]
       }
     },
     {
@@ -69,8 +65,7 @@
       "params": {
         "speed": 80,
         "intensity": 60,
-        "color1": "#000080",
-        "color2": "#0000CD"
+        "colors": ["#000080", "#0000CD"]
       }
     },
     {
@@ -80,8 +75,7 @@
       "params": {
         "speed": 5,
         "intensity": 120,
-        "color1": "#FF7000",
-        "color2": "#FFFF00"
+        "colors": ["#FF7000", "#FFFF00"]
       }
     },
     {
@@ -91,8 +85,7 @@
       "params": {
         "speed": 90,
         "intensity": 100,
-        "color1": "#FFFF00",
-        "color2": "#FF0000"
+        "colors": ["#FFFF00", "#FF0000"]
       }
     },
     {
@@ -102,8 +95,7 @@
       "params": {
         "speed": 50,
         "intensity": 128,
-        "color1": "#FF0000",
-        "color2": "#00FF00"
+        "colors": ["#FF0000", "#00FF00"]
       }
     },
     {
@@ -113,8 +105,7 @@
       "params": {
         "speed": 60,
         "intensity": 128,
-        "color1": "#FFFF00",
-        "color2": "#0000FF"
+        "colors": ["#FFFF00", "#0000FF"]
       }
     },
     {
@@ -124,8 +115,7 @@
       "params": {
         "speed": 40,
         "intensity": 200,
-        "color1": "#FF00FF",
-        "color2": "#FFFFFF"
+        "colors": ["#FF00FF", "#FFFFFF"]
       }
     },
     {
@@ -135,8 +125,7 @@
       "params": {
         "speed": 50,
         "intensity": 180,
-        "color1": "#00FFFF",
-        "color2": "#FFFFFF"
+        "colors": ["#00FFFF", "#FFFFFF"]
       }
     },
     {
@@ -146,8 +135,7 @@
       "params": {
         "speed": 60,
         "intensity": 128,
-        "color1": "#0000FF",
-        "color2": "#FF0000"
+        "colors": ["#0000FF", "#FF0000"]
       }
     },
     {
@@ -157,19 +145,17 @@
       "params": {
         "speed": 50,
         "intensity": 220,
-        "color1": "#FFB000",
-        "color2": "#FFFFFF"
+        "colors": ["#FFB000", "#FFFFFF"]
       }
     }
     ,
     {
-      "name": "Blend (Custom)",
-      "effect": 72,
+      "name": "Blend",
+      "effect": 1,
       "enabled": true,
       "params": {
         "speed": 50,
-        "color1": "#FFA000",
-        "color2": "#FFFF00"
+        "colors": ["#FFA000", "#FFFF00"]
       }
     }
   ]

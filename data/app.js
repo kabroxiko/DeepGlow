@@ -3,6 +3,7 @@
 let ws = null;
 let reconnectInterval = null;
 let currentState = {};
+let cachedCurrentPreset = undefined;
 let clockInterval = null;
 let clockSynced = false;
 let localClock = null;
@@ -52,15 +53,6 @@ function loadEffects() {
         })
         .then(data => {
             let effects = (data && data.effects) ? data.effects : [];
-            // Always add custom effects if not present
-            const customEffects = [
-                { id: 72, name: 'Blend' }
-            ];
-            customEffects.forEach(custom => {
-                if (!effects.some(e => e.id === custom.id)) {
-                    effects.push(custom);
-                }
-            });
             effectNames = effects.map(e => e.name);
             // Populate effectSelect dropdown
             const effectSelect = document.getElementById('effectSelect');
@@ -220,6 +212,7 @@ function formatTransitionTime(val) {
 
 // Update UI with state from server
 function updateState(state) {
+    const prevPreset = currentState.currentPreset;
     currentState = state;
     // Show Quick Controls on first WebSocket message
     const quickControls = document.querySelector('.card');
@@ -279,9 +272,16 @@ function updateState(state) {
         if (intensityValue) intensityValue.textContent = state.params.intensity;
 
         const color1Picker = document.getElementById('color1Picker');
-        if (color1Picker) color1Picker.value = '#' + state.params.color1.toString(16).padStart(6, '0');
         const color2Picker = document.getElementById('color2Picker');
-        if (color2Picker) color2Picker.value = '#' + state.params.color2.toString(16).padStart(6, '0');
+        if (color1Picker && state.params.colors && state.params.colors.length > 0) color1Picker.value = state.params.colors[0];
+        if (color2Picker) {
+            if (state.params.colors && state.params.colors.length > 1) {
+                color2Picker.value = state.params.colors[1];
+                color2Picker.parentElement.style.display = '';
+            } else {
+                color2Picker.parentElement.style.display = 'none';
+            }
+        }
     }
 
     // Synchronize clock with backend on first WS message, then advance locally
@@ -318,6 +318,20 @@ function updateState(state) {
 
     // Highlight active preset
     if (state.currentPreset !== undefined) {
+        document.querySelectorAll('.preset-card').forEach((card, index) => {
+            if (index === state.currentPreset) {
+                card.classList.add('active');
+            } else {
+                card.classList.remove('active');
+            }
+        });
+    }
+
+    // Only redraw preset cards if currentPreset changed
+    if (state.currentPreset !== undefined && state.currentPreset !== cachedCurrentPreset) {
+        displayPresets();
+    } else {
+        // Just update active class
         document.querySelectorAll('.preset-card').forEach((card, index) => {
             if (index === state.currentPreset) {
                 card.classList.add('active');
@@ -493,29 +507,51 @@ function setupEventListeners() {
     }
     // Color pickers
     const color1Picker = document.getElementById('color1Picker');
+    const color2Picker = document.getElementById('color2Picker');
     if (color1Picker) {
         color1Picker.addEventListener('change', (e) => {
-            const color = parseInt(e.target.value.substring(1), 16);
-            sendState({ 
+            const color = e.target.value;
+            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF"];
+            colors[0] = color;
+            sendState({
                 params: {
                     ...currentState.params,
-                    color1: color
+                    colors
                 }
             });
         });
     }
-    const color2Picker = document.getElementById('color2Picker');
     if (color2Picker) {
         color2Picker.addEventListener('change', (e) => {
-            const color = parseInt(e.target.value.substring(1), 16);
-            sendState({ 
+            const color = e.target.value;
+            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF"];
+            colors[1] = color;
+            sendState({
                 params: {
                     ...currentState.params,
-                    color2: color
+                    colors
                 }
             });
         });
     }
+    // Hide secondary color picker if only one color is present
+    function updateColorPickersVisibility() {
+        if (color2Picker) {
+            if (currentState.params && currentState.params.colors && currentState.params.colors.length > 1) {
+                color2Picker.parentElement.style.display = '';
+            } else {
+                color2Picker.parentElement.style.display = 'none';
+            }
+        }
+    }
+    // Call on load and whenever state updates
+    updateColorPickersVisibility();
+    // Also patch updateState to call this after updating currentState
+    const origUpdateState = window.updateState;
+    window.updateState = function(state) {
+        origUpdateState(state);
+        updateColorPickersVisibility();
+    };
 }
 
 // Send state update to server
@@ -577,7 +613,6 @@ function displayPresets() {
     const grid = document.getElementById('presetGrid');
     if (!grid) return;
     grid.innerHTML = '';
-    
     presets.forEach((preset, index) => {
         if (!preset.enabled && index > 0) return;
         const card = document.createElement('div');
@@ -586,14 +621,19 @@ function displayPresets() {
             card.classList.add('active');
         }
         const effectName = effectNames[preset.effect] || `Effect #${preset.effect}`;
+        // Use only the colors array for preview
+        let colorA = (preset.params && Array.isArray(preset.params.colors) && preset.params.colors[0]) ? preset.params.colors[0] : '#000000';
+        let colorB = (preset.params && Array.isArray(preset.params.colors) && preset.params.colors[1]) ? preset.params.colors[1] : null;
+        let previewStyle = colorB ? `background: linear-gradient(135deg, ${colorA}, ${colorB})` : `background: ${colorA}`;
         card.innerHTML = `
             <div class="preset-name">${preset.name}</div>
             <div class="preset-info">Effect: ${effectName}</div>
-            <div class="preset-color-preview" style="background: linear-gradient(135deg, #${preset.params.color1.toString(16).padStart(6, '0')}, #${preset.params.color2.toString(16).padStart(6, '0')})"></div>
+            <div class="preset-color-preview" style="${previewStyle}"></div>
         `;
         card.addEventListener('click', () => applyPreset(index));
         grid.appendChild(card);
     });
+    cachedCurrentPreset = currentState.currentPreset;
 }
 
 function applyPreset(presetId) {

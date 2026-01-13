@@ -1,47 +1,148 @@
-// Ensure access to SystemState and state
 #include "effects.h"
 #include "state.h"
-extern WS2812FX* strip;
+#include <NeoPixelBus.h>
+#include <vector>
 
-// Ported WLED mode_blends: Blends random colors across palette
-uint16_t custom_blend_fx(void) {
-  if (!strip) return 0;
-  WS2812FX::Segment* seg = strip->getSegment();
-  uint16_t seg_len = seg->stop - seg->start + 1;
-  uint16_t pixelLen = seg_len > 255 ? 255 : seg_len;
-  static std::vector<uint32_t> pixels(256, 0);
-  if (pixels.size() < pixelLen) pixels.resize(pixelLen, 0);
+// Ensure both method types are available for casting
+#if !defined(HAS_WS2812X_TYPEDEF)
+typedef NeoEsp32RmtMethodBase<NeoEsp32RmtSpeedWs2812x, NeoEsp32RmtChannel0> NeoEsp32Rmt0Ws2812xMethod;
+#define HAS_WS2812X_TYPEDEF
+#endif
+#if !defined(HAS_SK6812_TYPEDEF)
+typedef NeoEsp32RmtMethodBase<NeoEsp32RmtSpeedSk6812, NeoEsp32RmtChannel0> NeoEsp32Rmt0Sk6812Method;
+#define HAS_SK6812_TYPEDEF
+#endif
 
-  // Map intensity (0-255) to blend speed (10-128) using state.params.intensity
-  extern SystemState state;
-  uint8_t blendSpeed = map(state.params.intensity, 0, 255, 10, 128);
-  // Shift based on time and speed
-  unsigned long now = millis();
-  unsigned shift = (now * ((seg->speed >> 3) + 1)) >> 8;
+extern void* strip;
+extern Configuration config;
 
-  // Palette cycling: use color1/color2 as palette endpoints
-  uint32_t palette[4] = { seg->colors[0], seg->colors[1], seg->colors[0], seg->colors[1] };
-  auto paletteColor = [&](uint8_t idx) -> uint32_t {
-    // Stronger color cycling: sharper sine, full 0-255 blend
-    float phase = (idx * 0.25f + shift) * 0.10f; // Increase frequency and phase shift
-    float t = (sin(phase) + 1.0f) * 0.5f; // 0..1
-    // Clamp and exaggerate blend
-    uint8_t blendVal = (uint8_t)(t * 255.0f);
-    if (blendVal < 64) blendVal = 0; // Snap to color1
-    else if (blendVal > 191) blendVal = 255; // Snap to color2
-    return strip->color_blend(palette[0], palette[1], blendVal);
-  };
-
-  for (unsigned i = 0; i < pixelLen; i++) {
-    uint32_t target = paletteColor((i + 1) * 16 + shift);
-    pixels[i] = strip->color_blend(pixels[i], target, blendSpeed);
-  }
-
-  unsigned offset = 0;
-  for (unsigned i = 0; i < seg_len; i++) {
-    strip->setPixelColor(seg->start + i, pixels[offset++]);
-    if (offset >= pixelLen) offset = 0;
-  }
-
-  return seg->speed;
+static std::vector<EffectRegistryEntry>& _effectRegistryVec() {
+  static std::vector<EffectRegistryEntry> reg;
+  return reg;
 }
+
+void _registerEffect(const char* name, uint16_t (*handler)()) {
+  _effectRegistryVec().push_back({name, handler});
+}
+
+const std::vector<EffectRegistryEntry>& getEffectRegistry() {
+  return _effectRegistryVec();
+}
+
+// Unified pixel color setter for all LED types and color orders
+void setPixelColorUnified(uint16_t i, uint8_t r, uint8_t g, uint8_t b) {
+  if (config.led.type.equalsIgnoreCase("SK6812")) {
+    auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+    if (config.led.colorOrder.equalsIgnoreCase("GRB")) {
+      s->SetPixelColor(i, RgbwColor(g, r, b, 0));
+    } else {
+      s->SetPixelColor(i, RgbwColor(r, g, b, 0));
+    }
+  } else {
+    if (config.led.colorOrder.equalsIgnoreCase("RGB")) {
+      auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+      s->SetPixelColor(i, RgbColor(r, g, b));
+    } else {
+      auto* s = (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+      s->SetPixelColor(i, RgbColor(g, r, b));
+    }
+  }
+}
+
+// WLED-inspired color_blend for 24/32-bit colors
+static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
+  const uint32_t TWO_CHANNEL_MASK = 0x00FF00FF;
+  uint32_t rb1 =  color1       & TWO_CHANNEL_MASK;
+  uint32_t wg1 = (color1 >> 8) & TWO_CHANNEL_MASK;
+  uint32_t rb2 =  color2       & TWO_CHANNEL_MASK;
+  uint32_t wg2 = (color2 >> 8) & TWO_CHANNEL_MASK;
+  uint32_t rb3 = ((((rb1 << 8) | rb2) + (rb2 * blend) - (rb1 * blend)) >> 8) &  TWO_CHANNEL_MASK;
+  uint32_t wg3 = ((((wg1 << 8) | wg2) + (wg2 * blend) - (wg1 * blend)))      & ~TWO_CHANNEL_MASK;
+  return rb3 | wg3;
+}
+
+// Solid color effect: fills the strip with color1
+uint16_t solid_effect() {
+  extern uint32_t color[2];
+  if (!strip) return 0;
+  extern SystemState state;
+  uint8_t brightness = state.brightness;
+  auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
+  // Use only the first color in the array
+  uint32_t solidColor = color[0];
+  uint8_t r = scale((solidColor >> 16) & 0xFF);
+  uint8_t g = scale((solidColor >> 8) & 0xFF);
+  uint8_t b = scale(solidColor & 0xFF);
+  uint16_t count = 0;
+  if (config.led.type.equalsIgnoreCase("SK6812")) {
+    auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+    count = s->PixelCount();
+  } else if (config.led.colorOrder.equalsIgnoreCase("RGB")) {
+    auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    count = s->PixelCount();
+  } else {
+    auto* s = (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    count = s->PixelCount();
+  }
+  for (uint16_t i = 0; i < count; i++) {
+    setPixelColorUnified(i, r, g, b);
+  }
+  // Show on any strip
+  if (config.led.type.equalsIgnoreCase("SK6812")) {
+    auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+    s->Show();
+  } else if (config.led.colorOrder.equalsIgnoreCase("RGB")) {
+    auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    s->Show();
+  } else {
+    auto* s = (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    s->Show();
+  }
+  return 0;
+}
+REGISTER_EFFECT("Solid", solid_effect);
+
+// Blend effect: smoothly blend between two colors using WLED's mode_blends logic
+uint16_t blend_effect() {
+  extern uint32_t color[2];
+  if (!strip) return 0;
+  extern SystemState state;
+  uint8_t brightness = state.brightness;
+  auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
+  static uint8_t blend = 0;
+  static int8_t direction = 1;
+  blend += direction;
+  if (blend == 0 || blend == 255) direction = -direction;
+
+  uint16_t count = 0;
+  if (config.led.type.equalsIgnoreCase("SK6812")) {
+    auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+    count = s->PixelCount();
+  } else if (config.led.colorOrder.equalsIgnoreCase("RGB")) {
+    auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    count = s->PixelCount();
+  } else {
+    auto* s = (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    count = s->PixelCount();
+  }
+  for (uint16_t i = 0; i < count; i++) {
+    uint32_t blended = color_blend(color[0], color[1], blend);
+    uint8_t r = scale((blended >> 16) & 0xFF);
+    uint8_t g = scale((blended >> 8) & 0xFF);
+    uint8_t b = scale(blended & 0xFF);
+    setPixelColorUnified(i, r, g, b);
+  }
+  // Show on any strip
+  if (config.led.type.equalsIgnoreCase("SK6812")) {
+    auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+    s->Show();
+  } else if (config.led.colorOrder.equalsIgnoreCase("RGB")) {
+    auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    s->Show();
+  } else {
+    auto* s = (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+    s->Show();
+  }
+  return 0;
+}
+REGISTER_EFFECT("Blend", blend_effect);

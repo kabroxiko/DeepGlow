@@ -12,7 +12,7 @@
  */
 
 #include <Arduino.h>
-#include <WS2812FX.h>
+#include <NeoPixelBus.h> // Added for NeoPixelBus migration
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
 #else
@@ -48,8 +48,15 @@ WebServerManager webServer(&config, &scheduler);
 // LED array
 #include <type_traits>
 
-// WS2812FX LED object
-WS2812FX* strip = nullptr;
+// NeoPixelBus LED object (support both WS2812B and SK6812)
+typedef enum { LED_WS2812B, LED_SK6812 } LedType;
+LedType getLedType(const String& type) {
+    if (type.equalsIgnoreCase("SK6812")) return LED_SK6812;
+    return LED_WS2812B;
+}
+
+// Use void* for runtime type switching
+void* strip = nullptr;
 
 // Timing
 uint32_t lastStateSave = 0;
@@ -283,8 +290,6 @@ void setupWiFi() {
             while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
                 delay(500);
                 debugPrint(".");
-                Serial.print("[DEBUG] WiFi.status(): ");
-                Serial.println(WiFi.status());
                 attempts++;
             }
         }
@@ -309,36 +314,38 @@ void setupWiFi() {
 
 void setupLEDs() {
     if (strip) {
-        delete strip;
+        LedType prevType = getLedType(lastConfiguration.led.type);
+        String prevOrder = lastConfiguration.led.colorOrder;
+        if (prevType == LED_SK6812) {
+            delete (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+        } else {
+            if (prevOrder.equalsIgnoreCase("RGB")) {
+                delete (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+            } else {
+                delete (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+            }
+        }
         strip = nullptr;
     }
     uint8_t pin = config.led.pin;
     uint16_t count = config.led.count;
-    String type = config.led.type;
-    String order = config.led.colorOrder;
-    type.toUpperCase();
-    order.toUpperCase();
-    uint8_t wsType = NEO_GRB + NEO_KHZ800; // default
-    if (type.indexOf("SK6812") >= 0) {
-        if (order == "RGBW") wsType = NEO_RGBW + NEO_KHZ800;
-        else if (order == "GRBW") wsType = NEO_GRBW + NEO_KHZ800;
-        else wsType = NEO_GRBW + NEO_KHZ800; // default for SK6812
-    } else if (type.indexOf("WS2812") >= 0) {
-        if (order == "RGB") wsType = NEO_RGB + NEO_KHZ800;
-        else if (order == "GRB") wsType = NEO_GRB + NEO_KHZ800;
-        else wsType = NEO_GRB + NEO_KHZ800; // default for WS2812
-    } else if (type.indexOf("APA106") >= 0) {
-        wsType = NEO_RGB + NEO_KHZ800;
+    LedType ledType = getLedType(config.led.type);
+    String colorOrder = config.led.colorOrder;
+    if (ledType == LED_SK6812) {
+        strip = new NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>(count, pin);
+        ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Begin();
+        ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Show();
+    } else {
+        if (colorOrder.equalsIgnoreCase("RGB")) {
+            strip = new NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
+            ((NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Begin();
+            ((NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Show();
+        } else {
+            strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
+            ((NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Begin();
+            ((NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Show();
+        }
     }
-    strip = new WS2812FX(count, pin, wsType);
-    strip->init();
-    // Register custom blend effect (first custom slot, mode 72)
-    strip->setCustomMode(F("Blend"), custom_blend_fx);
-    strip->setMode(0); // Static mode
-    strip->setColor(0x000000); // Black
-    strip->setBrightness(0); // Off
-    strip->show();
-    strip->start();
 }
 
 

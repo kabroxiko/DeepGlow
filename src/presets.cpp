@@ -62,20 +62,14 @@ bool loadPresets(std::vector<Preset>& presets) {
             JsonObject paramsObj = presetObj["params"];
             p.params.speed = paramsObj["speed"].isNull() ? 100 : (uint8_t)paramsObj["speed"];
             p.params.intensity = paramsObj["intensity"] | 128;
-            // Parse hex string (e.g. "#FFA000") to uint32_t
-            if (paramsObj["color1"].is<const char*>()) {
-                const char* hex = paramsObj["color1"];
-                if (hex[0] == '#') hex++;
-                p.params.color1 = (uint32_t)strtoul(hex, nullptr, 16);
-            } else {
-                p.params.color1 = 0x0000FF;
-            }
-            if (paramsObj["color2"].is<const char*>()) {
-                const char* hex = paramsObj["color2"];
-                if (hex[0] == '#') hex++;
-                p.params.color2 = (uint32_t)strtoul(hex, nullptr, 16);
-            } else {
-                p.params.color2 = 0x00FFFF;
+            p.params.colors.clear();
+            if (paramsObj.containsKey("colors")) {
+                JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
+                for (JsonVariant v : colorsArr) {
+                    if (v.is<const char*>()) {
+                        p.params.colors.push_back(String(v.as<const char*>()));
+                    }
+                }
             }
         }
         presets.push_back(p);
@@ -98,11 +92,10 @@ bool savePresets(const std::vector<Preset>& presets) {
         JsonObject paramsObj = presetObj.createNestedObject("params");
         paramsObj["speed"] = presets[i].params.speed;
         paramsObj["intensity"] = presets[i].params.intensity;
-        char hex1[10], hex2[10];
-        snprintf(hex1, sizeof(hex1), "#%06X", presets[i].params.color1 & 0xFFFFFF);
-        snprintf(hex2, sizeof(hex2), "#%06X", presets[i].params.color2 & 0xFFFFFF);
-        paramsObj["color1"] = hex1;
-        paramsObj["color2"] = hex2;
+        JsonArray colorsArr = paramsObj.createNestedArray("colors");
+        for (const auto& c : presets[i].params.colors) {
+            colorsArr.add(c);
+        }
     }
 
     if (!ensureFilesystemMounted()) return false;

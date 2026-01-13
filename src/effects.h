@@ -2,10 +2,37 @@
 #define EFFECTS_H
 
 #include <Arduino.h>
-#include <WS2812FX.h>
+#include <NeoPixelBus.h> // Added for NeoPixelBus migration
 #include "config.h"
+#include <vector>
 
-// Custom blend effect mimicking WLED mode_blends
-uint16_t custom_blend_fx(void);
+struct EffectRegistryEntry {
+	const char* name;
+	uint16_t (*handler)();
+};
+
+// Registry accessor and registration function (must be declared before macro)
+const std::vector<EffectRegistryEntry>& getEffectRegistry();
+
+// Registration macro (uses static object constructor)
+#define REGISTER_EFFECT(NAME, FUNC) \
+	namespace { \
+	struct _AutoReg_##FUNC { \
+		_AutoReg_##FUNC() { \
+			_registerEffect(NAME, FUNC); \
+		} \
+	}; \
+	static _AutoReg_##FUNC _autoReg_##FUNC; \
+	}
+
+void _registerEffect(const char* name, uint16_t (*handler)());
+
+// Solid color effect
+uint16_t solid_effect(uint32_t color1, uint32_t color2);
+uint16_t solid_effect();
+// Blend effect mimicking WLED mode_blends
+uint16_t blend_effect(uint32_t color1, uint32_t color2);
+uint16_t blend_effect();
+extern void* strip;
 
 #endif // EFFECTS_H
