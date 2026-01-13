@@ -2,38 +2,16 @@
 #include "effects.h"
 #include "state.h"
 #include <vector>
-// Use correct NeoPixelBus method types
-
-#if !defined(HAS_WS2812X_TYPEDEF)
-#include <NeoPixelBus.h>
-typedef NeoEsp32RmtMethodBase<NeoEsp32RmtSpeedWs2812x, NeoEsp32RmtChannel0> NeoEsp32Rmt0Ws2812xMethod;
-#define HAS_WS2812X_TYPEDEF
-#endif
-#if !defined(HAS_SK6812_TYPEDEF)
-#include <NeoPixelBus.h>
-typedef NeoEsp32RmtMethodBase<NeoEsp32RmtSpeedSk6812, NeoEsp32RmtChannel0> NeoEsp32Rmt0Sk6812Method;
-#define HAS_SK6812_TYPEDEF
-#endif
 
 extern BusManager busManager;
 extern Configuration config;
 
 volatile uint8_t g_effectSpeed = 1;
-uint16_t g_pixelCount = 0;
+
 
 // Call this after initializing or reconfiguring the strip
 void updatePixelCount() {
-  if (!strip) {
-    g_pixelCount = 0;
-    return;
-  }
-  if (config.led.type.equalsIgnoreCase("SK6812")) {
-    auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
-    g_pixelCount = s->PixelCount();
-  } else {
-    auto* s = (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-    g_pixelCount = s->PixelCount();
-  }
+  busManager.updatePixelCount();
 }
 
 // Centralized function to show the strip regardless of type/order
@@ -84,7 +62,7 @@ uint16_t solid_effect() {
   uint8_t r = scale((solidColor >> 16) & 0xFF);
   uint8_t g = scale((solidColor >> 8) & 0xFF);
   uint8_t b = scale(solidColor & 0xFF);
-  for (uint16_t i = 0; i < g_pixelCount; i++) {
+  for (uint16_t i = 0; i < busManager.getPixelCount(); i++) {
     setPixelColorUnified(i, r, g, b);
   }
   showStrip();
@@ -107,7 +85,7 @@ uint16_t blend_effect() {
   blend = (uint8_t)std::max(0, std::min(255, blend + direction * step));
   if (blend == 0 || blend == 255) direction = -direction;
 
-  for (uint16_t i = 0; i < g_pixelCount; i++) {
+  for (uint16_t i = 0; i < busManager.getPixelCount(); i++) {
     uint32_t blended = color_blend(color[0], color[1], blend);
     uint8_t r = scale((blended >> 16) & 0xFF);
     uint8_t g = scale((blended >> 8) & 0xFF);

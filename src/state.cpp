@@ -21,14 +21,6 @@ extern int8_t lastScheduledPreset;
 
 void applyPreset(uint8_t presetId, bool setManualOverride) {
 	// Find preset by id
-	debugPrint("applyPreset called with id: ");
-	debugPrintln(presetId);
-	debugPrint("Loaded preset ids: ");
-	for (const auto& p : config.presets) {
-		debugPrint(p.id);
-		debugPrint(", ");
-	}
-	debugPrintln("");
 	auto it = std::find_if(config.presets.begin(), config.presets.end(), [presetId](const Preset& p) { return p.id == presetId; });
 	if (it == config.presets.end() || !it->enabled) {
 		debugPrintln("Invalid preset ID");

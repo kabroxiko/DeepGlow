@@ -4,11 +4,8 @@
 // Example implementation for NeoPixelBus wrapper
 void BusNeoPixel::show() {
     if (!_strip) {
-        Serial.println("[BusNeoPixel::show] _strip is null");
         return;
     }
-    Serial.print("[BusNeoPixel::show] type: ");
-    Serial.println((int)_type);
     switch (_type) {
         case BusNeoPixelType::SK6812: {
             auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*>(_strip);
@@ -28,18 +25,20 @@ void BusNeoPixel::show() {
     }
 }
 
+// Update pixel count for all buses (returns total)
+uint16_t BusManager::updatePixelCount() {
+    uint16_t total = 0;
+    for (const auto& bus : buses) {
+        total += bus->getLength();
+    }
+    pixelCount = total;
+    return pixelCount;
+}
+
 void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
     if (!_strip) {
-        debugPrint("[BusNeoPixel::setPixelColor] _strip is null for pix ");
-        debugPrintln(pix);
         return;
     }
-    debugPrint("[BusNeoPixel::setPixelColor] pix: ");
-    debugPrint(pix);
-    debugPrint(", color: ");
-    debugPrint(color);
-    debugPrint(", type: ");
-    debugPrintln((int)_type);
     uint8_t r = (color >> 16) & 0xFF;
     uint8_t g = (color >> 8) & 0xFF;
     uint8_t b = color & 0xFF;

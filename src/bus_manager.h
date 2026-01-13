@@ -51,8 +51,13 @@ public:
         for (const auto& bus : buses) sum += bus->getLength();
         return sum;
     }
+
+    // Update pixel count for all buses (returns total)
+    uint16_t updatePixelCount();
+    uint16_t getPixelCount() const { return pixelCount; }
 private:
     std::vector<std::unique_ptr<Bus>> buses;
+    uint16_t pixelCount = 0;
 };
 
 // You can extend with BusPWM, BusNetwork, etc. as needed.

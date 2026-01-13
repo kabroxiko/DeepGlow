@@ -348,12 +348,6 @@ void setupLEDs() {
         ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Begin();
         ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Show();
         busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::SK6812)));
-        if (count > 0) {
-            for (uint16_t i = 0; i < count; ++i) {
-                busManager.setPixelColor(i, 0xFFFFFF); // White
-            }
-            busManager.show();
-        }
     } else {
         if (colorOrder.equalsIgnoreCase("RGB")) {
             strip = new NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
