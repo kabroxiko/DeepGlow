@@ -34,6 +34,8 @@ private:
 class BusManager {
 public:
     void addBus(std::unique_ptr<Bus> bus) { buses.push_back(std::move(bus)); }
+    void setupStrip(const String& type, const String& colorOrder, uint8_t pin, uint16_t count);
+    void cleanupStrip();
     void show() { for (auto& bus : buses) bus->show(); }
     void setPixelColor(uint16_t pix, uint32_t color) {
         for (auto& bus : buses) {

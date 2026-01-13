@@ -152,22 +152,22 @@ void setUserColor(const uint32_t* newColor, size_t count) {
 
 void updateLEDs() {
 	if (!strip) return;
-		if (!state.power) {
-			if (config.led.type.equalsIgnoreCase("SK6812")) {
-				auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
-				RgbwColor off(0, 0, 0, 0);
-				for (uint16_t i = 0; i < s->PixelCount(); i++) {
-					s->SetPixelColor(i, off);
-				}
-				s->Show();
-			} else {
-				auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-				RgbColor off(0, 0, 0);
-				for (uint16_t i = 0; i < s->PixelCount(); i++) {
-					s->SetPixelColor(i, off);
-				}
-				s->Show();
+	if (!state.power) {
+		if (config.led.type.equalsIgnoreCase("SK6812")) {
+			auto* s = (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
+			RgbwColor off(0, 0, 0, 0);
+			for (uint16_t i = 0; i < s->PixelCount(); i++) {
+				s->SetPixelColor(i, off);
 			}
+			s->Show();
+		} else {
+			auto* s = (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
+			RgbColor off(0, 0, 0);
+			for (uint16_t i = 0; i < s->PixelCount(); i++) {
+				s->SetPixelColor(i, off);
+			}
+			s->Show();
+		}
 		state.inTransition = false;
 		state.brightness = 0;
 		digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);

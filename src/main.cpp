@@ -323,44 +323,7 @@ void setupWiFi() {
 }
 
 void setupLEDs() {
-    // Remove all buses from manager (by re-creating it)
-    busManager = BusManager();
-    if (strip) {
-        LedType prevType = getLedType(lastConfiguration.led.type);
-        String prevOrder = lastConfiguration.led.colorOrder;
-        if (prevType == LED_SK6812) {
-            delete (NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip;
-        } else {
-            if (prevOrder.equalsIgnoreCase("RGB")) {
-                delete (NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-            } else {
-                delete (NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip;
-            }
-        }
-        strip = nullptr;
-    }
-    uint8_t pin = config.led.pin;
-    uint16_t count = config.led.count;
-    LedType ledType = getLedType(config.led.type);
-    String colorOrder = config.led.colorOrder;
-    if (ledType == LED_SK6812) {
-        strip = new NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>(count, pin);
-        ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Begin();
-        ((NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*)strip)->Show();
-        busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::SK6812)));
-    } else {
-        if (colorOrder.equalsIgnoreCase("RGB")) {
-            strip = new NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
-            ((NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Begin();
-            ((NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Show();
-            busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::WS2812B_RGB)));
-        } else {
-            strip = new NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>(count, pin);
-            ((NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Begin();
-            ((NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*)strip)->Show();
-            busManager.addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, BusNeoPixelType::WS2812B_GRB)));
-        }
-    }
+    busManager.setupStrip(config.led.type, config.led.colorOrder, config.led.pin, config.led.count);
 }
 
 
