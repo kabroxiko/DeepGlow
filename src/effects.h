@@ -30,6 +30,7 @@ void _registerEffect(const char* name, uint16_t (*handler)());
 uint16_t solid_effect();
 // Blend effect mimicking WLED mode_blends
 uint16_t blend_effect();
+extern std::vector<uint32_t> color;
 extern void* strip;
 
 #ifdef __cplusplus
