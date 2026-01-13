@@ -1,14 +1,15 @@
 #include "effects.h"
 #include "state.h"
-#include <NeoPixelBus.h>
 #include <vector>
+// Use correct NeoPixelBus method types
 
-// Ensure both method types are available for casting
 #if !defined(HAS_WS2812X_TYPEDEF)
+#include <NeoPixelBus.h>
 typedef NeoEsp32RmtMethodBase<NeoEsp32RmtSpeedWs2812x, NeoEsp32RmtChannel0> NeoEsp32Rmt0Ws2812xMethod;
 #define HAS_WS2812X_TYPEDEF
 #endif
 #if !defined(HAS_SK6812_TYPEDEF)
+#include <NeoPixelBus.h>
 typedef NeoEsp32RmtMethodBase<NeoEsp32RmtSpeedSk6812, NeoEsp32RmtChannel0> NeoEsp32Rmt0Sk6812Method;
 #define HAS_SK6812_TYPEDEF
 #endif

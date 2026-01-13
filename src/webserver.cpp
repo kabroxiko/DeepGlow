@@ -512,13 +512,14 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         // Handle new 'colors' array
         if (paramsObj.containsKey("colors")) {
             JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
-            uint32_t arr[2] = {0x0000FF, 0x00FFFF};
-            for (size_t i = 0; i < colorsArr.size() && i < 2; ++i) {
+            uint32_t arr[8] = {0x0000FF, 0x00FFFF};
+            size_t n = colorsArr.size() > 8 ? 8 : colorsArr.size();
+            for (size_t i = 0; i < n; ++i) {
                 const char* hex = colorsArr[i];
                 if (hex[0] == '#') hex++;
                 arr[i] = (uint32_t)strtoul(hex, nullptr, 16);
             }
-            setUserColor(arr);
+            setUserColor(arr, n);
         }
     }
 

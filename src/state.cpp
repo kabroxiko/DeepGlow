@@ -4,6 +4,7 @@
 #include "transition.h"
 #include "webserver.h"
 #include "display.h"
+#include <NeoPixelBus.h>
 
 SystemState state;
 
@@ -108,10 +109,17 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 	state.effect = effect;
 	state.params = params;
 	state.params.colors.clear();
+	size_t n = 0;
 	for (size_t i = 0; i < 8; ++i) {
-		char hex[10];
-		snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
-		state.params.colors.push_back(String(hex));
+		// Only push colors that are actually set (not default)
+		if (i == 0 || color[i] != 0x00FFFF) {
+			char hex[10];
+			snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
+			state.params.colors.push_back(String(hex));
+			n++;
+		} else {
+			break;
+		}
 	}
 	if (!strip) return;
 	const auto& reg = getEffectRegistry();
@@ -121,13 +129,13 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 }
 
 // Call this when user changes color from UI/API
-void setUserColor(const uint32_t newColor[2]) {
+void setUserColor(const uint32_t* newColor, size_t count) {
 	// Accept up to 8 colors from newColor
 	for (size_t i = 0; i < 8; ++i) {
-		color[i] = newColor[i];
+		color[i] = (i < count) ? newColor[i] : (i == 0 ? 0x0000FF : 0x00FFFF);
 	}
 	state.params.colors.clear();
-	for (size_t i = 0; i < 8; ++i) {
+	for (size_t i = 0; i < count; ++i) {
 		char hex[10];
 		snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
 		state.params.colors.push_back(String(hex));
