@@ -475,41 +475,54 @@ void WebServerManager::handleGetState(AsyncWebServerRequest* request) {
 }
 
 void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
+        debugPrintln("[API] handleSetState called");
+        debugPrint("[API] Raw data: ");
+        for (size_t i = 0; i < len; ++i) debugPrint((char)data[i]);
+        debugPrintln("");
     StaticJsonDocument<512> doc;
     DeserializationError error = deserializeJson(doc, data, len);
     if (error) {
-        {
-            AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-            request->send(resp);
-        }
+        AsyncWebServerResponse *resp = request->beginResponse(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
         return;
     }
-    // Merge incoming state with current state
-    uint8_t brightness = state.brightness;
-    uint8_t old_brightness = state.brightness;
-    uint32_t transitionTime = state.transitionTime;
-    bool power = state.power;
-    uint8_t effect = state.effect;
-    EffectParams params = state.params;
 
+    // Only update fields present in the request
+    bool updated = false;
     if (doc.containsKey("brightness")) {
-        brightness = doc["brightness"];
+        uint8_t brightness = doc["brightness"];
+        applySafetyLimits(brightness, state.transitionTime);
+        if (_brightnessCallback) _brightnessCallback(brightness);
+        updated = true;
     }
     if (doc.containsKey("transitionTime")) {
-        transitionTime = (uint32_t)doc["transitionTime"];
+        uint32_t transitionTime = (uint32_t)doc["transitionTime"];
+        applySafetyLimits(state.brightness, transitionTime);
+        state.transitionTime = transitionTime;
+        updated = true;
     }
     if (doc.containsKey("power")) {
-        power = doc["power"];
+        bool power = doc["power"];
+        if (_powerCallback) _powerCallback(power);
+        updated = true;
     }
     if (doc.containsKey("effect")) {
-        effect = (uint8_t)(int)doc["effect"];
+        uint8_t effect = (uint8_t)(int)doc["effect"];
+        if (_effectCallback) _effectCallback(effect, state.params);
+        updated = true;
     }
     if (doc.containsKey("params")) {
         JsonObject paramsObj = doc["params"];
-        params.speed = paramsObj["speed"].isNull() ? params.speed : (uint8_t)paramsObj["speed"];
-        params.intensity = paramsObj["intensity"] | params.intensity;
-        // Handle new 'colors' array
+        EffectParams params = state.params;
+        if (paramsObj.containsKey("speed") && !paramsObj["speed"].isNull()) {
+            params.speed = (uint8_t)paramsObj["speed"];
+            updated = true;
+        }
+        if (paramsObj.containsKey("intensity") && !paramsObj["intensity"].isNull()) {
+            params.intensity = (uint8_t)paramsObj["intensity"];
+            updated = true;
+        }
         if (paramsObj.containsKey("colors")) {
             JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
             uint32_t arr[8] = {0x0000FF, 0x00FFFF};
@@ -517,28 +530,23 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
             for (size_t i = 0; i < n; ++i) {
                 const char* hex = colorsArr[i];
                 if (hex[0] == '#') hex++;
-                arr[i] = (uint32_t)strtoul(hex, nullptr, 16);
+                // Always parse exactly 6 hex digits for RGB
+                char buf[7] = {0};
+                strncpy(buf, hex, 6);
+                arr[i] = ((uint32_t)strtoul(buf, nullptr, 16)) & 0xFFFFFF;
             }
             setUserColor(arr, n);
+            updated = true;
         }
+        if (updated && _effectCallback) _effectCallback(state.effect, params);
     }
 
-    // Apply safety limits for brightness and/or transitionTime
-    applySafetyLimits(brightness, transitionTime);
-
-    // Update state and call callbacks
-    if (_powerCallback) _powerCallback(power);
-    if (_brightnessCallback) _brightnessCallback(brightness);
-    if (_effectCallback) _effectCallback(effect, params);
-    state.transitionTime = transitionTime;
-
-    // Only respond and broadcast after state is updated
-    broadcastState();
-    {
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        request->send(resp);
+    if (updated) {
+        broadcastState();
     }
+    AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
+    for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+    request->send(resp);
 }
 
 void WebServerManager::handleGetPresets(AsyncWebServerRequest* request) {
