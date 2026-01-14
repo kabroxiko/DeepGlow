@@ -260,8 +260,6 @@ bool Configuration::factoryReset() {
     return ok;
 }
 
-// ...existing code...
-
 // Helper function to map percent (0-100) to hardware brightness (1-255)
 uint8_t percentToBrightness(uint8_t percent) {
     if (percent <= 0) return 1;
