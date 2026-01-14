@@ -4,13 +4,16 @@
 #include "transition.h"
 #include "webserver.h"
 #include "display.h"
+#include "debug.h"
 
 SystemState state;
 
 extern BusManager busManager;
 
-// Global user-selected colors (dynamic)
-std::vector<uint32_t> color = {0x0000FF, 0x00FFFF}; // Default Blue, Default Cyan
+// Global user-selected colors (fixed size)
+#include <array>
+std::array<uint32_t, 8> color = {0x0000FF, 0x00FFFF, 0x00FFFF, 0x00FFFF, 0x00FFFF, 0x00FFFF, 0x00FFFF, 0x00FFFF};
+size_t colorCount = 2;
 
 extern Configuration config;
 extern Scheduler scheduler;
@@ -44,6 +47,7 @@ void applyPreset(uint8_t presetId, bool setManualOverride) {
 
 	// Set color[] to preset colors, then update effect and params
 	size_t n = preset.params.colors.size();
+	colorCount = n > 0 ? n : 1; // Reset colorCount to preset color count (at least 1)
 	for (size_t i = 0; i < 8; ++i) {
 		if (i < n) {
 			const String& hex = preset.params.colors[i];
@@ -128,26 +132,40 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 	const auto& reg = getEffectRegistry();
 	if (effect < reg.size() && reg[effect].handler) {
 		// Update global effect speed if present in params
-		if (params.speed > 0) {
-			extern volatile uint8_t g_effectSpeed;
-			g_effectSpeed = params.speed;
-		}
+		   if (params.speed > 0) {
+			   extern volatile uint8_t g_effectSpeed;
+			   // Map UI speed (1-100) to WLED effect speed (1-255)
+			   g_effectSpeed = (params.speed * 254) / 100 + 1;
+		   }
 		reg[effect].handler();
 	}
 }
 
 // Call this when user changes color from UI/API
 void setUserColor(const uint32_t* newColor, size_t count) {
-	color.clear();
+	colorCount = count;
+	debugPrint("[setUserColor] count: ");
+	debugPrintln((int)count);
 	for (size_t i = 0; i < count; ++i) {
-		color.push_back(newColor[i]);
+		debugPrint("[setUserColor] newColor[");
+		debugPrint((int)i);
+		debugPrint("] = 0x");
+		debugPrintln((unsigned int)newColor[i], HEX);
 	}
-	if (color.empty()) {
-		color.push_back(0x0000FF);
-		color.push_back(0x00FFFF);
+	// Fill color array with new values, pad as needed
+	for (size_t i = 0; i < 8; ++i) {
+		if (i < count) {
+			color[i] = newColor[i];
+		} else {
+			color[i] = (i == 0) ? 0x0000FF : 0x00FFFF;
+		}
+	}
+	debugPrint("[setUserColor] color: ");
+	for (size_t i = 0; i < 8; ++i) {
+		debugPrint("["); debugPrint((int)i); debugPrint("] = 0x"); debugPrintln((unsigned int)color[i], HEX);
 	}
 	state.params.colors.clear();
-	for (size_t i = 0; i < color.size(); ++i) {
+	for (size_t i = 0; i < 8; ++i) {
 		char hex[10];
 		snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
 		state.params.colors.push_back(String(hex));

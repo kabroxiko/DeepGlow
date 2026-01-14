@@ -271,15 +271,35 @@ function updateState(state) {
         if (intensitySlider) intensitySlider.value = state.params.intensity;
         if (intensityValue) intensityValue.textContent = state.params.intensity;
 
-        const color1Picker = document.getElementById('color1Picker');
-        const color2Picker = document.getElementById('color2Picker');
-        if (color1Picker && state.params.colors && state.params.colors.length > 0) color1Picker.value = state.params.colors[0];
-        if (color2Picker) {
-            if (state.params.colors && state.params.colors.length > 1) {
-                color2Picker.value = state.params.colors[1];
-                color2Picker.parentElement.style.display = '';
-            } else {
-                color2Picker.parentElement.style.display = 'none';
+        // Dynamically create color pickers
+        const colorPickersRow = document.getElementById('colorPickersRow');
+        if (colorPickersRow) {
+            colorPickersRow.innerHTML = '';
+            if (state.params.colors && Array.isArray(state.params.colors)) {
+                state.params.colors.forEach((color, idx) => {
+                    const colorDiv = document.createElement('div');
+                    colorDiv.className = 'control-item';
+                    const label = document.createElement('label');
+                    label.textContent = (idx === 0 ? 'Primary' : idx === 1 ? 'Secondary' : idx === 2 ? 'Tertiary' : `Color ${idx+1}`) + ' Color';
+                    const input = document.createElement('input');
+                    input.type = 'color';
+                    input.className = 'color-input';
+                    input.value = color;
+                    input.id = `colorPicker${idx}`;
+                    input.addEventListener('change', (e) => {
+                        let colors = [...state.params.colors];
+                        colors[idx] = e.target.value;
+                        sendState({
+                            params: {
+                                ...state.params,
+                                colors
+                            }
+                        });
+                    });
+                    label.appendChild(input);
+                    colorDiv.appendChild(label);
+                    colorPickersRow.appendChild(colorDiv);
+                });
             }
         }
     }
@@ -508,10 +528,11 @@ function setupEventListeners() {
     // Color pickers
     const color1Picker = document.getElementById('color1Picker');
     const color2Picker = document.getElementById('color2Picker');
+    const color3Picker = document.getElementById('color3Picker');
     if (color1Picker) {
         color1Picker.addEventListener('change', (e) => {
             const color = e.target.value;
-            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF"];
+            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF", "#FFA000"];
             colors[0] = color;
             sendState({
                 params: {
@@ -524,7 +545,7 @@ function setupEventListeners() {
     if (color2Picker) {
         color2Picker.addEventListener('change', (e) => {
             const color = e.target.value;
-            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF"];
+            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF", "#FFA000"];
             colors[1] = color;
             sendState({
                 params: {
@@ -534,13 +555,33 @@ function setupEventListeners() {
             });
         });
     }
-    // Hide secondary color picker if only one color is present
+    if (color3Picker) {
+        color3Picker.addEventListener('change', (e) => {
+            const color = e.target.value;
+            let colors = (currentState.params && currentState.params.colors) ? [...currentState.params.colors] : ["#FFFFFF", "#FFFFFF", "#FFA000"];
+            colors[2] = color;
+            sendState({
+                params: {
+                    ...currentState.params,
+                    colors
+                }
+            });
+        });
+    }
+    // Hide secondary/tertiary color picker if not present
     function updateColorPickersVisibility() {
         if (color2Picker) {
             if (currentState.params && currentState.params.colors && currentState.params.colors.length > 1) {
                 color2Picker.parentElement.style.display = '';
             } else {
                 color2Picker.parentElement.style.display = 'none';
+            }
+        }
+        if (color3Picker) {
+            if (currentState.params && currentState.params.colors && currentState.params.colors.length > 2) {
+                color3Picker.parentElement.style.display = '';
+            } else {
+                color3Picker.parentElement.style.display = 'none';
             }
         }
     }

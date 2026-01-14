@@ -1,7 +1,7 @@
 #include "bus_manager.h"
 #include "effects.h"
 #include "state.h"
-#include <vector>
+#include <array>
 
 extern BusManager busManager;
 extern Configuration config;
@@ -52,14 +52,14 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
 
 // Solid color effect: fills the strip with color[0]
 uint16_t solid_effect() {
-  extern std::vector<uint32_t> color;
+  extern std::array<uint32_t, 8> color;
   BusNeoPixel* neo = busManager.getNeoPixelBus();
   if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
   uint8_t brightness = state.brightness;
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
   // Use only the first color in the array
-  uint32_t solidColor = color.empty() ? 0x0000FF : color[0];
+  uint32_t solidColor = color[0];
   uint8_t r = scale((solidColor >> 16) & 0xFF);
   uint8_t g = scale((solidColor >> 8) & 0xFF);
   uint8_t b = scale(solidColor & 0xFF);
@@ -71,25 +71,31 @@ uint16_t solid_effect() {
 }
 REGISTER_EFFECT("Solid", solid_effect);
 
-// Blend effect: smoothly blend between two colors using WLED's mode_blends logic
+// Blend effect: smoothly blend across all colors (like WLED FX)
 uint16_t blend_effect() {
-  extern std::vector<uint32_t> color;
+  extern std::array<uint32_t, 8> color;
+  extern size_t colorCount;
   BusNeoPixel* neo = busManager.getNeoPixelBus();
   if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
   uint8_t brightness = state.brightness;
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
-  static uint8_t blend = 0;
-  static int8_t direction = 1;
-  // Map speed percent (0-255) to step size [1, 32]
-  uint8_t speedPercent = g_effectSpeed;
-  uint8_t step = 1 + ((speedPercent * 31) / 255); // 1..32
-  blend = (uint8_t)std::max(0, std::min(255, blend + direction * step));
-  if (blend == 0 || blend == 255) direction = -direction;
+  size_t n = colorCount;
+  if (n < 2) return 0;
 
-  if (color.size() < 2) return 0;
+  // WLED-style phase/shift logic for speed
+  uint8_t speed = g_effectSpeed;
+  // Use a similar mapping as WLED: (millis() * ((speed >> 3) + 1)) >> 8
+  uint32_t now = millis();
+  uint16_t phase = (now * ((speed >> 3) + 1)) >> 8; // 0..65535, wraps naturally
+
   for (uint16_t i = 0; i < busManager.getPixelCount(); i++) {
-    uint32_t blended = color_blend(color[0], color[1], blend);
+    // Calculate which segment and local blend
+    uint8_t blend_phase = (phase + (i * 256 / std::max(1u, static_cast<unsigned int>(busManager.getPixelCount()-1)))) % 256;
+    size_t seg = (blend_phase * (n - 1)) / 256;
+    size_t seg_next = (seg + 1) % n;
+    uint8_t local_blend = (blend_phase * (n - 1)) % 256;
+    uint32_t blended = color_blend(color[seg], color[seg_next], local_blend);
     uint8_t r = scale((blended >> 16) & 0xFF);
     uint8_t g = scale((blended >> 8) & 0xFF);
     uint8_t b = scale(blended & 0xFF);

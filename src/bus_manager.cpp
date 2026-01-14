@@ -74,7 +74,7 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
     switch (_type) {
         case BusNeoPixelType::SK6812: {
             auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*>(_strip);
-            s->SetPixelColor(pix, RgbwColor(r, g, b, 0));
+            s->SetPixelColor(pix, RgbwColor(g, r, b, 0)); // GRBW order: swap r and g
             break;
         }
         case BusNeoPixelType::WS2812B_RGB: {
