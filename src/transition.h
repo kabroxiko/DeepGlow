@@ -1,17 +1,24 @@
-    #include "debug.h"
-    // Allow external force of current brightness for smooth slider
-    void forceCurrentBrightness(uint8_t value);
 #ifndef TRANSITION_H
 #define TRANSITION_H
 
 #include <Arduino.h>
 #include "config.h"
+#include "debug.h"
 
 class TransitionEngine {
 public:
+    // Get current transition progress (0.0 to 1.0)
+    float getProgress() const;
     uint8_t getTargetBrightness() const { return _targetBrightness; }
     TransitionEngine();
 
+    // Getters for transition timing (for WLED-style blending)
+    uint32_t getStartTime() const { return _startTime; }
+    uint32_t getDuration() const { return _duration; }
+    // Allow external force of current brightness for smooth slider
+    void forceCurrentBrightness(uint8_t value);
+    // Allow external force of current color for instant color set
+    void forceCurrentColor(uint32_t color1, uint32_t color2);
     void startTransition(uint8_t targetBrightness, uint32_t duration);
     void startColorTransition(uint32_t targetColor1, uint32_t targetColor2, uint32_t duration);
     void update();
@@ -20,9 +27,6 @@ public:
     uint8_t getCurrentBrightness();
     uint32_t getCurrentColor1();
     uint32_t getCurrentColor2();
-
-    // Allow external force of current brightness for smooth slider
-    void forceCurrentBrightness(uint8_t value);
 
 private:
     bool _active = false;

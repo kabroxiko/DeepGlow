@@ -231,12 +231,12 @@ void loop() {
     handleArduinoOTA();
     scheduler.update();
     webServer.update();
-    transition.update();
     checkSchedule();
     static uint32_t lastFrame = 0;
     uint32_t now = millis();
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
         lastFrame = now;
+        transition.update(); // <-- Move here, just before updateLEDs
         updateLEDs();
         // Only update display if status changes
         static String lastPreset;

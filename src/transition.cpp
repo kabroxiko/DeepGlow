@@ -1,19 +1,65 @@
-
 #include <Arduino.h>
 #include "transition.h"
 
 void TransitionEngine::forceCurrentBrightness(uint8_t value) {
     _currentBrightness = value;
+    debugPrintln("[Transition] forceCurrentBrightness: " + String(value));
+}
+
+float TransitionEngine::getProgress() const {
+    debugPrint("[getProgress] _active: ");
+    debugPrintln(_active);
+    debugPrint("[getProgress] _duration: ");
+    debugPrintln(_duration);
+    debugPrint("[getProgress] _startTime: ");
+    debugPrintln(_startTime);
+    uint32_t now = millis();
+    debugPrint("[getProgress] now: ");
+    debugPrintln(now);
+    uint32_t elapsed = now - _startTime;
+    debugPrint("[getProgress] elapsed: ");
+    debugPrintln(elapsed);
+    if (!_active || _duration == 0) {
+        debugPrintln("[getProgress] returning 1.0f (inactive or zero duration)");
+        return 1.0f;
+    }
+    float progress = ((float)elapsed) / ((float)_duration);
+    debugPrint("[getProgress] raw progress: ");
+    debugPrintln(progress, 3);
+    if (progress > 1.0f) progress = 1.0f;
+    // Smooth easing (ease-in-out)
+    progress = progress * progress * (3.0f - 2.0f * progress);
+    debugPrint("[getProgress] eased progress: ");
+    debugPrintln(progress, 3);
+    return progress;
+}
+
+void TransitionEngine::forceCurrentColor(uint32_t color1, uint32_t color2) {
+    _currentColor1 = color1;
+    _currentColor2 = color2;
+    debugPrint("[Transition] forceCurrentColor: 1=");
+    debugPrintln(String(color1, HEX));
+    debugPrint("[Transition] forceCurrentColor: 2=");
+    debugPrintln(String(color2, HEX));
 }
 
 TransitionEngine::TransitionEngine() {}
 
 void TransitionEngine::startTransition(uint8_t targetBrightness, uint32_t duration) {
+    // Always start a transition, even if brightness does not change, to allow color transitions
     _startBrightness = _currentBrightness;
     _targetBrightness = targetBrightness;
     _startTime = millis();
-    _duration = max(duration, (uint32_t)ABSOLUTE_MIN_TRANSITION);
+    _duration = duration < ABSOLUTE_MIN_TRANSITION ? ABSOLUTE_MIN_TRANSITION : duration;
     _active = true;
+    debugPrint("[Transition] startTransition: from ");
+    debugPrint(String(_startBrightness));
+    debugPrint(" to ");
+    debugPrint(String(_targetBrightness));
+    debugPrint(", duration: ");
+    debugPrint(String(_duration));
+    debugPrint(", requested: ");
+    debugPrintln(String(duration));
 }
 
 void TransitionEngine::startColorTransition(uint32_t targetColor1, uint32_t targetColor2, uint32_t duration) {
@@ -21,18 +67,30 @@ void TransitionEngine::startColorTransition(uint32_t targetColor1, uint32_t targ
     _targetColor1 = targetColor1;
     _startColor2 = _currentColor2;
     _targetColor2 = targetColor2;
-    _startTime = millis();
-    _duration = max(duration, (uint32_t)ABSOLUTE_MIN_TRANSITION);
-    _active = true;
+    // Do NOT set _active or update timing here; only brightness transition controls timing
+    debugPrint("[Transition] startColorTransition: from ");
+    debugPrint(String(_startColor1, HEX));
+    debugPrint(", ");
+    debugPrint(String(_startColor2, HEX));
+    debugPrint(" to ");
+    debugPrint(String(_targetColor1, HEX));
+    debugPrint(", ");
+    debugPrint(String(_targetColor2, HEX));
+    debugPrint(", duration: ");
+    debugPrintln(String(duration));
 }
 
 void TransitionEngine::update() {
     if (!_active) return;
 
     uint32_t elapsed = millis() - _startTime;
+    debugPrint("[Transition] update: elapsed ");
+    debugPrint(String(elapsed));
+    debugPrint(" / ");
+    debugPrintln(String(_duration));
     if (elapsed >= _duration) {
         // Transition complete
-        
+        debugPrintln("[Transition] complete");
         _currentBrightness = _targetBrightness;
         _currentColor1 = _targetColor1;
         _currentColor2 = _targetColor2;
@@ -41,13 +99,12 @@ void TransitionEngine::update() {
     }
 
     // Calculate progress (0.0 to 1.0)
-    float progress = (float)elapsed / (float)_duration;
+    float progress = ((float)elapsed) / ((float)_duration);
 
     // Smooth easing (ease-in-out)
     progress = progress * progress * (3.0 - 2.0 * progress);
 
     uint8_t prevBrightness = _currentBrightness;
-    // Interpolate values
     _currentBrightness = interpolate(_startBrightness, _targetBrightness, progress);
     _currentColor1 = interpolateColor(_startColor1, _targetColor1, progress);
     _currentColor2 = interpolateColor(_startColor2, _targetColor2, progress);
@@ -70,7 +127,7 @@ uint32_t TransitionEngine::getCurrentColor2() {
 }
 
 uint8_t TransitionEngine::interpolate(uint8_t start, uint8_t target, float progress) {
-    return start + (uint8_t)((float)(target - start) * progress);
+    return start + (uint8_t)(((float)(target - start) )* progress);
 }
 
 uint32_t TransitionEngine::interpolateColor(uint32_t start, uint32_t target, float progress) {
