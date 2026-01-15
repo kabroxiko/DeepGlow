@@ -27,9 +27,10 @@ const std::vector<EffectRegistryEntry>& getEffectRegistry();
 void _registerEffect(const char* name, uint16_t (*handler)());
 
 // Solid color effect
-uint16_t solid_effect();
-// Blend effect mimicking WLED mode_blends
-uint16_t blend_effect();
+// Render solid effect to buffer if provided, else to LEDs
+uint16_t solid_effect(uint32_t* buffer = nullptr, size_t count = 0);
+// Render blend effect with WLED-style transition blending
+uint16_t blend_effect(uint32_t* buffer, size_t count, const EffectParams& prevParams, const EffectParams& newParams, float progress);
 extern std::array<uint32_t, 8> color;
 extern size_t colorCount;
 extern void* strip;
