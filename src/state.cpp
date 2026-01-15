@@ -6,6 +6,9 @@
 #include "display.h"
 #include "debug.h"
 
+// Needed for effect speed control in updateLEDs
+extern volatile uint8_t g_effectSpeed;
+
 SystemState state;
 
 extern BusManager busManager;
@@ -22,6 +25,18 @@ extern WebServerManager webServer;
 extern void* strip;
 extern int8_t lastScheduledPreset;
 
+// WLED-style transition buffer
+#include <vector>
+static std::vector<uint32_t> previousFrame;
+static int8_t transitionPrevEffect = -1;
+static EffectParams transitionPrevParams;
+struct PendingTransitionState {
+  uint8_t effect = 0;
+  EffectParams params;
+  uint8_t preset = 0;
+};
+static PendingTransitionState pendingTransition;
+
 void applyPreset(uint8_t presetId, bool setManualOverride) {
 	// Find preset by id
 	auto it = std::find_if(config.presets.begin(), config.presets.end(), [presetId](const Preset& p) { return p.id == presetId; });
@@ -30,6 +45,14 @@ void applyPreset(uint8_t presetId, bool setManualOverride) {
 		return;
 	}
 	Preset& preset = *it;
+	// Debug: log preset application
+	debugPrint("[applyPreset] presetId:"); debugPrint((int)presetId);
+	debugPrint(" effect:"); debugPrint((int)preset.effect);
+	debugPrint(" colors:");
+	for (size_t i = 0; i < preset.params.colors.size(); ++i) {
+		debugPrint(" "); debugPrint(preset.params.colors[i]);
+	}
+	debugPrintln("");
 	uint8_t timerBrightnessPercent = 100;
 	for (size_t i = 0; i < config.timers.size(); i++) {
 		if (config.timers[i].presetId == presetId && config.timers[i].enabled) {
@@ -39,11 +62,6 @@ void applyPreset(uint8_t presetId, bool setManualOverride) {
 	}
 	uint8_t brightnessValue = (uint8_t)((timerBrightnessPercent / 100.0) * 255);
 	uint8_t safeBrightness = min(brightnessValue, config.safety.maxBrightness);
-	uint32_t transTime = state.transitionTime;
-	if (transTime < config.safety.minTransitionTime) {
-		transTime = config.safety.minTransitionTime;
-	}
-	transition.startTransition(safeBrightness, transTime);
 
 	// Set color[] to preset colors, then update effect and params
 	size_t n = preset.params.colors.size();
@@ -56,20 +74,90 @@ void applyPreset(uint8_t presetId, bool setManualOverride) {
 			color[i] = (i == 0) ? 0x0000FF : 0x00FFFF;
 		}
 	}
-	state.effect = preset.effect;
-	state.params = preset.params;
-	state.params.colors.clear();
+
+	// --- WLED-style transition logic ---
+	uint8_t previousBrightness = transition.getCurrentBrightness(); // Cache previous brightness at start
+	bool doTransition = (state.prevEffect >= 0);
+	uint32_t transTime = state.transitionTime;
+	if (transTime < config.safety.minTransitionTime) {
+		transTime = config.safety.minTransitionTime;
+	}
+
+	size_t count = busManager.getPixelCount();
+	// Always set up previousFrame and trigger transition for preset changes
+	previousFrame.resize(count);
+	// Save current effect/params for transition duration
+	transitionPrevEffect = state.effect;
+	transitionPrevParams = state.params;
+	// Temporarily set state to previous effect/params for blending
+	bool colorsChanged = false;
+	debugPrint("[applyPreset] branch: ");
+	if (doTransition && state.prevEffect >= 0) {
+		debugPrintln("transition from previous effect");
+		// Compare previous and new colors
+		if (state.prevParams.colors.size() == preset.params.colors.size()) {
+			for (size_t i = 0; i < preset.params.colors.size(); ++i) {
+				if (state.prevParams.colors[i] != preset.params.colors[i]) {
+					colorsChanged = true;
+					break;
+				}
+			}
+		} else {
+			colorsChanged = true;
+		}
+		if (state.prevEffect == 1 || (state.prevEffect == preset.effect && colorsChanged)) {
+			// Use previous effect/params for initial frame (blend colors)
+			blend_effect(previousFrame.data(), count, state.prevParams, preset.params, 0.0f);
+		} else {
+			solid_effect(previousFrame.data(), count);
+		}
+		// Set transition engine's current brightness to previous before starting transition
+		debugPrint("[applyPreset] forceCurrentBrightness (prev): ");
+		debugPrintln((int)previousBrightness);
+		transition.forceCurrentBrightness(previousBrightness);
+	} else {
+		if (!state.power || state.brightness == 0) {
+			debugPrintln("fade in from black (LEDs were off)");
+			std::fill(previousFrame.begin(), previousFrame.end(), 0x000000);
+			debugPrintln("[applyPreset] forceCurrentBrightness: 0");
+			transition.forceCurrentBrightness(0);
+		} else {
+			debugPrintln("blend from current frame (LEDs were on)");
+			BusNeoPixel* neo = busManager.getNeoPixelBus();
+			for (size_t i = 0; i < count; ++i) {
+				previousFrame[i] = neo ? neo->getPixelColor(i) : 0;
+			}
+			debugPrint("[applyPreset] forceCurrentBrightness (on): ");
+			debugPrintln((int)previousBrightness);
+			transition.forceCurrentBrightness(previousBrightness);
+		}
+	}
+	// Start transitions (with previous effect/params still set)
+	// Always start a brightness transition, even if the value does not change, to keep state machine consistent
+	transition.startTransition(safeBrightness, transTime);
+	uint32_t newColor1 = colorCount > 0 ? color[0] : 0x0000FF;
+	uint32_t newColor2 = colorCount > 1 ? color[1] : 0x00FFFF;
+	transition.startColorTransition(newColor1, newColor2, transTime);
+
+	// Store new effect/params for later commit after transition
+	pendingTransition.effect = preset.effect;
+	pendingTransition.params = preset.params;
+	pendingTransition.params.colors.clear();
 	for (size_t i = 0; i < n; ++i) {
 		char hex[10];
 		snprintf(hex, sizeof(hex), "#%06X", color[i] & 0xFFFFFF);
-		state.params.colors.push_back(String(hex));
+		pendingTransition.params.colors.push_back(String(hex));
 	}
-	state.currentPreset = preset.id;
+	pendingTransition.preset = preset.id;
 	state.power = true;
 	state.inTransition = true;
+	// Immediately update state for UI, but do NOT update state.effect/params here (let transition blending use previous values)
+	state.currentPreset = preset.id;
 	webServer.broadcastState();
-	// No need to reset userColor1/2 here
-	setEffect(state.effect, state.params);
+
+	// Update previous effect/params for next transition
+	state.prevEffect = state.effect;
+	state.prevParams = state.params;
 }
 
 void setPower(bool power) {
@@ -103,6 +191,13 @@ void setBrightness(uint8_t brightness) {
 	if (brightness != current) {
 		if (!transition.isTransitioning()) {
 			transition.forceCurrentBrightness(state.brightness);
+		}
+		// Capture current LED state for blending
+		BusNeoPixel* neo = busManager.getNeoPixelBus();
+		size_t count = busManager.getPixelCount();
+		previousFrame.resize(count);
+		for (size_t i = 0; i < count; ++i) {
+			previousFrame[i] = neo ? neo->getPixelColor(i) : 0;
 		}
 		transition.startTransition(brightness, transTime);
 		webServer.broadcastState();
@@ -174,21 +269,63 @@ void setUserColor(const uint32_t* newColor, size_t count) {
 }
 
 void updateLEDs() {
-	BusNeoPixel* neo = busManager.getNeoPixelBus();
-	if (!neo || !neo->getStrip()) return;
-	if (!state.power) {
-		busManager.turnOffLEDs();
-		state.inTransition = false;
-		state.brightness = 0;
-		digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
-		return;
+    // Debug output only when in transition
+    if (transition.isTransitioning()) {
+        debugPrint("[updateLEDs] power:"); debugPrint((int)state.power);
+        debugPrint(" effect:"); debugPrint((int)pendingTransition.effect);
+        debugPrint(" prevEffect:"); debugPrint((int)transitionPrevEffect);
+        debugPrint(" inTransition:"); debugPrint((int)transition.isTransitioning());
+        debugPrint(" brightness:"); debugPrint((int)transition.getCurrentBrightness());
+        float progress = float(millis() - transition.getStartTime()) / float(transition.getDuration());
+        if (progress > 1.0f) progress = 1.0f;
+        debugPrint(" progress:"); debugPrint(progress, 3);
+        debugPrintln("");
+    }
+    BusNeoPixel* neo = busManager.getNeoPixelBus();
+    if (!neo || !neo->getStrip()) return;
+    if (!state.power) {
+        busManager.turnOffLEDs();
+        state.inTransition = false;
+        state.brightness = 0;
+        digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
+        return;
+    }
+    size_t count = busManager.getPixelCount();
+	static bool pendingCommit = false;
+	// If a transition is running, blend and set pendingCommit
+	if (transition.isTransitioning() && previousFrame.size() == count) {
+		pendingCommit = true;
+		float progress = float(millis() - transition.getStartTime()) / float(transition.getDuration());
+		if (progress > 1.0f) progress = 1.0f;
+		progress = progress * progress * (3.0f - 2.0f * progress); // smoothstep
+		// Use pendingTransition.effect/pendingTransition.params for blending and effect logic during transition
+		if (pendingTransition.effect == 1 && transitionPrevEffect == 1) {
+			blend_effect(nullptr, count, transitionPrevParams, pendingTransition.params, progress);
+		} else if (pendingTransition.effect == 1) {
+			blend_effect(nullptr, count, transitionPrevParams, pendingTransition.params, progress);
+		} else if (transitionPrevEffect == 1) {
+			blend_effect(nullptr, count, transitionPrevParams, pendingTransition.params, progress);
+		} else {
+			solid_effect(nullptr, count);
+		}
+	} else {
+		// Only commit pendingTransition after transition completes
+		if (pendingCommit && !transition.isTransitioning()) {
+			state.effect = pendingTransition.effect;
+			state.params = pendingTransition.params;
+			state.currentPreset = pendingTransition.preset;
+			setEffect(state.effect, state.params);
+			pendingCommit = false;
+		}
+		previousFrame.clear();
+		if (state.effect == 1) {
+			blend_effect(nullptr, 0, state.params, state.params, 1.0f);
+		} else {
+			solid_effect(nullptr, 0);
+		}
 	}
-	if (state.effect == 1) {
-		blend_effect();
-	}
-	uint8_t currentBrightness = transition.getCurrentBrightness();
-	uint8_t prevBrightness = state.brightness;
-	state.inTransition = false;
-	state.brightness = currentBrightness;
-	digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);
+    uint8_t currentBrightness = transition.getCurrentBrightness();
+    state.inTransition = false;
+    state.brightness = currentBrightness;
+    digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);
 }
