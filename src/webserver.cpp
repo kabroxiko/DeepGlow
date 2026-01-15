@@ -19,6 +19,7 @@
 #include "transition.h"
 #include "presets.h"
 #include "state.h"
+#include "debug.h"
 
 
 // Helper: CORS headers for API responses
@@ -104,26 +105,32 @@ void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned 
     #endif
             Update.printError(Serial);
         }
+        lastDot = 0;
+        debugPrintln("OTA update started");
     }
     if (Update.write(data, len) != len) {
         Update.printError(Serial);
     }
-    // Print progress dots every 10%
+    // Print progress dots every 1%
     if (total > 0) {
         unsigned int dot = ((index + len) * 100) / total;
         while (lastDot < dot) {
             lastDot++;
+            debugPrint(".");
         }
     }
     if (index + len == total) {
+        debugPrintln("");
         lastDot = 0; // reset for next OTA
         bool ok = Update.end(true);
         AsyncWebServerResponse *resp = nullptr;
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
+            debugPrintln("OTA update complete, rebooting");
         } else {
             Update.printError(Serial);
             resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
+            debugPrintln("OTA update failed");
         }
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
