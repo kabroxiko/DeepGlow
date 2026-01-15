@@ -66,13 +66,6 @@ int8_t lastScheduledPreset = -1;
 
 // Function declarations
 void setupWiFi();
-void printHeap(const char* tag) {
-    #if defined(ESP32)
-    debugPrint(tag);
-    debugPrint(F(" Heap: "));
-    debugPrintln(ESP.getFreeHeap());
-    #endif
-}
 void setupLEDs();
 void addBusToManager();
 void checkSchedule();
@@ -125,7 +118,6 @@ void setup() {
     // Connect to WiFi
 
     setupWiFi();
-    printHeap("[DEBUG] After WiFi connect");
     delay(500); // Give network stack time to settle
 
     // Setup web server callbacks (moved up)
@@ -199,6 +191,12 @@ void setup() {
         delay(1000);
     }
 
+    debugPrintln();
+    debugPrintln("System ready!");
+    debugPrint("IP Address: ");
+    debugPrintln(WiFi.localIP());
+    debugPrintln("=================================");
+
     // Check if we should apply a scheduled preset on boot
     int8_t bootPreset = scheduler.getCurrentScheduledPreset();
     if (bootPreset >= 0 && bootPreset < config.getPresetCount()) {
@@ -211,13 +209,6 @@ void setup() {
         setPower(state.power);
     }
 
-    // Mark that we have not yet applied a schedule after time becomes valid
-    // (Handled in loop by checkAndApplyScheduleAfterBoot)
-    debugPrintln();
-    debugPrintln("System ready!");
-    debugPrint("IP Address: ");
-    debugPrintln(WiFi.localIP());
-    debugPrintln("=================================");
 }
 
 void loop() {
