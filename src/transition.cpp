@@ -5,16 +5,20 @@
 void TransitionEngine::setPreviousFrame(const std::vector<uint32_t>& frame) {
     this->previousFrame = frame;
     debugPrint("[TransitionEngine::setPreviousFrame] previousFrame: ");
+    char buf[10];
     for (size_t i = 0; i < previousFrame.size(); ++i) {
-        debugPrint("#"); debugPrint(String(previousFrame[i], HEX)); debugPrint(" ");
+        snprintf(buf, sizeof(buf), "#%06X", previousFrame[i] & 0xFFFFFF);
+        debugPrint(buf); debugPrint(" ");
     }
     debugPrintln("");
 }
 void TransitionEngine::setTargetFrame(const std::vector<uint32_t>& frame) {
     this->targetFrame = frame;
     debugPrint("[TransitionEngine::setTargetFrame] targetFrame: ");
+    char buf[10];
     for (size_t i = 0; i < targetFrame.size(); ++i) {
-        debugPrint("#"); debugPrint(String(targetFrame[i], HEX)); debugPrint(" ");
+        snprintf(buf, sizeof(buf), "#%06X", targetFrame[i] & 0xFFFFFF);
+        debugPrint(buf); debugPrint(" ");
     }
     debugPrintln("");
 }
@@ -41,7 +45,7 @@ std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool bri
             blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
         }
     } else {
-        // For color transitions, blend colors only, do NOT apply brightness scaling
+        // WLED FADE style: all pixels blend from previous to target frame
         for (size_t i = 0; i < count; ++i) {
             uint32_t prev = previousFrame[i];
             uint32_t next = targetFrame[i];
@@ -71,13 +75,16 @@ std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool bri
             debugPrintln((int)_targetBrightness);
         }
         debugPrint("previousFrame: ");
+        char buf[10];
         for (size_t i = 0; i < previousFrame.size(); ++i) {
-            debugPrint("#"); debugPrint(String(previousFrame[i], HEX)); debugPrint(" ");
+            snprintf(buf, sizeof(buf), "#%06X", previousFrame[i] & 0xFFFFFF);
+            debugPrint(buf); debugPrint(" ");
         }
         debugPrintln("");
         debugPrint("targetFrame: ");
         for (size_t i = 0; i < targetFrame.size(); ++i) {
-            debugPrint("#"); debugPrint(String(targetFrame[i], HEX)); debugPrint(" ");
+            snprintf(buf, sizeof(buf), "#%06X", targetFrame[i] & 0xFFFFFF);
+            debugPrint(buf); debugPrint(" ");
         }
         debugPrintln("");
     }

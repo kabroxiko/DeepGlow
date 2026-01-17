@@ -65,6 +65,9 @@ void applyPreset(uint8_t presetId) {
 	uint8_t brightnessValue = (uint8_t)((timerBrightnessPercent / 100.0) * 255);
 	uint8_t safeBrightness = min(brightnessValue, config.safety.maxBrightness);
 
+	// Capture previous effect and params BEFORE applying new preset
+	state.prevEffect = state.effect;
+	state.prevParams = state.params;
 	// Set color[] to preset colors, then update effect and params
 	size_t n = preset.params.colors.size();
 	debugPrint("[applyPreset] n (preset.params.colors.size()): "); debugPrintln((int)n);
@@ -96,12 +99,16 @@ void applyPreset(uint8_t presetId) {
 	}
 
 	size_t count = busManager.getPixelCount();
-	// Capture previous frame for transition blending
-	std::vector<uint32_t> prevFrame(count);
-	BusNeoPixel* neo = busManager.getNeoPixelBus();
-	for (size_t i = 0; i < count; ++i) {
-		prevFrame[i] = neo ? neo->getPixelColor(i) : 0;
+	// Capture previous frame for transition blending from last effect buffer
+	std::vector<uint32_t> prevFrame(count, 0);
+	std::array<uint32_t, 8> prevColors = {0};
+	size_t prevColorCount = state.prevParams.colors.size();
+	for (size_t i = 0; i < prevColorCount; ++i) {
+		prevColors[i] = (uint32_t)strtoul(state.prevParams.colors[i].c_str() + (state.prevParams.colors[i][0] == '#' ? 1 : 0), nullptr, 16);
 	}
+	for (size_t i = prevColorCount; i < 8; ++i) prevColors[i] = 0x000000;
+	uint8_t prevBrightness = min((uint8_t)((state.brightness > 0 ? state.brightness : 255)), config.safety.maxBrightness);
+	renderEffectToBuffer(state.prevEffect >= 0 ? state.prevEffect : preset.effect, state.prevParams, prevFrame, count, prevColors, prevColorCount > 0 ? prevColorCount : 1, prevBrightness);
 	transition.setPreviousFrame(prevFrame);
 	bool colorsChanged = false;
 	debugPrint("[applyPreset] branch: ");
@@ -169,9 +176,6 @@ void applyPreset(uint8_t presetId) {
 	state.currentPreset = preset.id;
 	webServer.broadcastState();
 
-	// Update previous effect/params for next transition
-	state.prevEffect = state.effect;
-	state.prevParams = state.params;
 }
 
 void setPower(bool power) {
@@ -304,18 +308,37 @@ void updateLEDs() {
 		// Determine if this is a brightness-only transition
 		bool brightnessOnly = (pendingTransition.effect == state.effect && pendingTransition.params.colors == state.params.colors);
 
-		// --- DYNAMIC TRANSITION: re-render target frame every frame ---
-		std::vector<uint32_t> dynamicTarget(count, 0);
-		std::array<uint32_t, 8> dynColors = {0};
+		// --- DYNAMIC TRANSITION: re-render BOTH previous and new effect frames every frame ---
+		std::vector<uint32_t> prevFrame(count, 0);
+		std::array<uint32_t, 8> prevColors = {0};
+		for (size_t i = 0; i < state.prevParams.colors.size() && i < 8; ++i) {
+			const String& hex = state.prevParams.colors[i];
+			prevColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+		}
+		size_t prevColorCount = state.prevParams.colors.size() > 0 ? state.prevParams.colors.size() : 1;
+		uint8_t prevBrightness = transition.getCurrentBrightness();
+		renderEffectToBuffer(state.prevEffect >= 0 ? state.prevEffect : pendingTransition.effect, state.prevParams, prevFrame, count, prevColors, prevColorCount, prevBrightness);
+
+		std::vector<uint32_t> nextFrame(count, 0);
+		std::array<uint32_t, 8> nextColors = {0};
 		for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
 			const String& hex = pendingTransition.params.colors[i];
-			dynColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+			nextColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
 		}
-		size_t dynColorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
-		uint8_t dynBrightness = transition.getTargetBrightness();
-		renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, dynamicTarget, count, dynColors, dynColorCount, dynBrightness);
-		transition.setTargetFrame(dynamicTarget);
-		std::vector<uint32_t> blended = transition.getBlendedFrame(progress, brightnessOnly);
+		size_t nextColorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
+		uint8_t nextBrightness = transition.getTargetBrightness();
+		renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, nextColors, nextColorCount, nextBrightness);
+
+		// Blend the two live frames
+		std::vector<uint32_t> blended(count, 0);
+		for (size_t i = 0; i < count; ++i) {
+			uint32_t prev = prevFrame[i];
+			uint32_t next = nextFrame[i];
+			uint8_t r = (uint8_t)(((prev >> 16) & 0xFF) * (1.0f - progress) + ((next >> 16) & 0xFF) * progress);
+			uint8_t g = (uint8_t)(((prev >> 8) & 0xFF) * (1.0f - progress) + ((next >> 8) & 0xFF) * progress);
+			uint8_t b = (uint8_t)((prev & 0xFF) * (1.0f - progress) + (next & 0xFF) * progress);
+			blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+		}
 		bool allZero = true;
 		debugPrint("[updateLEDs] blended frame: ");
 		for (size_t i = 0; i < count; ++i) {
