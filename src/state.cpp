@@ -34,7 +34,11 @@ extern Scheduler scheduler;
 extern TransitionEngine transition;
 extern WebServerManager webServer;
 extern void* strip;
+
 extern int8_t lastScheduledPreset;
+
+// Forward declaration for percentToBrightness (defined in config.cpp)
+uint8_t percentToBrightness(uint8_t percent);
 
 // Transition frame management is now handled by TransitionEngine
 
@@ -62,8 +66,9 @@ void applyPreset(uint8_t presetId) {
 			break;
 		}
 	}
-	uint8_t brightnessValue = (uint8_t)((timerBrightnessPercent / 100.0) * 255);
-	uint8_t safeBrightness = min(brightnessValue, config.safety.maxBrightness);
+	uint8_t brightnessValue = percentToBrightness(timerBrightnessPercent);
+	uint8_t maxBrightnessValue = percentToBrightness(config.safety.maxBrightness);
+	uint8_t safeBrightness = (brightnessValue < maxBrightnessValue) ? brightnessValue : maxBrightnessValue;
 
 	// Capture previous effect and params BEFORE applying new preset
 	state.prevEffect = state.effect;
@@ -114,7 +119,9 @@ void applyPreset(uint8_t presetId) {
 	}
 	for (size_t i = n; i < 8; ++i) presetColors[i] = 0x000000;
 	size_t presetColorCount = n > 0 ? n : 1;
-	uint8_t presetBrightness = min((uint8_t)((state.brightness > 0 ? state.brightness : 255)), config.safety.maxBrightness);
+	uint8_t presetBrightness = (state.brightness > 0 ? percentToBrightness(state.brightness) : 255);
+	uint8_t maxPresetBrightness = percentToBrightness(config.safety.maxBrightness);
+	if (presetBrightness > maxPresetBrightness) presetBrightness = maxPresetBrightness;
 	renderEffectToBuffer(preset.effect, preset.params, targetFrame, count, presetColors, presetColorCount, presetBrightness);
 	transition.setTargetFrame(targetFrame);
 	if (doTransition && state.prevEffect >= 0) {
@@ -171,7 +178,7 @@ void setPower(bool power) {
 	}
 	state.power = power;
 	digitalWrite(config.led.relayPin, power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
-	uint8_t targetBrightness = power ? state.brightness : 0;
+	uint8_t targetBrightness = power ? percentToBrightness(state.brightness) : 0;
 	uint32_t transTime = state.transitionTime;
 	if (transTime < config.safety.minTransitionTime) {
 		transTime = config.safety.minTransitionTime;
@@ -187,15 +194,17 @@ void setPower(bool power) {
 }
 
 void setBrightness(uint8_t brightness) {
+	// Clamp to percent range, then convert to 0-255 for transition
 	brightness = min(brightness, config.safety.maxBrightness);
+	uint8_t brightness255 = percentToBrightness(brightness);
 	uint32_t transTime = state.transitionTime;
 	if (transTime < config.safety.minTransitionTime) {
 		transTime = config.safety.minTransitionTime;
 	}
 	uint8_t current = transition.getCurrentBrightness();
-	if (brightness != current) {
+	if (brightness255 != current) {
 		if (!transition.isTransitioning()) {
-			transition.forceCurrentBrightness(state.brightness);
+			transition.forceCurrentBrightness(current);
 		}
 		// Capture current LED state for blending
 		BusNeoPixel* neo = busManager.getNeoPixelBus();
@@ -205,7 +214,7 @@ void setBrightness(uint8_t brightness) {
 			prevFrame[i] = neo ? neo->getPixelColor(i) : 0;
 		}
 		transition.setPreviousFrame(prevFrame);
-		transition.startTransition(brightness, transTime);
+		transition.startTransition(brightness255, transTime);
 		webServer.broadcastState();
 	}
 }

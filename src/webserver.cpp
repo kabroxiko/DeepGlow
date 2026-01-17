@@ -740,9 +740,11 @@ String WebServerManager::getStateJSON() {
     StaticJsonDocument<512> doc;
     
     doc["power"] = state.power;
-    // Send target brightness as 'brightness' in state
+    // Send target brightness as 'brightness' in state (0-100 percent)
     extern TransitionEngine transition;
-    doc["brightness"] = transition.getTargetBrightness();
+    uint8_t brightnessHex = transition.getTargetBrightness();
+    uint8_t brightnessPercent = (uint8_t)((brightnessHex * 100 + 127) / 255); // round to nearest
+    doc["brightness"] = brightnessPercent;
     doc["effect"] = state.effect;
     doc["transitionTime"] = state.transitionTime;
     doc["currentPreset"] = state.currentPreset;
@@ -904,7 +906,9 @@ bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transiti
 void WebServerManager::broadcastState() {
     // Sync config.state.brightness with transition engine before broadcasting
     extern TransitionEngine transition;
-    state.brightness = transition.getCurrentBrightness();
+    // Store as percent for reporting
+    uint8_t brightnessHex = transition.getCurrentBrightness();
+    state.brightness = (uint8_t)((brightnessHex * 100 + 127) / 255);
     String stateJSON = getStateJSON();
     _ws->textAll(stateJSON);
 }
