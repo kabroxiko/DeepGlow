@@ -8,6 +8,7 @@
 class TransitionEngine {
 public:
     const std::vector<uint32_t>& getTargetFrame() const { return targetFrame; }
+    const std::vector<uint32_t>& getPreviousFrame() const { return previousFrame; }
     // Frame blending API
     void setPreviousFrame(const std::vector<uint32_t>& frame);
     void setTargetFrame(const std::vector<uint32_t>& frame);
