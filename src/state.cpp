@@ -306,29 +306,43 @@ void updateLEDs() {
 
 		std::vector<uint32_t> prevFrame(count, 0);
 		std::vector<uint32_t> nextFrame(count, 0);
-		if (state.prevEffect == 0) {
-			// Solid effect: use captured buffer for previous frame
-			prevFrame = transition.getPreviousFrame();
-		} else {
-			// Animated effect: re-render previous frame
-			std::array<uint32_t, 8> prevColors = {0};
-			for (size_t i = 0; i < state.prevParams.colors.size() && i < 8; ++i) {
-				const String& hex = state.prevParams.colors[i];
-				prevColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+		if (brightnessOnly) {
+			// For brightness-only, render both frames with the same effect/colors, but different brightness
+			std::array<uint32_t, 8> colors = {0};
+			for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
+				const String& hex = pendingTransition.params.colors[i];
+				colors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
 			}
-			size_t prevColorCount = state.prevParams.colors.size() > 0 ? state.prevParams.colors.size() : 1;
+			size_t colorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
 			uint8_t prevBrightness = transition.getCurrentBrightness();
-			renderEffectToBuffer(state.prevEffect, state.prevParams, prevFrame, count, prevColors, prevColorCount, prevBrightness);
+			uint8_t nextBrightness = transition.getTargetBrightness();
+			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, prevFrame, count, colors, colorCount, prevBrightness);
+			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, colors, colorCount, nextBrightness);
+		} else {
+			if (state.prevEffect == 0) {
+				// Solid effect: use captured buffer for previous frame
+				prevFrame = transition.getPreviousFrame();
+			} else {
+				// Animated effect: re-render previous frame
+				std::array<uint32_t, 8> prevColors = {0};
+				for (size_t i = 0; i < state.prevParams.colors.size() && i < 8; ++i) {
+					const String& hex = state.prevParams.colors[i];
+					prevColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+				}
+				size_t prevColorCount = state.prevParams.colors.size() > 0 ? state.prevParams.colors.size() : 1;
+				uint8_t prevBrightness = transition.getCurrentBrightness();
+				renderEffectToBuffer(state.prevEffect, state.prevParams, prevFrame, count, prevColors, prevColorCount, prevBrightness);
+			}
+			// Always re-render next frame (target effect)
+			std::array<uint32_t, 8> nextColors = {0};
+			for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
+				const String& hex = pendingTransition.params.colors[i];
+				nextColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+			}
+			size_t nextColorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
+			uint8_t nextBrightness = transition.getTargetBrightness();
+			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, nextColors, nextColorCount, nextBrightness);
 		}
-		// Always re-render next frame (target effect)
-		std::array<uint32_t, 8> nextColors = {0};
-		for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
-			const String& hex = pendingTransition.params.colors[i];
-			nextColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
-		}
-		size_t nextColorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
-		uint8_t nextBrightness = transition.getTargetBrightness();
-		renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, nextColors, nextColorCount, nextBrightness);
 
 		// Blend the two frames
 		std::vector<uint32_t> blended(count, 0);
