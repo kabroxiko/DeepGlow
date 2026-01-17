@@ -113,7 +113,7 @@ void setup() {
     // Initialize transition engine brightness to default
     extern TransitionEngine transition;
     transition.forceCurrentBrightness(state.brightness); // Set current
-    transition.startTransition(state.brightness, 1);     // Set target
+    // Removed unnecessary initial transition at boot
 
     // Connect to WiFi
 
@@ -124,7 +124,7 @@ void setup() {
     webServer.onPowerChange(setPower);
     webServer.onBrightnessChange(setBrightness);
     webServer.onEffectChange(setEffect);
-    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, false); });
+    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId); });
     webServer.onConfigChange([]() {
         // Immediately apply relay pin and logic changes
         pinMode(config.led.relayPin, OUTPUT);
@@ -197,17 +197,12 @@ void setup() {
     debugPrintln(WiFi.localIP());
     debugPrintln("=================================");
 
-    // Check if we should apply a scheduled preset on boot
-    int8_t bootPreset = scheduler.getCurrentScheduledPreset();
-    if (bootPreset >= 0 && bootPreset < config.getPresetCount()) {
-        applyPreset(bootPreset);
-    } else {
-        // Ensure transition starts from the actual brightness, not 0
-        transition.forceCurrentBrightness(state.brightness);
-        setEffect(state.effect, state.params);
-        setBrightness(state.brightness);
-        setPower(state.power);
-    }
+    // Do not apply a scheduled preset here; let checkAndApplyScheduleAfterBoot() handle it after time sync
+    // Ensure transition starts from the actual brightness, not 0
+    transition.forceCurrentBrightness(state.brightness);
+    setEffect(state.effect, state.params);
+    setBrightness(state.brightness);
+    setPower(state.power);
 
 }
 
@@ -314,7 +309,7 @@ void checkSchedule() {
     auto it = std::find_if(config.presets.begin(), config.presets.end(), [scheduledPresetId](const Preset& p) { return p.id == scheduledPresetId; });
     if (it != config.presets.end()) {
         if (scheduledPresetId != lastScheduledPreset) {
-            applyPreset(scheduledPresetId, false);
+            applyPreset(scheduledPresetId);
             lastScheduledPreset = scheduledPresetId;
         }
     }
@@ -329,7 +324,7 @@ void checkAndApplyScheduleAfterBoot() {
             int8_t bootPreset2 = scheduler.getCurrentScheduledPreset();
             auto it = std::find_if(config.presets.begin(), config.presets.end(), [bootPreset2](const Preset& p) { return p.id == bootPreset2; });
             if (it != config.presets.end()) {
-                applyPreset(bootPreset2, false);
+                applyPreset(bootPreset2);
                 lastScheduledPreset = bootPreset2;
             }
             scheduleApplied = true; 

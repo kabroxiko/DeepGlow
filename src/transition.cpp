@@ -1,19 +1,119 @@
-
 #include <Arduino.h>
 #include "transition.h"
 
+// Frame blending API
+void TransitionEngine::setPreviousFrame(const std::vector<uint32_t>& frame) {
+    this->previousFrame = frame;
+    debugPrint("[TransitionEngine::setPreviousFrame] previousFrame: ");
+    for (size_t i = 0; i < previousFrame.size(); ++i) {
+        debugPrint("#"); debugPrint(String(previousFrame[i], HEX)); debugPrint(" ");
+    }
+    debugPrintln("");
+}
+void TransitionEngine::setTargetFrame(const std::vector<uint32_t>& frame) {
+    this->targetFrame = frame;
+    debugPrint("[TransitionEngine::setTargetFrame] targetFrame: ");
+    for (size_t i = 0; i < targetFrame.size(); ++i) {
+        debugPrint("#"); debugPrint(String(targetFrame[i], HEX)); debugPrint(" ");
+    }
+    debugPrintln("");
+}
+void TransitionEngine::clearFrames() {
+    previousFrame.clear();
+    targetFrame.clear();
+}
+std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool brightnessOnly) {
+    std::vector<uint32_t> blended;
+    size_t count = previousFrame.size();
+    blended.resize(count);
+    if (brightnessOnly) {
+        uint8_t startBrightness = _startBrightness;
+        uint8_t endBrightness = _targetBrightness;
+        uint8_t blendedBrightness = (uint8_t)(startBrightness * (1.0f - progress) + endBrightness * progress);
+        for (size_t i = 0; i < count; ++i) {
+            uint32_t colorVal = previousFrame[i];
+            uint8_t r = (colorVal >> 16) & 0xFF;
+            uint8_t g = (colorVal >> 8) & 0xFF;
+            uint8_t b = colorVal & 0xFF;
+            r = (r * blendedBrightness) / 255;
+            g = (g * blendedBrightness) / 255;
+            b = (b * blendedBrightness) / 255;
+            blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        }
+    } else {
+        // For color transitions, blend colors only, do NOT apply brightness scaling
+        for (size_t i = 0; i < count; ++i) {
+            uint32_t prev = previousFrame[i];
+            uint32_t next = targetFrame[i];
+            uint8_t r = (uint8_t)(((prev >> 16) & 0xFF) * (1.0f - progress) + ((next >> 16) & 0xFF) * progress);
+            uint8_t g = (uint8_t)(((prev >> 8) & 0xFF) * (1.0f - progress) + ((next >> 8) & 0xFF) * progress);
+            uint8_t b = (uint8_t)((prev & 0xFF) * (1.0f - progress) + (next & 0xFF) * progress);
+            blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+        }
+    }
+    bool allZero = true;
+    for (size_t i = 0; i < blended.size(); ++i) {
+        if (blended[i] != 0) {
+            allZero = false;
+            break;
+        }
+    }
+    if (allZero) {
+        debugPrintln("[TransitionEngine::getBlendedFrame] WARNING: All blended frame colors are zero!");
+        debugPrint("progress: "); debugPrintln(progress, 3);
+        debugPrint("brightness: ");
+        if (brightnessOnly) {
+            uint8_t startBrightness = _startBrightness;
+            uint8_t endBrightness = _targetBrightness;
+            uint8_t blendedBrightness = (uint8_t)(startBrightness * (1.0f - progress) + endBrightness * progress);
+            debugPrintln((int)blendedBrightness);
+        } else {
+            debugPrintln((int)_targetBrightness);
+        }
+        debugPrint("previousFrame: ");
+        for (size_t i = 0; i < previousFrame.size(); ++i) {
+            debugPrint("#"); debugPrint(String(previousFrame[i], HEX)); debugPrint(" ");
+        }
+        debugPrintln("");
+        debugPrint("targetFrame: ");
+        for (size_t i = 0; i < targetFrame.size(); ++i) {
+            debugPrint("#"); debugPrint(String(targetFrame[i], HEX)); debugPrint(" ");
+        }
+        debugPrintln("");
+    }
+    return blended;
+}
 void TransitionEngine::forceCurrentBrightness(uint8_t value) {
     _currentBrightness = value;
+    debugPrintln("[Transition] forceCurrentBrightness: " + String(value));
+}
+
+void TransitionEngine::forceCurrentColor(uint32_t color1, uint32_t color2) {
+    _currentColor1 = color1;
+    _currentColor2 = color2;
+    debugPrint("[Transition] forceCurrentColor: 1=");
+    debugPrintln(String(color1));
+    debugPrint("[Transition] forceCurrentColor: 2=");
+    debugPrintln(String(color2));
 }
 
 TransitionEngine::TransitionEngine() {}
 
 void TransitionEngine::startTransition(uint8_t targetBrightness, uint32_t duration) {
+    // Always start a transition, even if brightness does not change, to allow color transitions
     _startBrightness = _currentBrightness;
     _targetBrightness = targetBrightness;
     _startTime = millis();
-    _duration = max(duration, (uint32_t)ABSOLUTE_MIN_TRANSITION);
+    _duration = duration < ABSOLUTE_MIN_TRANSITION ? ABSOLUTE_MIN_TRANSITION : duration;
     _active = true;
+    debugPrint("[Transition] startTransition: from ");
+    debugPrint(String(_startBrightness));
+    debugPrint(" to ");
+    debugPrint(String(_targetBrightness));
+    debugPrint(", duration: ");
+    debugPrint(String(_duration));
+    debugPrint(", requested: ");
+    debugPrintln(String(duration));
 }
 
 void TransitionEngine::startColorTransition(uint32_t targetColor1, uint32_t targetColor2, uint32_t duration) {
@@ -21,9 +121,22 @@ void TransitionEngine::startColorTransition(uint32_t targetColor1, uint32_t targ
     _targetColor1 = targetColor1;
     _startColor2 = _currentColor2;
     _targetColor2 = targetColor2;
-    _startTime = millis();
-    _duration = max(duration, (uint32_t)ABSOLUTE_MIN_TRANSITION);
-    _active = true;
+    // Do NOT set _active or update timing here; only brightness transition controls timing
+    char buf[10];
+    debugPrint("[Transition] startColorTransition: from ");
+    snprintf(buf, sizeof(buf), "#%06X", _startColor1 & 0xFFFFFF);
+    debugPrint(buf);
+    debugPrint(", ");
+    snprintf(buf, sizeof(buf), "#%06X", _startColor2 & 0xFFFFFF);
+    debugPrint(buf);
+    debugPrint(" to ");
+    snprintf(buf, sizeof(buf), "#%06X", _targetColor1 & 0xFFFFFF);
+    debugPrint(buf);
+    debugPrint(", ");
+    snprintf(buf, sizeof(buf), "#%06X", _targetColor2 & 0xFFFFFF);
+    debugPrint(buf);
+    debugPrint(", duration: ");
+    debugPrintln(String(duration));
 }
 
 void TransitionEngine::update() {
@@ -32,7 +145,7 @@ void TransitionEngine::update() {
     uint32_t elapsed = millis() - _startTime;
     if (elapsed >= _duration) {
         // Transition complete
-        
+        debugPrintln("[Transition] complete");
         _currentBrightness = _targetBrightness;
         _currentColor1 = _targetColor1;
         _currentColor2 = _targetColor2;
@@ -47,7 +160,6 @@ void TransitionEngine::update() {
     progress = progress * progress * (3.0 - 2.0 * progress);
 
     uint8_t prevBrightness = _currentBrightness;
-    // Interpolate values
     _currentBrightness = interpolate(_startBrightness, _targetBrightness, progress);
     _currentColor1 = interpolateColor(_startColor1, _targetColor1, progress);
     _currentColor2 = interpolateColor(_startColor2, _targetColor2, progress);

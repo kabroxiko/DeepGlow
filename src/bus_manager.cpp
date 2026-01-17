@@ -90,6 +90,30 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
     }
 }
 
+// Return the color of a pixel from the underlying NeoPixelBus
+uint32_t BusNeoPixel::getPixelColor(uint16_t pix) const {
+    if (!_strip) return 0;
+    switch (_type) {
+        case BusNeoPixelType::SK6812: {
+            auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoEsp32Rmt0Sk6812Method>*>(_strip);
+            RgbwColor c = s->GetPixelColor(pix);
+            // Convert GRBW to RGB (ignore W)
+            return (uint32_t(c.R) << 16) | (uint32_t(c.G) << 8) | uint32_t(c.B);
+        }
+        case BusNeoPixelType::WS2812B_RGB: {
+            auto* s = static_cast<NeoPixelBus<NeoRgbFeature, NeoEsp32Rmt0Ws2812xMethod>*>(_strip);
+            RgbColor c = s->GetPixelColor(pix);
+            return (uint32_t(c.R) << 16) | (uint32_t(c.G) << 8) | uint32_t(c.B);
+        }
+        case BusNeoPixelType::WS2812B_GRB: {
+            auto* s = static_cast<NeoPixelBus<NeoGrbFeature, NeoEsp32Rmt0Ws2812xMethod>*>(_strip);
+            RgbColor c = s->GetPixelColor(pix);
+            return (uint32_t(c.R) << 16) | (uint32_t(c.G) << 8) | uint32_t(c.B);
+        }
+    }
+    return 0;
+}
+
 void BusManager::cleanupStrip() {
     if (!buses.empty()) {
         BusNeoPixel* neo = static_cast<BusNeoPixel*>(buses.front().get());

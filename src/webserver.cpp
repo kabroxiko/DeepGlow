@@ -551,17 +551,18 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         }
         if (paramsObj.containsKey("colors")) {
             JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
-            uint32_t arr[8] = {0x0000FF, 0x00FFFF};
-            size_t n = colorsArr.size() > 8 ? 8 : colorsArr.size();
-            for (size_t i = 0; i < n; ++i) {
-                const char* hex = colorsArr[i];
-                if (hex[0] == '#') hex++;
-                // Always parse exactly 6 hex digits for RGB
-                char buf[7] = {0};
-                strncpy(buf, hex, 6);
-                arr[i] = ((uint32_t)strtoul(buf, nullptr, 16)) & 0xFFFFFF;
+            std::vector<String> parsedColors;
+            for (JsonVariant v : colorsArr) {
+                if (v.is<const char*>()) {
+                    String hex = v.as<const char*>();
+                    if (hex.length() == 6 && hex[0] != '#') {
+                        hex = "#" + hex;
+                    }
+                    parsedColors.push_back(hex);
+                }
             }
-            setUserColor(arr, n);
+            params.colors = parsedColors;
+            state.params.colors = parsedColors;
             updated = true;
         }
         if (updated && _effectCallback) _effectCallback(state.effect, params);

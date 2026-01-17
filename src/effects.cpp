@@ -1,13 +1,160 @@
+#include "debug.h"
+#include "state.h"
+#include <vector>
+#include <array>
+#include <cstdint>
+#include <cstddef>
 #include "bus_manager.h"
 #include "effects.h"
 #include "state.h"
+#include "transition.h"
 #include <array>
 
+extern EffectParams transitionPrevParams;
+extern PendingTransitionState pendingTransition;
 extern BusManager busManager;
 extern Configuration config;
 
 volatile uint8_t g_effectSpeed = 1;
 
+// Effect frame generator function type
+typedef void (*EffectFrameGen)(const EffectParams&, std::vector<uint32_t>&, size_t, const std::array<uint32_t, 8>&, size_t, uint8_t);
+
+// Individual effect frame generators
+void effect_solid_frame(const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
+  uint32_t solidColor = colors[0];
+  uint8_t r = (uint8_t)(((solidColor >> 16) & 0xFF) * brightness / 255);
+  uint8_t g = (uint8_t)(((solidColor >> 8) & 0xFF) * brightness / 255);
+  uint8_t b = (uint8_t)((solidColor & 0xFF) * brightness / 255);
+  for (size_t i = 0; i < ledCount; ++i) {
+    buffer[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+  }
+}
+
+void effect_blend_frame(const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
+  if (colorCount < 2) {
+    for (size_t i = 0; i < ledCount; ++i) buffer[i] = 0;
+    return;
+  }
+  std::vector<uint32_t> stops;
+  for (size_t i = 0; i < colorCount; ++i) {
+    stops.push_back(colors[i]);
+  }
+  uint32_t now = millis();
+  uint8_t speed = params.speed > 0 ? params.speed : 50;
+  uint32_t period = 10000 - ((speed - 1) * 9000 / 99);
+  float phase = float(now % period) / float(period);
+  for (size_t i = 0; i < ledCount; ++i) {
+    float ledPos = float(i) / float(ledCount - 1);
+    float shiftedPos = fmodf(ledPos + phase, 1.0f);
+    float stopPos = shiftedPos * (colorCount - 1);
+    int stopIdx = int(stopPos);
+    float frac = stopPos - stopIdx;
+    uint32_t c1 = stops[stopIdx];
+    uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
+    uint8_t r = (uint8_t)(((c1 >> 16) & 0xFF) * (1.0f - frac) + ((c2 >> 16) & 0xFF) * frac);
+    uint8_t g = (uint8_t)(((c1 >> 8) & 0xFF) * (1.0f - frac) + ((c2 >> 8) & 0xFF) * frac);
+    uint8_t b = (uint8_t)((c1 & 0xFF) * (1.0f - frac) + (c2 & 0xFF) * frac);
+    r = (r * brightness) / 255;
+    g = (g * brightness) / 255;
+    b = (b * brightness) / 255;
+    buffer[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+  }
+}
+
+// Registry of effect frame generators (index = effectId)
+static std::vector<EffectFrameGen> effectFrameRegistry = {
+  effect_solid_frame,
+  effect_blend_frame
+};
+
+void effect_flow_frame(const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
+  if (ledCount == 0) return;
+  // Calculate counter based on speed
+  uint32_t now = millis();
+  uint8_t speed = params.speed > 0 ? params.speed : 50;
+  uint32_t counter = 0;
+  if (speed != 0) {
+    counter = now * ((speed >> 2) + 1);
+    counter = counter >> 8;
+  }
+
+  // Determine number of zones
+  size_t maxZones = ledCount / 6;
+  size_t intensity = params.intensity > 0 ? params.intensity : 128;
+  size_t zones = (intensity * maxZones) >> 8;
+  if (zones & 0x01) zones++;
+  if (zones < 2) zones = 2;
+  size_t zoneLen = ledCount / zones;
+  size_t offset = (ledCount - zones * zoneLen) >> 1;
+
+  // Helper: get color from palette (wraps palette if needed)
+  auto get_palette_color = [&](int idx) -> uint32_t {
+    if (colorCount == 0) return 0;
+    float pos = float((idx % 256 + 256) % 256) / 255.0f;
+    float scaled = pos * (colorCount - 1);
+    size_t i0 = size_t(scaled);
+    size_t i1 = (i0 + 1 < colorCount) ? i0 + 1 : i0;
+    float frac = scaled - float(i0);
+    uint32_t c0 = colors[i0];
+    uint32_t c1 = colors[i1];
+    uint8_t r = ((c0 >> 16) & 0xFF) * (1.0f - frac) + ((c1 >> 16) & 0xFF) * frac;
+    uint8_t g = ((c0 >> 8) & 0xFF) * (1.0f - frac) + ((c1 >> 8) & 0xFF) * frac;
+    uint8_t b = (c0 & 0xFF) * (1.0f - frac) + (c1 & 0xFF) * frac;
+    uint8_t w = ((c0 >> 24) & 0xFF) * (1.0f - frac) + ((c1 >> 24) & 0xFF) * frac;
+    r = (r * brightness) / 255;
+    g = (g * brightness) / 255;
+    b = (b * brightness) / 255;
+    w = (w * brightness) / 255;
+    return (uint32_t(w) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | b;
+  };
+
+  // Fill all LEDs with background palette color (like WLED)
+  for (size_t i = 0; i < ledCount; ++i) {
+    buffer[i] = get_palette_color(-int(counter));
+  }
+
+  // Draw zones
+  for (size_t z = 0; z < zones; ++z) {
+    size_t pos = offset + z * zoneLen;
+    for (size_t i = 0; i < zoneLen; ++i) {
+      int colorIndex = int(i * 255 / zoneLen) - int(counter);
+      size_t led = (z & 0x01) ? i : (zoneLen - 1) - i;
+      if (pos + led < ledCount)
+        buffer[pos + led] = get_palette_color(colorIndex);
+    }
+  }
+}
+
+// Render the given effect and params into a buffer (does not update LEDs)
+void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
+  if (effectId < effectFrameRegistry.size() && effectFrameRegistry[effectId]) {
+    effectFrameRegistry[effectId](params, buffer, ledCount, colors, colorCount, brightness);
+  } else {
+    // fallback: fill with black
+    for (size_t i = 0; i < ledCount; ++i) buffer[i] = 0;
+  }
+
+  // Debug output: print buffer contents after rendering
+  debugPrint("[renderEffectToBuffer] effectId: "); debugPrintln((int)effectId);
+  debugPrint("[renderEffectToBuffer] buffer: ");
+  for (size_t i = 0; i < buffer.size(); ++i) {
+    debugPrint("#"); debugPrint(String(buffer[i], HEX)); debugPrint(" ");
+  }
+  debugPrintln("");
+  debugPrint("[renderEffectToBuffer] effectId: "); debugPrintln((int)effectId);
+  debugPrint("[renderEffectToBuffer] buffer: ");
+  for (size_t i = 0; i < ledCount; ++i) {
+    debugPrint("#"); debugPrint(String(buffer[i], HEX)); debugPrint(" ");
+  }
+  debugPrintln("");
+  debugPrint("[renderEffectToBuffer] effectId: "); debugPrintln((int)effectId);
+  debugPrint("[renderEffectToBuffer] buffer: ");
+  for (size_t i = 0; i < ledCount; ++i) {
+    debugPrint("#"); debugPrint(String(buffer[i], HEX)); debugPrint(" ");
+  }
+  debugPrintln("");
+}
 
 // Call this after initializing or reconfiguring the strip
 void updatePixelCount() {
@@ -19,13 +166,32 @@ void showStrip() {
   busManager.show();
 }
 
+// Utility to print all colors sent to the strip
+void debugPrintStripColors(const std::vector<uint32_t>& colors, const char* tag) {
+  debugPrint("["); debugPrint(tag); debugPrint("] ");
+  char buf[10];
+  for (size_t i = 0; i < colors.size(); ++i) {
+    snprintf(buf, sizeof(buf), "#%06X", colors[i] & 0xFFFFFF);
+    debugPrint(buf);
+    debugPrint(" ");
+  }
+  debugPrintln("");
+}
+
+// Centralized effect speed to delay mapping
+uint32_t getEffectDelayMs(const EffectParams& params) {
+  uint8_t speed = params.speed > 0 ? params.speed : 50; // Default to 50 if not set
+  // Map speed (1-100) to delay (fast: 10ms, slow: 200ms)
+  return 200 - ((speed - 1) * 190 / 99);
+}
+
 static std::vector<EffectRegistryEntry>& _effectRegistryVec() {
   static std::vector<EffectRegistryEntry> reg;
   return reg;
 }
 
-void _registerEffect(const char* name, uint16_t (*handler)()) {
-  _effectRegistryVec().push_back({name, handler});
+void _registerEffect(uint8_t id, const char* name, uint16_t (*handler)()) {
+  _effectRegistryVec().push_back({id, name, handler});
 }
 
 const std::vector<EffectRegistryEntry>& getEffectRegistry() {
@@ -50,58 +216,101 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   return rb3 | wg3;
 }
 
-// Solid color effect: fills the strip with color[0]
+
+// Solid color effect: fills the strip with color[0] or writes to buffer
 uint16_t solid_effect() {
   extern std::array<uint32_t, 8> color;
-  BusNeoPixel* neo = busManager.getNeoPixelBus();
-  if (!neo || !neo->getStrip()) return 0;
   extern SystemState state;
+  extern TransitionEngine transition;
   uint8_t brightness = state.brightness;
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
-  // Use only the first color in the array
+  size_t n = busManager.getPixelCount();
   uint32_t solidColor = color[0];
   uint8_t r = scale((solidColor >> 16) & 0xFF);
   uint8_t g = scale((solidColor >> 8) & 0xFF);
   uint8_t b = scale(solidColor & 0xFF);
-  for (uint16_t i = 0; i < busManager.getPixelCount(); i++) {
+  std::vector<uint32_t> colors(n, (uint32_t(r) << 16) | (uint32_t(g) << 8) | b);
+  debugPrintStripColors(colors, "solid_effect");
+  for (size_t i = 0; i < n; ++i) {
     setPixelColorUnified(i, r, g, b);
   }
   showStrip();
   return 0;
 }
-REGISTER_EFFECT("Solid", solid_effect);
+REGISTER_EFFECT(0, "Solid", solid_effect);
 
-// Blend effect: smoothly blend across all colors (like WLED FX)
+// Blend effect: WLED-style, blends between prevParams and newParams according to transition state
 uint16_t blend_effect() {
-  extern std::array<uint32_t, 8> color;
-  extern size_t colorCount;
-  BusNeoPixel* neo = busManager.getNeoPixelBus();
-  if (!neo || !neo->getStrip()) return 0;
-  extern SystemState state;
+  // WLED-style blend effect: only interpolate colors across the LED strip
   uint8_t brightness = state.brightness;
-  auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
-  size_t n = colorCount;
-  if (n < 2) return 0;
-
-  // WLED-style phase/shift logic for speed
-  uint8_t speed = g_effectSpeed;
-  // Use a similar mapping as WLED: (millis() * ((speed >> 3) + 1)) >> 8
+  size_t ledCount = busManager.getPixelCount();
+  const auto& params = state.params;
+  size_t colorCount = params.colors.size();
+    debugPrint("[blend_effect] params.colors: ");
+    for (size_t i = 0; i < params.colors.size(); ++i) {
+      debugPrint(params.colors[i].c_str()); debugPrint(" ");
+    }
+    debugPrintln("");
+    debugPrint("[blend_effect] colorCount: "); debugPrintln((int)colorCount);
+  debugPrint("[blend_effect] ledCount: ");
+  debugPrintln(ledCount);
+  debugPrint("[blend_effect] colorCount: ");
+  debugPrintln(colorCount);
+  debugPrint("[blend_effect] color stops: ");
+  for (size_t i = 0; i < colorCount; ++i) {
+    debugPrint(params.colors[i].c_str());
+    debugPrint(" ");
+  }
+  debugPrintln("");
+  debugPrint("[blend_effect] speed: "); debugPrintln((int)params.speed);
+  // After rendering, print output buffer
+  // colors vector holds the final output for each LED
+  if (colorCount < 2) {
+    for (size_t i = 0; i < ledCount; ++i) setPixelColorUnified(i, 0, 0, 0);
+    showStrip();
+    return 0;
+  }
+  std::vector<uint32_t> colors;
+  colors.reserve(ledCount);
+  std::vector<uint32_t> stops;
+  for (size_t i = 0; i < colorCount; ++i) {
+    stops.push_back((uint32_t)strtoul(params.colors[i].c_str() + (params.colors[i][0] == '#' ? 1 : 0), nullptr, 16));
+  }
   uint32_t now = millis();
-  uint16_t phase = (now * ((speed >> 3) + 1)) >> 8; // 0..65535, wraps naturally
-
-  for (uint16_t i = 0; i < busManager.getPixelCount(); i++) {
-    // Calculate which segment and local blend
-    uint8_t blend_phase = (phase + (i * 256 / std::max(1u, static_cast<unsigned int>(busManager.getPixelCount()-1)))) % 256;
-    size_t seg = (blend_phase * (n - 1)) / 256;
-    size_t seg_next = (seg + 1) % n;
-    uint8_t local_blend = (blend_phase * (n - 1)) % 256;
-    uint32_t blended = color_blend(color[seg], color[seg_next], local_blend);
-    uint8_t r = scale((blended >> 16) & 0xFF);
-    uint8_t g = scale((blended >> 8) & 0xFF);
-    uint8_t b = scale(blended & 0xFF);
+  uint8_t speed = params.speed > 0 ? params.speed : 50;
+  uint32_t period = 10000 - ((speed - 1) * 9000 / 99);
+  float phase = float(now % period) / float(period);
+  for (size_t i = 0; i < ledCount; ++i) {
+    float ledPos = float(i) / float(ledCount - 1);
+    float shiftedPos = fmodf(ledPos + phase, 1.0f);
+    float stopPos = shiftedPos * (colorCount - 1);
+    int stopIdx = int(stopPos);
+    float frac = stopPos - stopIdx;
+    uint32_t c1 = stops[stopIdx];
+    uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
+    uint8_t r = (uint8_t)(((c1 >> 16) & 0xFF) * (1.0f - frac) + ((c2 >> 16) & 0xFF) * frac);
+    uint8_t g = (uint8_t)(((c1 >> 8) & 0xFF) * (1.0f - frac) + ((c2 >> 8) & 0xFF) * frac);
+    uint8_t b = (uint8_t)((c1 & 0xFF) * (1.0f - frac) + (c2 & 0xFF) * frac);
+    r = (r * brightness) / 255;
+    g = (g * brightness) / 255;
+    b = (b * brightness) / 255;
+    colors.push_back((uint32_t(r) << 16) | (uint32_t(g) << 8) | b);
     setPixelColorUnified(i, r, g, b);
   }
+  debugPrintStripColors(colors, "blend_effect");
   showStrip();
   return 0;
 }
-REGISTER_EFFECT("Blend", blend_effect);
+REGISTER_EFFECT(1, "Blend", blend_effect);
+
+// Register Flow effect (WLED FX_MODE_FLOW, 2)
+uint16_t flow_effect() { return 0; }
+REGISTER_EFFECT(2, "Flow", flow_effect);
+
+// Ensure frame generator registry is large enough for effect 2
+struct _FlowFrameGenInit {
+  _FlowFrameGenInit() {
+    if (effectFrameRegistry.size() <= 2) effectFrameRegistry.resize(3, nullptr);
+    effectFrameRegistry[2] = effect_flow_frame;
+  }
+} _flowFrameGenInit;
