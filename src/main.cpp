@@ -248,6 +248,7 @@ void loop() {
 }
 
 void setupWiFi() {
+    debugPrintln("[WiFi] setupWiFi() called");
     debugPrint("Connecting to WiFi");
     // Set hostname
     #ifdef ESP8266
@@ -257,6 +258,8 @@ void setupWiFi() {
     #endif
     // Connect to WiFi
     if (config.network.ssid.length() > 0) {
+        debugPrintln("");
+        debugPrintln("[WiFi] Calling WiFi.begin");
         WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
         int attempts = 0;
         int maxAttempts = 60; // 60 x 500ms = 30s (double previous)
@@ -265,12 +268,15 @@ void setupWiFi() {
             debugPrint(".");
             attempts++;
         }
+        debugPrintln("");
+        debugPrintln("[WiFi] First connection attempt done");
         // If not connected, try a second round of retries (total up to 60s)
         if (WiFi.status() != WL_CONNECTED) {
-            debugPrintln();
-            debugPrintln("First WiFi attempt failed, retrying...");
+            debugPrintln("");
+            debugPrintln("[WiFi] First WiFi attempt failed, retrying...");
             WiFi.disconnect();
             delay(1000);
+            debugPrintln("[WiFi] Calling WiFi.begin (retry)");
             WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
             attempts = 0;
             while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
@@ -278,9 +284,12 @@ void setupWiFi() {
                 debugPrint(".");
                 attempts++;
             }
+            debugPrintln("");
+            debugPrintln("[WiFi] Second connection attempt done");
         }
         if (WiFi.status() == WL_CONNECTED) {
-            debugPrintln();
+            debugPrintln("");
+            debugPrintln("[WiFi] Connected!");
             debugPrint("Connected! IP: ");
             debugPrintln(WiFi.localIP());
             stopCaptivePortal();
@@ -288,8 +297,8 @@ void setupWiFi() {
         }
     }
     // If connection failed or no credentials, start AP mode
-    debugPrintln();
-    debugPrintln("Starting Access Point mode");
+    debugPrintln("");
+    debugPrintln("[WiFi] Starting Access Point mode");
     WiFi.mode(WIFI_AP);
     WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
     debugPrint("AP IP: ");

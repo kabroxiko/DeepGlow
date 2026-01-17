@@ -168,10 +168,15 @@ WebServerManager::WebServerManager(Configuration* config, Scheduler* scheduler) 
 }
 
 void WebServerManager::begin() {
+    debugPrintln("[WebServer] begin() called");
     setupWebSocket();
+    debugPrintln("[WebServer] WebSocket setup complete");
     setupRoutes();
+    debugPrintln("[WebServer] Routes setup complete");
     buildEffectsCache();
+    debugPrintln("[WebServer] Effects cache built");
     _server->begin();
+    debugPrintln("[WebServer] Server started");
 }
 
 void WebServerManager::update() {
