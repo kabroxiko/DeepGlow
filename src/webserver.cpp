@@ -19,8 +19,6 @@
 #include "transition.h"
 #include "presets.h"
 #include "state.h"
-#include "debug.h"
-
 
 // Helper: CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
@@ -51,7 +49,7 @@ static String extractJsonBody(AsyncWebServerRequest* request, uint8_t* data, siz
     return jsonStr;
 }
 
-// Helper: Extract POST body for main POST handler (WLED-style)
+// Helper: Extract POST body for main POST handler
 static String extractPostBody(AsyncWebServerRequest* request) {
     String body = request->arg("plain");
     if (body.length() == 0 && request->params() > 0) {
@@ -82,11 +80,11 @@ void buildEffectsCache() {
     // Populate effects array from the effect registry (portable vector-based)
     StaticJsonDocument<4096> doc;
     JsonArray effects = doc.createNestedArray("effects");
-    const auto& reg = getEffectRegistry();
-    for (size_t i = 0; i < reg.size(); ++i) {
+    extern std::vector<EffectRegistryEntry> effectRegistry;
+    for (size_t i = 0; i < effectRegistry.size(); ++i) {
         JsonObject eff = effects.createNestedObject();
-        eff["id"] = i;
-        eff["name"] = reg[i].name;
+        eff["id"] = effectRegistry[i].id;
+        eff["name"] = effectRegistry[i].name;
     }
     cachedEffectsJson.clear();
     serializeJson(doc, cachedEffectsJson);
@@ -170,10 +168,15 @@ WebServerManager::WebServerManager(Configuration* config, Scheduler* scheduler) 
 }
 
 void WebServerManager::begin() {
+    debugPrintln("[WebServer] begin() called");
     setupWebSocket();
+    debugPrintln("[WebServer] WebSocket setup complete");
     setupRoutes();
+    debugPrintln("[WebServer] Routes setup complete");
     buildEffectsCache();
+    debugPrintln("[WebServer] Effects cache built");
     _server->begin();
+    debugPrintln("[WebServer] Server started");
 }
 
 void WebServerManager::update() {
@@ -295,7 +298,7 @@ void WebServerManager::setupRoutes() {
     _server->on("/index.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send_P(200, "text/html", web_index_html, web_index_html_len);
     });
-    // Serve WiFi page for POST: robust handler parses body manually (WLED-style, minimal signature)
+    // Serve WiFi page for POST: robust handler parses body manually
     _server->on("/wifi", HTTP_POST, 
         [this](AsyncWebServerRequest* request) {
             for (size_t i = 0; i < request->params(); i++) {
@@ -551,17 +554,18 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         }
         if (paramsObj.containsKey("colors")) {
             JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
-            uint32_t arr[8] = {0x0000FF, 0x00FFFF};
-            size_t n = colorsArr.size() > 8 ? 8 : colorsArr.size();
-            for (size_t i = 0; i < n; ++i) {
-                const char* hex = colorsArr[i];
-                if (hex[0] == '#') hex++;
-                // Always parse exactly 6 hex digits for RGB
-                char buf[7] = {0};
-                strncpy(buf, hex, 6);
-                arr[i] = ((uint32_t)strtoul(buf, nullptr, 16)) & 0xFFFFFF;
+            std::vector<String> parsedColors;
+            for (JsonVariant v : colorsArr) {
+                if (v.is<const char*>()) {
+                    String hex = v.as<const char*>();
+                    if (hex.length() == 6 && hex[0] != '#') {
+                        hex = "#" + hex;
+                    }
+                    parsedColors.push_back(hex);
+                }
             }
-            setUserColor(arr, n);
+            params.colors = parsedColors;
+            state.params.colors = parsedColors;
             updated = true;
         }
         if (updated && _effectCallback) _effectCallback(state.effect, params);
@@ -739,29 +743,40 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
 
 String WebServerManager::getStateJSON() {
     StaticJsonDocument<512> doc;
-    
-    doc["power"] = state.power;
-    // Send target brightness as 'brightness' in state
     extern TransitionEngine transition;
-    doc["brightness"] = transition.getTargetBrightness();
-    doc["effect"] = state.effect;
-    doc["transitionTime"] = state.transitionTime;
-    doc["currentPreset"] = state.currentPreset;
-    if (_scheduler->isTimeValid()) {
-        doc["time"] = _scheduler->getCurrentTime();
+    extern PendingTransitionState pendingTransition;
+    // Only use pendingTransition for fields that actually change during a transition
+    if (state.inTransition) {
+        doc["power"] = true;
+        doc["effect"] = pendingTransition.effect;
+        doc["preset"] = pendingTransition.preset;
+        JsonObject paramsObj = doc.createNestedObject("params");
+        paramsObj["speed"] = pendingTransition.params.speed;
+        paramsObj["intensity"] = pendingTransition.params.intensity;
+        JsonArray colorsArr = paramsObj.createNestedArray("colors");
+        for (const auto& c : pendingTransition.params.colors) {
+            colorsArr.add(c);
+        }
     } else {
-        doc["time"] = "--:--";
+        doc["power"] = state.power;
+        doc["effect"] = state.effect;
+        doc["preset"] = state.preset;
+        JsonObject paramsObj = doc.createNestedObject("params");
+        paramsObj["speed"] = state.params.speed;
+        paramsObj["intensity"] = state.params.intensity;
+        JsonArray colorsArr = paramsObj.createNestedArray("colors");
+        for (const auto& c : state.params.colors) {
+            colorsArr.add(c);
+        }
     }
+    // These fields are always reported from state/transition engine
+    uint8_t brightnessHex = transition.getTargetBrightness();
+    uint8_t brightnessPercent = (uint8_t)((brightnessHex * 100 + 127) / 255);
+    doc["brightness"] = brightnessPercent;
+    doc["transitionTime"] = state.transitionTime;
+    doc["time"] = _scheduler->isTimeValid() ? _scheduler->getCurrentTime() : "--:--";
     doc["sunrise"] = _scheduler->getSunriseTime();
     doc["sunset"] = _scheduler->getSunsetTime();
-
-    JsonObject paramsObj = doc.createNestedObject("params");
-    paramsObj["speed"] = state.params.speed;
-    paramsObj["intensity"] = state.params.intensity;
-    JsonArray colorsArr = paramsObj.createNestedArray("colors");
-    for (const auto& c : state.params.colors) {
-        colorsArr.add(c);
-    }
 
     String output;
     serializeJson(doc, output);
@@ -905,7 +920,9 @@ bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transiti
 void WebServerManager::broadcastState() {
     // Sync config.state.brightness with transition engine before broadcasting
     extern TransitionEngine transition;
-    state.brightness = transition.getCurrentBrightness();
+    // Store as percent for reporting
+    uint8_t brightnessHex = transition.getCurrentBrightness();
+    state.brightness = (uint8_t)((brightnessHex * 100 + 127) / 255);
     String stateJSON = getStateJSON();
     _ws->textAll(stateJSON);
 }

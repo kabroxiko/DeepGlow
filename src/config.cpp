@@ -262,9 +262,9 @@ bool Configuration::factoryReset() {
 
 // Helper function to map percent (0-100) to hardware brightness (1-255)
 uint8_t percentToBrightness(uint8_t percent) {
-    if (percent <= 0) return 1;
+    if (percent <= 0) return 0;
     if (percent >= 100) return 255;
-    return (uint8_t)(1 + ((254 * percent) / 100));
+    return (uint8_t)((255 * percent) / 100);
 }
 
 // Helper to load timers from a JsonArray
