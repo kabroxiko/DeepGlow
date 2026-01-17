@@ -46,13 +46,6 @@ const std::vector<EffectRegistryEntry>& getEffectRegistry();
 
 void _registerEffect(uint8_t id, const char* name, uint16_t (*handler)());
 
-// Solid color effect
-// Render solid effect to buffer if provided, else to LEDs
-uint16_t solid_effect();
-uint16_t single_led_chase_effect();
-// Render blend effect with WLED-style transition blending
-uint16_t blend_effect();
-uint16_t multicolor_chase_effect();
 extern std::array<uint32_t, 8> color;
 extern size_t colorCount;
 extern void* strip;

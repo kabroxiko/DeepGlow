@@ -109,7 +109,7 @@ void effect_flow_frame(const EffectParams& params, std::vector<uint32_t>& buffer
     return (uint32_t(w) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | b;
   };
 
-  // Fill all LEDs with background palette color (like WLED)
+  // Fill all LEDs with background palette color
   for (size_t i = 0; i < ledCount; ++i) {
     buffer[i] = get_palette_color(-int(counter));
   }
@@ -204,7 +204,7 @@ void setPixelColorUnified(uint16_t i, uint8_t r, uint8_t g, uint8_t b) {
   busManager.setPixelColor(i, color);
 }
 
-// WLED-inspired color_blend for 24/32-bit colors
+// color_blend for 24/32-bit colors
 static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   const uint32_t TWO_CHANNEL_MASK = 0x00FF00FF;
   uint32_t rb1 =  color1       & TWO_CHANNEL_MASK;
@@ -239,9 +239,8 @@ uint16_t solid_effect() {
 }
 REGISTER_EFFECT(0, "Solid", solid_effect);
 
-// Blend effect: WLED-style, blends between prevParams and newParams according to transition state
+// Blend effect
 uint16_t blend_effect() {
-  // WLED-style blend effect: only interpolate colors across the LED strip
   uint8_t brightness = state.brightness;
   size_t ledCount = busManager.getPixelCount();
   const auto& params = state.params;
@@ -303,14 +302,53 @@ uint16_t blend_effect() {
 }
 REGISTER_EFFECT(1, "Blend", blend_effect);
 
-// Register Flow effect (WLED FX_MODE_FLOW, 2)
+// Register Flow effect
 uint16_t flow_effect() { return 0; }
 REGISTER_EFFECT(2, "Flow", flow_effect);
+
+// Chase
+void effect_chase_frame(const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
+  if (ledCount == 0 || colorCount == 0) return;
+  uint32_t now = millis();
+  uint8_t speed = params.speed > 0 ? params.speed : 50;
+  uint8_t size = params.intensity > 0 ? params.intensity : 8; // default chase size
+  uint32_t period = 2000 - ((speed - 1) * 1800 / 99); // 2000ms (slow) to 200ms (fast)
+  float phase = float(now % period) / float(period);
+  size_t chaseLen = (size * ledCount) / 255;
+  if (chaseLen < 1) chaseLen = 1;
+  size_t chaseStart = size_t(phase * (ledCount + chaseLen)) % (ledCount + chaseLen);
+  for (size_t i = 0; i < ledCount; ++i) {
+    bool inChase = (i >= chaseStart && i < chaseStart + chaseLen);
+    uint32_t c = inChase ? colors[0] : (colorCount > 1 ? colors[1] : 0);
+    uint8_t r = ((c >> 16) & 0xFF) * brightness / 255;
+    uint8_t g = ((c >> 8) & 0xFF) * brightness / 255;
+    uint8_t b = (c & 0xFF) * brightness / 255;
+    buffer[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+  }
+}
+
+uint16_t chase_effect() {
+  extern std::array<uint32_t, 8> color;
+  extern SystemState state;
+  uint8_t brightness = state.brightness;
+  size_t n = busManager.getPixelCount();
+  std::vector<uint32_t> buffer(n, 0);
+  effect_chase_frame(state.params, buffer, n, color, state.params.colors.size(), brightness);
+  for (size_t i = 0; i < n; ++i) {
+    uint32_t c = buffer[i];
+    setPixelColorUnified(i, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+  }
+  showStrip();
+  return 0;
+}
+REGISTER_EFFECT(3, "Chase", chase_effect);
 
 // Ensure frame generator registry is large enough for effect 2
 struct _FlowFrameGenInit {
   _FlowFrameGenInit() {
     if (effectFrameRegistry.size() <= 2) effectFrameRegistry.resize(3, nullptr);
     effectFrameRegistry[2] = effect_flow_frame;
+    if (effectFrameRegistry.size() <= 3) effectFrameRegistry.resize(4, nullptr);
+    effectFrameRegistry[3] = effect_chase_frame;
   }
 } _flowFrameGenInit;

@@ -19,8 +19,6 @@
 #include "transition.h"
 #include "presets.h"
 #include "state.h"
-#include "debug.h"
-
 
 // Helper: CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
@@ -51,7 +49,7 @@ static String extractJsonBody(AsyncWebServerRequest* request, uint8_t* data, siz
     return jsonStr;
 }
 
-// Helper: Extract POST body for main POST handler (WLED-style)
+// Helper: Extract POST body for main POST handler
 static String extractPostBody(AsyncWebServerRequest* request) {
     String body = request->arg("plain");
     if (body.length() == 0 && request->params() > 0) {
@@ -295,7 +293,7 @@ void WebServerManager::setupRoutes() {
     _server->on("/index.html", HTTP_GET, [](AsyncWebServerRequest* request) {
         request->send_P(200, "text/html", web_index_html, web_index_html_len);
     });
-    // Serve WiFi page for POST: robust handler parses body manually (WLED-style, minimal signature)
+    // Serve WiFi page for POST: robust handler parses body manually
     _server->on("/wifi", HTTP_POST, 
         [this](AsyncWebServerRequest* request) {
             for (size_t i = 0; i < request->params(); i++) {

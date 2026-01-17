@@ -17,7 +17,7 @@ public:
     uint8_t getTargetBrightness() const { return _targetBrightness; }
     TransitionEngine();
 
-    // Getters for transition timing (for WLED-style blending)
+    // Getters for transition timing
     uint32_t getStartTime() const { return _startTime; }
     uint32_t getDuration() const { return _duration; }
     // Allow external force of current brightness for smooth slider

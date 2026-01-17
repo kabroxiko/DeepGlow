@@ -84,7 +84,6 @@ void applyPreset(uint8_t presetId) {
 		color[i] = 0x000000;
 	}
 
-	// --- WLED-style transition logic ---
 	// Block blend_effect if colors are black
 	if (preset.effect == 1 && !validPresetColors) {
 		debugPrintln("[applyPreset] blend_effect blocked: invalid preset colors");
@@ -243,7 +242,7 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 		// Update global effect speed if present in params
 		   if (params.speed > 0) {
 			   extern volatile uint8_t g_effectSpeed;
-			   // Map UI speed (1-100) to WLED effect speed (1-255)
+			   // Map UI speed (1-100) to effect speed (1-255)
 			   g_effectSpeed = (params.speed * 254) / 100 + 1;
 		   }
 		reg[effect].handler();

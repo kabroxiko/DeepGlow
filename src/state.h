@@ -11,7 +11,6 @@ struct SystemState {
     uint32_t transitionTime = 5000;
     uint8_t currentPreset = 0;
     bool inTransition = false;
-    // For WLED-style transitions
     int8_t prevEffect = -1;
     EffectParams prevParams;
 };

@@ -45,7 +45,6 @@ std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool bri
             blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
         }
     } else {
-        // WLED FADE style: all pixels blend from previous to target frame
         for (size_t i = 0; i < count; ++i) {
             uint32_t prev = previousFrame[i];
             uint32_t next = targetFrame[i];

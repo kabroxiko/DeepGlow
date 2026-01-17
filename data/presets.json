@@ -42,12 +42,12 @@
     {
       "id": 4,
       "name": "Moonlight",
-      "effect": 0,
+      "effect": 3,
       "enabled": true,
       "params": {
-        "speed": 80,
+        "speed": 10,
         "intensity": 40,
-        "colors": ["#0A0800"]
+        "colors": ["#0000B4", "#001E50", "#000000"]
       }
     }
   ]
