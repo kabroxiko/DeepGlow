@@ -740,7 +740,7 @@ function renderBrightnessGraph() {
         return;
     }
 
-    // For each 10-min interval, determine active timer and its brightness
+    // For each 10-min interval, determine active timer and its brightness, wrapping to previous day if needed
     let currentEventIdx = 0;
     for (let i = 0; i < totalPoints; i++) {
         const minutes = i * 10;
@@ -748,8 +748,13 @@ function renderBrightnessGraph() {
         while (currentEventIdx < events.length - 1 && minutes >= events[currentEventIdx + 1].time) {
             currentEventIdx++;
         }
-        // Get brightness for current timer
-        let brightness = events[currentEventIdx].brightness;
+        // If before the first event, use the last event's brightness (cycle from previous day)
+        let brightness;
+        if (minutes < events[0].time) {
+            brightness = events[events.length - 1].brightness;
+        } else {
+            brightness = events[currentEventIdx].brightness;
+        }
         data[i] = brightness;
         // Label every hour
         labels.push(i % pointsPerHour === 0 ? (i / pointsPerHour).toString().padStart(2, '0') + ':00' : '');
