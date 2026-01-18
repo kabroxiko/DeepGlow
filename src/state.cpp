@@ -18,7 +18,6 @@ PendingTransitionState pendingTransition;
 
 // Needed for effect speed control in updateLEDs
 extern volatile uint8_t g_effectSpeed;
-extern void setPixelColorUnified(uint16_t i, uint8_t r, uint8_t g, uint8_t b);
 
 SystemState state;
 
@@ -349,10 +348,9 @@ void updateLEDs() {
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t prev = prevFrame[i];
 			uint32_t next = nextFrame[i];
-			uint8_t r = (uint8_t)(((prev >> 16) & 0xFF) * (1.0f - progress) + ((next >> 16) & 0xFF) * progress);
-			uint8_t g = (uint8_t)(((prev >> 8) & 0xFF) * (1.0f - progress) + ((next >> 8) & 0xFF) * progress);
-			uint8_t b = (uint8_t)((prev & 0xFF) * (1.0f - progress) + (next & 0xFF) * progress);
-			blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+			uint8_t r, g, b;
+			blend_rgb_brightness(prev, next, progress, 255, r, g, b);
+			blended[i] = pack_rgb(r, g, b);
 		}
 		bool allZero = true;
 		debugPrint("[updateLEDs] blended frame: ");
@@ -375,10 +373,9 @@ void updateLEDs() {
 		}
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t c = blended[i];
-			uint8_t r = (c >> 16) & 0xFF;
-			uint8_t g = (c >> 8) & 0xFF;
-			uint8_t b = c & 0xFF;
-			setPixelColorUnified(i, r, g, b);
+			uint8_t r, g, b;
+			unpack_rgb(c, r, g, b);
+			busManager.setPixelColor(i, pack_rgb(r, g, b));
 		}
 		busManager.show();
 	} else {
@@ -424,10 +421,9 @@ void updateLEDs() {
 			renderEffectToBuffer(state.effect, state.params, animFrame, count, animColors, animColorCount, animBrightness);
 			for (size_t i = 0; i < count; ++i) {
 				uint32_t c = animFrame[i];
-				uint8_t r = (c >> 16) & 0xFF;
-				uint8_t g = (c >> 8) & 0xFF;
-				uint8_t b = c & 0xFF;
-				setPixelColorUnified(i, r, g, b);
+				uint8_t r, g, b;
+				unpack_rgb(c, r, g, b);
+				busManager.setPixelColor(i, pack_rgb(r, g, b));
 			}
 			busManager.show();
 			// Only set relay if power is on

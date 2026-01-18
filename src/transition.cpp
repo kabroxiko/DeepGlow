@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "transition.h"
+#include "bus_manager.h"
 
 // Frame blending API
 void TransitionEngine::setPreviousFrame(const std::vector<uint32_t>& frame) {
@@ -36,22 +37,17 @@ std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool bri
         uint8_t blendedBrightness = (uint8_t)(startBrightness * (1.0f - progress) + endBrightness * progress);
         for (size_t i = 0; i < count; ++i) {
             uint32_t colorVal = previousFrame[i];
-            uint8_t r = (colorVal >> 16) & 0xFF;
-            uint8_t g = (colorVal >> 8) & 0xFF;
-            uint8_t b = colorVal & 0xFF;
-            r = (r * blendedBrightness) / 255;
-            g = (g * blendedBrightness) / 255;
-            b = (b * blendedBrightness) / 255;
-            blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+            uint8_t r, g, b;
+            scale_rgb_brightness(colorVal, blendedBrightness, r, g, b);
+            blended[i] = pack_rgb(r, g, b);
         }
     } else {
         for (size_t i = 0; i < count; ++i) {
             uint32_t prev = previousFrame[i];
             uint32_t next = targetFrame[i];
-            uint8_t r = (uint8_t)(((prev >> 16) & 0xFF) * (1.0f - progress) + ((next >> 16) & 0xFF) * progress);
-            uint8_t g = (uint8_t)(((prev >> 8) & 0xFF) * (1.0f - progress) + ((next >> 8) & 0xFF) * progress);
-            uint8_t b = (uint8_t)((prev & 0xFF) * (1.0f - progress) + (next & 0xFF) * progress);
-            blended[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+            uint8_t r, g, b;
+            blend_rgb_brightness(prev, next, progress, 255, r, g, b);
+            blended[i] = pack_rgb(r, g, b);
         }
     }
     bool allZero = true;
@@ -192,17 +188,7 @@ uint8_t TransitionEngine::interpolate(uint8_t start, uint8_t target, float progr
 }
 
 uint32_t TransitionEngine::interpolateColor(uint32_t start, uint32_t target, float progress) {
-    uint8_t sr = (start >> 16) & 0xFF;
-    uint8_t sg = (start >> 8) & 0xFF;
-    uint8_t sb = start & 0xFF;
-    
-    uint8_t tr = (target >> 16) & 0xFF;
-    uint8_t tg = (target >> 8) & 0xFF;
-    uint8_t tb = target & 0xFF;
-    
-    uint8_t r = interpolate(sr, tr, progress);
-    uint8_t g = interpolate(sg, tg, progress);
-    uint8_t b = interpolate(sb, tb, progress);
-    
-    return ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+    uint8_t r, g, b;
+    blend_rgb_brightness(start, target, progress, 255, r, g, b);
+    return pack_rgb(r, g, b);
 }

@@ -4,11 +4,12 @@
 #include <array>
 #include <cstdint>
 #include <cstddef>
+#include <array>
 #include "bus_manager.h"
 #include "effects.h"
 #include "state.h"
+#include "colors.h"
 #include "transition.h"
-#include <array>
 
 extern EffectParams transitionPrevParams;
 extern PendingTransitionState pendingTransition;
@@ -20,14 +21,12 @@ volatile uint8_t g_effectSpeed = 1;
 // Effect frame generator function type
 typedef void (*EffectFrameGen)(const EffectParams&, std::vector<uint32_t>&, size_t, const std::array<uint32_t, 8>&, size_t, uint8_t);
 
-// Individual effect frame generators
 void effect_solid_frame(const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
   uint32_t solidColor = colors[0];
-  uint8_t r = (uint8_t)(((solidColor >> 16) & 0xFF) * brightness / 255);
-  uint8_t g = (uint8_t)(((solidColor >> 8) & 0xFF) * brightness / 255);
-  uint8_t b = (uint8_t)((solidColor & 0xFF) * brightness / 255);
+  uint8_t r, g, b;
+  scale_rgb_brightness(solidColor, brightness, r, g, b);
   for (size_t i = 0; i < ledCount; ++i) {
-    buffer[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+    buffer[i] = pack_rgb(r, g, b);
   }
 }
 
@@ -52,13 +51,9 @@ void effect_blend_frame(const EffectParams& params, std::vector<uint32_t>& buffe
     float frac = stopPos - stopIdx;
     uint32_t c1 = stops[stopIdx];
     uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
-    uint8_t r = (uint8_t)(((c1 >> 16) & 0xFF) * (1.0f - frac) + ((c2 >> 16) & 0xFF) * frac);
-    uint8_t g = (uint8_t)(((c1 >> 8) & 0xFF) * (1.0f - frac) + ((c2 >> 8) & 0xFF) * frac);
-    uint8_t b = (uint8_t)((c1 & 0xFF) * (1.0f - frac) + (c2 & 0xFF) * frac);
-    r = (r * brightness) / 255;
-    g = (g * brightness) / 255;
-    b = (b * brightness) / 255;
-    buffer[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+    uint8_t r, g, b;
+    blend_rgb_brightness(c1, c2, frac, brightness, r, g, b);
+    buffer[i] = pack_rgb(r, g, b);
   }
 }
 
@@ -98,15 +93,11 @@ void effect_flow_frame(const EffectParams& params, std::vector<uint32_t>& buffer
     float frac = scaled - float(i0);
     uint32_t c0 = colors[i0];
     uint32_t c1 = colors[i1];
-    uint8_t r = ((c0 >> 16) & 0xFF) * (1.0f - frac) + ((c1 >> 16) & 0xFF) * frac;
-    uint8_t g = ((c0 >> 8) & 0xFF) * (1.0f - frac) + ((c1 >> 8) & 0xFF) * frac;
-    uint8_t b = (c0 & 0xFF) * (1.0f - frac) + (c1 & 0xFF) * frac;
-    uint8_t w = ((c0 >> 24) & 0xFF) * (1.0f - frac) + ((c1 >> 24) & 0xFF) * frac;
-    r = (r * brightness) / 255;
-    g = (g * brightness) / 255;
-    b = (b * brightness) / 255;
-    w = (w * brightness) / 255;
-    return (uint32_t(w) << 24) | (uint32_t(r) << 16) | (uint32_t(g) << 8) | b;
+    uint8_t r, g, b, w;
+    blend_rgbw_brightness(c0, c1, frac, brightness, r, g, b, w);
+    // Use pack_rgb for RGB, and pack_rgbw for RGBW if needed
+    // If w is always 0, just use pack_rgb
+    return (uint32_t(w) << 24) | pack_rgb(r, g, b);
   };
 
   // Fill all LEDs with background palette color
@@ -198,12 +189,6 @@ const std::vector<EffectRegistryEntry>& getEffectRegistry() {
   return _effectRegistryVec();
 }
 
-// Unified pixel color setter for all LED types and color orders
-void setPixelColorUnified(uint16_t i, uint8_t r, uint8_t g, uint8_t b) {
-  uint32_t color = (uint32_t(r) << 16) | (uint32_t(g) << 8) | uint32_t(b);
-  busManager.setPixelColor(i, color);
-}
-
 // color_blend for 24/32-bit colors
 static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   const uint32_t TWO_CHANNEL_MASK = 0x00FF00FF;
@@ -226,13 +211,12 @@ uint16_t solid_effect() {
   auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
   size_t n = busManager.getPixelCount();
   uint32_t solidColor = color[0];
-  uint8_t r = scale((solidColor >> 16) & 0xFF);
-  uint8_t g = scale((solidColor >> 8) & 0xFF);
-  uint8_t b = scale(solidColor & 0xFF);
-  std::vector<uint32_t> colors(n, (uint32_t(r) << 16) | (uint32_t(g) << 8) | b);
+  uint8_t r, g, b;
+  scale_rgb_brightness(solidColor, brightness, r, g, b);
+  std::vector<uint32_t> colors(n, pack_rgb(r, g, b));
   debugPrintStripColors(colors, "solid_effect");
   for (size_t i = 0; i < n; ++i) {
-    setPixelColorUnified(i, r, g, b);
+    busManager.setPixelColor(i, pack_rgb(r, g, b));
   }
   showStrip();
   return 0;
@@ -265,7 +249,7 @@ uint16_t blend_effect() {
   // After rendering, print output buffer
   // colors vector holds the final output for each LED
   if (colorCount < 2) {
-    for (size_t i = 0; i < ledCount; ++i) setPixelColorUnified(i, 0, 0, 0);
+    for (size_t i = 0; i < ledCount; ++i) busManager.setPixelColor(i, pack_rgb(0, 0, 0));
     showStrip();
     return 0;
   }
@@ -287,14 +271,10 @@ uint16_t blend_effect() {
     float frac = stopPos - stopIdx;
     uint32_t c1 = stops[stopIdx];
     uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
-    uint8_t r = (uint8_t)(((c1 >> 16) & 0xFF) * (1.0f - frac) + ((c2 >> 16) & 0xFF) * frac);
-    uint8_t g = (uint8_t)(((c1 >> 8) & 0xFF) * (1.0f - frac) + ((c2 >> 8) & 0xFF) * frac);
-    uint8_t b = (uint8_t)((c1 & 0xFF) * (1.0f - frac) + (c2 & 0xFF) * frac);
-    r = (r * brightness) / 255;
-    g = (g * brightness) / 255;
-    b = (b * brightness) / 255;
-    colors.push_back((uint32_t(r) << 16) | (uint32_t(g) << 8) | b);
-    setPixelColorUnified(i, r, g, b);
+    uint8_t r, g, b;
+    blend_rgb_brightness(c1, c2, frac, brightness, r, g, b);
+    colors.push_back(pack_rgb(r, g, b));
+    busManager.setPixelColor(i, pack_rgb(r, g, b));
   }
   debugPrintStripColors(colors, "blend_effect");
   showStrip();
@@ -320,10 +300,9 @@ void effect_chase_frame(const EffectParams& params, std::vector<uint32_t>& buffe
   for (size_t i = 0; i < ledCount; ++i) {
     bool inChase = (i >= chaseStart && i < chaseStart + chaseLen);
     uint32_t c = inChase ? colors[0] : (colorCount > 1 ? colors[1] : 0);
-    uint8_t r = ((c >> 16) & 0xFF) * brightness / 255;
-    uint8_t g = ((c >> 8) & 0xFF) * brightness / 255;
-    uint8_t b = (c & 0xFF) * brightness / 255;
-    buffer[i] = ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+    uint8_t r, g, b;
+    scale_rgb_brightness(c, brightness, r, g, b);
+    buffer[i] = pack_rgb(r, g, b);
   }
 }
 
@@ -336,7 +315,7 @@ uint16_t chase_effect() {
   effect_chase_frame(state.params, buffer, n, color, state.params.colors.size(), brightness);
   for (size_t i = 0; i < n; ++i) {
     uint32_t c = buffer[i];
-    setPixelColorUnified(i, (c >> 16) & 0xFF, (c >> 8) & 0xFF, c & 0xFF);
+    busManager.setPixelColor(i, c);
   }
   showStrip();
   return 0;

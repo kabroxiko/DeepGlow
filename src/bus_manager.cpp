@@ -68,9 +68,8 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
     if (!_strip) {
         return;
     }
-    uint8_t r = (color >> 16) & 0xFF;
-    uint8_t g = (color >> 8) & 0xFF;
-    uint8_t b = color & 0xFF;
+    uint8_t r, g, b;
+    unpack_rgb(color, r, g, b);
     switch (_type) {
         case BusNeoPixelType::SK6812: {
             auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoSk6812Method>*>(_strip);
@@ -98,17 +97,17 @@ uint32_t BusNeoPixel::getPixelColor(uint16_t pix) const {
             auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoSk6812Method>*>(_strip);
             RgbwColor c = s->GetPixelColor(pix);
             // Convert GRBW to RGB (ignore W)
-            return (uint32_t(c.R) << 16) | (uint32_t(c.G) << 8) | uint32_t(c.B);
+            return pack_rgb(c.R, c.G, c.B);
         }
         case BusNeoPixelType::WS2812B_RGB: {
             auto* s = static_cast<NeoPixelBus<NeoRgbFeature, NeoWs2812xMethod>*>(_strip);
             RgbColor c = s->GetPixelColor(pix);
-            return (uint32_t(c.R) << 16) | (uint32_t(c.G) << 8) | uint32_t(c.B);
+            return pack_rgb(c.R, c.G, c.B);
         }
         case BusNeoPixelType::WS2812B_GRB: {
             auto* s = static_cast<NeoPixelBus<NeoGrbFeature, NeoWs2812xMethod>*>(_strip);
             RgbColor c = s->GetPixelColor(pix);
-            return (uint32_t(c.R) << 16) | (uint32_t(c.G) << 8) | uint32_t(c.B);
+            return pack_rgb(c.R, c.G, c.B);
         }
     }
     return 0;
