@@ -90,7 +90,10 @@ void applyPreset(uint8_t presetId) {
 		debugPrintln("[applyPreset] blend_effect blocked: invalid preset colors");
 		return;
 	}
-	previousBrightness = transition.getCurrentBrightness(); // Cache previous brightness at start
+	// Always use the current interpolated state as the new transition's start
+	previousBrightness = transition.getCurrentBrightness();
+	uint32_t prevColor1 = transition.getCurrentColor1();
+	uint32_t prevColor2 = transition.getCurrentColor2();
 
 	bool doTransition = (state.prevEffect >= 0);
 	uint32_t transTime = state.transitionTime;
@@ -136,10 +139,13 @@ void applyPreset(uint8_t presetId) {
 		} else {
 			colorsChanged = true;
 		}
-		debugPrint("[applyPreset] forceCurrentBrightness (prev): ");
+		debugPrint("[applyPreset] forceCurrentBrightness (interpolated): ");
 		debugPrintln((int)previousBrightness);
 		transition.forceCurrentBrightness(previousBrightness);
-		// Start transitions (with previous effect/params still set)
+		// Start transitions from the current interpolated state
+		transition.setStartBrightness(previousBrightness);
+		transition.setStartColor1(prevColor1);
+		transition.setStartColor2(prevColor2);
 		transition.startTransition(safeBrightness, transTime);
 		uint32_t newColor1 = color[0];
 		uint32_t newColor2 = color[1];

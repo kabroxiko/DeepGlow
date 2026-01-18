@@ -7,6 +7,10 @@
 
 class TransitionEngine {
 public:
+    // Setters for transition start values (for smooth interruption)
+    void setStartBrightness(uint8_t value) { _startBrightness = value; }
+    void setStartColor1(uint32_t value) { _startColor1 = value; }
+    void setStartColor2(uint32_t value) { _startColor2 = value; }
     const std::vector<uint32_t>& getTargetFrame() const { return targetFrame; }
     const std::vector<uint32_t>& getPreviousFrame() const { return previousFrame; }
     // Frame blending API
