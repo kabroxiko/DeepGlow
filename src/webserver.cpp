@@ -80,11 +80,12 @@ void buildEffectsCache() {
     // Populate effects array from the effect registry (portable vector-based)
     StaticJsonDocument<4096> doc;
     JsonArray effects = doc.createNestedArray("effects");
-    const auto& reg = getEffectRegistry();
-    for (size_t i = 0; i < reg.size(); ++i) {
+    extern std::vector<void (*)()> effectFrameRegistry;
+    static const char* effectNames[] = {"Solid", "Blend", "Flow", "Chase"};
+    for (size_t i = 0; i < effectFrameRegistry.size(); ++i) {
         JsonObject eff = effects.createNestedObject();
         eff["id"] = i;
-        eff["name"] = reg[i].name;
+        eff["name"] = effectNames[i];
     }
     cachedEffectsJson.clear();
     serializeJson(doc, cachedEffectsJson);

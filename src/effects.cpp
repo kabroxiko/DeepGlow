@@ -28,6 +28,20 @@ typedef void (*EffectFrameGen)();
 static std::vector<uint32_t>* g_effectBuffer = nullptr;
 static size_t g_ledCount = 0;
 
+// Forward declarations for all effect frame generators
+void effect_solid_frame();
+void effect_blend_frame();
+void effect_flow_frame();
+void effect_chase_frame();
+
+// Registry of effect frame generators (index = effectId)
+std::vector<EffectFrameGen> effectFrameRegistry = {
+  effect_solid_frame,   // 0: Solid
+  effect_blend_frame,   // 1: Blend
+  effect_flow_frame,    // 2: Flow
+  effect_chase_frame    // 3: Chase
+};
+
 void effect_solid_frame() {
   uint32_t c = color[0];
   uint8_t r, g, b, w;
@@ -80,20 +94,6 @@ void effect_blend_frame() {
     (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w); // RRGGBBWW
   }
 }
-
-// Forward declarations for all effect frame generators
-void effect_solid_frame();
-void effect_blend_frame();
-void effect_flow_frame();
-void effect_chase_frame();
-
-// Registry of effect frame generators (index = effectId)
-static std::vector<EffectFrameGen> effectFrameRegistry = {
-  effect_solid_frame,   // 0: Solid
-  effect_blend_frame,   // 1: Blend
-  effect_flow_frame,    // 2: Flow
-  effect_chase_frame    // 3: Chase
-};
 
 void effect_flow_frame() {
   if (!g_effectBuffer) return;
@@ -224,19 +224,6 @@ uint32_t getEffectDelayMs(const EffectParams& params) {
   return 200 - ((speed - 1) * 190 / 99);
 }
 
-static std::vector<EffectRegistryEntry>& _effectRegistryVec() {
-  static std::vector<EffectRegistryEntry> reg;
-  return reg;
-}
-
-void _registerEffect(uint8_t id, const char* name, uint16_t (*handler)()) {
-  _effectRegistryVec().push_back({id, name, handler});
-}
-
-const std::vector<EffectRegistryEntry>& getEffectRegistry() {
-  return _effectRegistryVec();
-}
-
 // color_blend for 24/32-bit colors
 static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   const uint32_t TWO_CHANNEL_MASK = 0x00FF00FF;
@@ -267,7 +254,6 @@ uint16_t solid_effect() {
   showStrip();
   return 0;
 }
-REGISTER_EFFECT(0, "Solid", solid_effect);
 
 // Blend effect
 uint16_t blend_effect() {
@@ -327,11 +313,9 @@ uint16_t blend_effect() {
   showStrip();
   return 0;
 }
-REGISTER_EFFECT(1, "Blend", blend_effect);
 
 // Register Flow effect
 uint16_t flow_effect() { return 0; }
-REGISTER_EFFECT(2, "Flow", flow_effect);
 
 // Chase
 void effect_chase_frame() {
@@ -379,4 +363,3 @@ uint16_t chase_effect() {
   showStrip();
   return 0;
 }
-REGISTER_EFFECT(3, "Chase", chase_effect);

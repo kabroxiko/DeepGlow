@@ -14,6 +14,7 @@ void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vec
 
 // All effect frame generators now take no parameters and use global buffer/ledCount
 typedef void (*EffectFrameGen)();
+extern std::vector<EffectFrameGen> effectFrameRegistry;
 
 struct PendingTransitionState {
 	uint8_t effect = 0;
@@ -21,33 +22,12 @@ struct PendingTransitionState {
 	uint8_t preset = 0;
 };
 
-struct EffectRegistryEntry {
-	uint8_t id;
-	const char* name;
-	uint16_t (*handler)();
-};
-
+// Removed EffectRegistryEntry structure and registration macros
 // Utility to print all colors sent to the strip
 void debugPrintStripColors(const std::vector<uint32_t>& colors, const char* tag = "strip colors");
 
 // Centralized effect speed to delay mapping
 uint32_t getEffectDelayMs(const EffectParams& params);
-
-// Registry accessor and registration function (must be declared before macro)
-const std::vector<EffectRegistryEntry>& getEffectRegistry();
-
-// Registration macro with explicit ID
-#define REGISTER_EFFECT(ID, NAME, FUNC) \
-	namespace { \
-	struct _AutoReg_##FUNC { \
-		_AutoReg_##FUNC() { \
-			_registerEffect(ID, NAME, FUNC); \
-		} \
-	}; \
-	static _AutoReg_##FUNC _autoReg_##FUNC; \
-	}
-
-void _registerEffect(uint8_t id, const char* name, uint16_t (*handler)());
 
 extern std::array<uint32_t, 8> color;
 extern size_t colorCount;
