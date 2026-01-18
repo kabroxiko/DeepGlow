@@ -7,9 +7,9 @@
 void TransitionEngine::setPreviousFrame(const std::vector<uint32_t>& frame) {
     this->previousFrame = frame;
     debugPrint("[TransitionEngine::setPreviousFrame] previousFrame: ");
-    char buf[10];
+    char buf[12];
     for (size_t i = 0; i < previousFrame.size(); ++i) {
-        snprintf(buf, sizeof(buf), "#%06X", previousFrame[i] & 0xFFFFFF);
+        snprintf(buf, sizeof(buf), "#%08X", previousFrame[i]);
         debugPrint(buf); debugPrint(" ");
     }
     debugPrintln("");
@@ -17,9 +17,9 @@ void TransitionEngine::setPreviousFrame(const std::vector<uint32_t>& frame) {
 void TransitionEngine::setTargetFrame(const std::vector<uint32_t>& frame) {
     this->targetFrame = frame;
     debugPrint("[TransitionEngine::setTargetFrame] targetFrame: ");
-    char buf[10];
+    char buf[12];
     for (size_t i = 0; i < targetFrame.size(); ++i) {
-        snprintf(buf, sizeof(buf), "#%06X", targetFrame[i] & 0xFFFFFF);
+        snprintf(buf, sizeof(buf), "#%08X", targetFrame[i]);
         debugPrint(buf); debugPrint(" ");
     }
     debugPrintln("");
@@ -74,13 +74,13 @@ std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool bri
         debugPrint("previousFrame: ");
         char buf[10];
         for (size_t i = 0; i < previousFrame.size(); ++i) {
-            snprintf(buf, sizeof(buf), "#%06X", previousFrame[i] & 0xFFFFFF);
+            snprintf(buf, sizeof(buf), "#%08X", previousFrame[i]);
             debugPrint(buf); debugPrint(" ");
         }
         debugPrintln("");
         debugPrint("targetFrame: ");
         for (size_t i = 0; i < targetFrame.size(); ++i) {
-            snprintf(buf, sizeof(buf), "#%06X", targetFrame[i] & 0xFFFFFF);
+            snprintf(buf, sizeof(buf), "#%08X", targetFrame[i]);
             debugPrint(buf); debugPrint(" ");
         }
         debugPrintln("");
@@ -126,18 +126,18 @@ void TransitionEngine::startColorTransition(uint32_t targetColor1, uint32_t targ
     _startColor2 = _currentColor2;
     _targetColor2 = targetColor2;
     // Do NOT set _active or update timing here; only brightness transition controls timing
-    char buf[10];
+    char buf[12];
     debugPrint("[Transition] startColorTransition: from ");
-    snprintf(buf, sizeof(buf), "#%06X", _startColor1 & 0xFFFFFF);
+    snprintf(buf, sizeof(buf), "#%08X", _startColor1);
     debugPrint(buf);
     debugPrint(", ");
-    snprintf(buf, sizeof(buf), "#%06X", _startColor2 & 0xFFFFFF);
+    snprintf(buf, sizeof(buf), "#%08X", _startColor2);
     debugPrint(buf);
     debugPrint(" to ");
-    snprintf(buf, sizeof(buf), "#%06X", _targetColor1 & 0xFFFFFF);
+    snprintf(buf, sizeof(buf), "#%08X", _targetColor1);
     debugPrint(buf);
     debugPrint(", ");
-    snprintf(buf, sizeof(buf), "#%06X", _targetColor2 & 0xFFFFFF);
+    snprintf(buf, sizeof(buf), "#%08X", _targetColor2);
     debugPrint(buf);
     debugPrint(", duration: ");
     debugPrintln(String(duration));

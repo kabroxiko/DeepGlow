@@ -25,7 +25,19 @@ void effect_solid_frame(const EffectParams& params, std::vector<uint32_t>& buffe
   uint32_t color = colors[0];
   uint8_t r, g, b, w;
   unpack_rgbw(color, r, g, b, w);
+  debugPrint("[effect_solid_frame] input color: 0x");
+  debugPrint(String(color, HEX));
+  debugPrint(" unpacked: r="); debugPrint((int)r);
+  debugPrint(" g="); debugPrint((int)g);
+  debugPrint(" b="); debugPrint((int)b);
+  debugPrint(" w="); debugPrint((int)w);
+  debugPrintln("");
   scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
+  debugPrint("[effect_solid_frame] after scale: r="); debugPrint((int)r);
+  debugPrint(" g="); debugPrint((int)g);
+  debugPrint(" b="); debugPrint((int)b);
+  debugPrint(" w="); debugPrint((int)w);
+  debugPrintln("");
   for (size_t i = 0; i < ledCount; ++i) {
     buffer[i] = pack_rgbw(r, g, b, w);
   }
@@ -128,20 +140,10 @@ void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vec
   // Debug output: print buffer contents after rendering
   debugPrint("[renderEffectToBuffer] effectId: "); debugPrintln((int)effectId);
   debugPrint("[renderEffectToBuffer] buffer: ");
+  char buf[12];
   for (size_t i = 0; i < buffer.size(); ++i) {
-    debugPrint("#"); debugPrint(String(buffer[i], HEX)); debugPrint(" ");
-  }
-  debugPrintln("");
-  debugPrint("[renderEffectToBuffer] effectId: "); debugPrintln((int)effectId);
-  debugPrint("[renderEffectToBuffer] buffer: ");
-  for (size_t i = 0; i < ledCount; ++i) {
-    debugPrint("#"); debugPrint(String(buffer[i], HEX)); debugPrint(" ");
-  }
-  debugPrintln("");
-  debugPrint("[renderEffectToBuffer] effectId: "); debugPrintln((int)effectId);
-  debugPrint("[renderEffectToBuffer] buffer: ");
-  for (size_t i = 0; i < ledCount; ++i) {
-    debugPrint("#"); debugPrint(String(buffer[i], HEX)); debugPrint(" ");
+    snprintf(buf, sizeof(buf), "#%08X", buffer[i]);
+    debugPrint(buf); debugPrint(" ");
   }
   debugPrintln("");
 }
@@ -159,9 +161,9 @@ void showStrip() {
 // Utility to print all colors sent to the strip
 void debugPrintStripColors(const std::vector<uint32_t>& colors, const char* tag) {
   debugPrint("["); debugPrint(tag); debugPrint("] ");
-  char buf[10];
+  char buf[12];
   for (size_t i = 0; i < colors.size(); ++i) {
-    snprintf(buf, sizeof(buf), "#%06X", colors[i] & 0xFFFFFF);
+    snprintf(buf, sizeof(buf), "#%08X", colors[i]);
     debugPrint(buf);
     debugPrint(" ");
   }
