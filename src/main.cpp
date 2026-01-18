@@ -230,8 +230,8 @@ void loop() {
         static uint8_t lastBrightness = 0;
         static String lastIp;
         String presetName = "-";
-        if (state.currentPreset < config.getPresetCount()) {
-            presetName = config.presets[state.currentPreset].name;
+        if (state.preset < config.getPresetCount()) {
+            presetName = config.presets[state.preset].name;
         }
         String ipStr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
         if (presetName != lastPreset || state.power != lastPower || state.brightness != lastBrightness || ipStr != lastIp) {

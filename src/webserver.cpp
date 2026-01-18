@@ -743,31 +743,40 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
 
 String WebServerManager::getStateJSON() {
     StaticJsonDocument<512> doc;
-    
-    doc["power"] = state.power;
-    // Send target brightness as 'brightness' in state (0-100 percent)
     extern TransitionEngine transition;
-    uint8_t brightnessHex = transition.getTargetBrightness();
-    uint8_t brightnessPercent = (uint8_t)((brightnessHex * 100 + 127) / 255); // round to nearest
-    doc["brightness"] = brightnessPercent;
-    doc["effect"] = state.effect;
-    doc["transitionTime"] = state.transitionTime;
-    doc["currentPreset"] = state.currentPreset;
-    if (_scheduler->isTimeValid()) {
-        doc["time"] = _scheduler->getCurrentTime();
+    extern PendingTransitionState pendingTransition;
+    // Only use pendingTransition for fields that actually change during a transition
+    if (state.inTransition) {
+        doc["power"] = true;
+        doc["effect"] = pendingTransition.effect;
+        doc["preset"] = pendingTransition.preset;
+        JsonObject paramsObj = doc.createNestedObject("params");
+        paramsObj["speed"] = pendingTransition.params.speed;
+        paramsObj["intensity"] = pendingTransition.params.intensity;
+        JsonArray colorsArr = paramsObj.createNestedArray("colors");
+        for (const auto& c : pendingTransition.params.colors) {
+            colorsArr.add(c);
+        }
     } else {
-        doc["time"] = "--:--";
+        doc["power"] = state.power;
+        doc["effect"] = state.effect;
+        doc["preset"] = state.preset;
+        JsonObject paramsObj = doc.createNestedObject("params");
+        paramsObj["speed"] = state.params.speed;
+        paramsObj["intensity"] = state.params.intensity;
+        JsonArray colorsArr = paramsObj.createNestedArray("colors");
+        for (const auto& c : state.params.colors) {
+            colorsArr.add(c);
+        }
     }
+    // These fields are always reported from state/transition engine
+    uint8_t brightnessHex = transition.getTargetBrightness();
+    uint8_t brightnessPercent = (uint8_t)((brightnessHex * 100 + 127) / 255);
+    doc["brightness"] = brightnessPercent;
+    doc["transitionTime"] = state.transitionTime;
+    doc["time"] = _scheduler->isTimeValid() ? _scheduler->getCurrentTime() : "--:--";
     doc["sunrise"] = _scheduler->getSunriseTime();
     doc["sunset"] = _scheduler->getSunsetTime();
-
-    JsonObject paramsObj = doc.createNestedObject("params");
-    paramsObj["speed"] = state.params.speed;
-    paramsObj["intensity"] = state.params.intensity;
-    JsonArray colorsArr = paramsObj.createNestedArray("colors");
-    for (const auto& c : state.params.colors) {
-        colorsArr.add(c);
-    }
 
     String output;
     serializeJson(doc, output);

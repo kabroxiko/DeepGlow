@@ -57,14 +57,8 @@ void applyPreset(uint8_t presetId) {
 		debugPrint(preset.params.colors[i]);
 	}
 	debugPrintln("");
-	uint8_t timerBrightnessPercent = 100;
-	for (size_t i = 0; i < config.timers.size(); i++) {
-		if (config.timers[i].presetId == presetId && config.timers[i].enabled) {
-			timerBrightnessPercent = config.timers[i].brightness;
-			break;
-		}
-	}
-	uint8_t brightnessValue = percentToBrightness(timerBrightnessPercent);
+	uint8_t brightnessPercent = state.brightness > 0 ? state.brightness : 100;
+	uint8_t brightnessValue = percentToBrightness(brightnessPercent);
 	uint8_t maxBrightnessValue = percentToBrightness(config.safety.maxBrightness);
 	uint8_t safeBrightness = (brightnessValue < maxBrightnessValue) ? brightnessValue : maxBrightnessValue;
 
@@ -174,8 +168,7 @@ void applyPreset(uint8_t presetId) {
 	pendingTransition.preset = preset.id;
 	state.power = true;
 	state.inTransition = true;
-	// Immediately update state for UI, but do NOT update state.effect/params here (let transition blending use previous values)
-	state.currentPreset = preset.id;
+	state.preset = preset.id;
 	webServer.broadcastState();
 
 }
@@ -402,7 +395,7 @@ void updateLEDs() {
 			if (pendingCommit) {
 				state.effect = pendingTransition.effect;
 				state.params = pendingTransition.params;
-				state.currentPreset = pendingTransition.preset;
+				state.preset = pendingTransition.preset;
 				// Restore brightness and color before rendering solid effect
 				state.brightness = transition.getTargetBrightness();
 				if (state.effect == 0 && state.params.colors.size() > 0) {
