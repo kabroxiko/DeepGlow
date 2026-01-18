@@ -81,10 +81,18 @@ void effect_blend_frame() {
   }
 }
 
+// Forward declarations for all effect frame generators
+void effect_solid_frame();
+void effect_blend_frame();
+void effect_flow_frame();
+void effect_chase_frame();
+
 // Registry of effect frame generators (index = effectId)
 static std::vector<EffectFrameGen> effectFrameRegistry = {
-  effect_solid_frame,
-  effect_blend_frame
+  effect_solid_frame,   // 0: Solid
+  effect_blend_frame,   // 1: Blend
+  effect_flow_frame,    // 2: Flow
+  effect_chase_frame    // 3: Chase
 };
 
 void effect_flow_frame() {
@@ -267,12 +275,12 @@ uint16_t blend_effect() {
   size_t ledCount = busManager.getPixelCount();
   const auto& params = state.params;
   size_t colorCount = params.colors.size();
-    debugPrint("[blend_effect] params.colors: ");
-    for (size_t i = 0; i < params.colors.size(); ++i) {
-      debugPrint(params.colors[i].c_str()); debugPrint(" ");
-    }
-    debugPrintln("");
-    debugPrint("[blend_effect] colorCount: "); debugPrintln((int)colorCount);
+  debugPrint("[blend_effect] params.colors: ");
+  for (size_t i = 0; i < params.colors.size(); ++i) {
+    debugPrint(params.colors[i].c_str()); debugPrint(" ");
+  }
+  debugPrintln("");
+  debugPrint("[blend_effect] colorCount: "); debugPrintln((int)colorCount);
   debugPrint("[blend_effect] ledCount: ");
   debugPrintln(ledCount);
   debugPrint("[blend_effect] colorCount: ");
@@ -372,13 +380,3 @@ uint16_t chase_effect() {
   return 0;
 }
 REGISTER_EFFECT(3, "Chase", chase_effect);
-
-// Ensure frame generator registry is large enough for effect 2
-struct _FlowFrameGenInit {
-  _FlowFrameGenInit() {
-    if (effectFrameRegistry.size() <= 2) effectFrameRegistry.resize(3, nullptr);
-    effectFrameRegistry[2] = effect_flow_frame;
-    if (effectFrameRegistry.size() <= 3) effectFrameRegistry.resize(4, nullptr);
-    effectFrameRegistry[3] = effect_chase_frame;
-  }
-} _flowFrameGenInit;
