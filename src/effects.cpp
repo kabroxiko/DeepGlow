@@ -22,11 +22,12 @@ volatile uint8_t g_effectSpeed = 1;
 typedef void (*EffectFrameGen)(const EffectParams&, std::vector<uint32_t>&, size_t, const std::array<uint32_t, 8>&, size_t, uint8_t);
 
 void effect_solid_frame(const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
-  uint32_t solidColor = colors[0];
-  uint8_t r, g, b;
-  scale_rgb_brightness(solidColor, brightness, r, g, b);
+  uint32_t color = colors[0];
+  uint8_t r, g, b, w;
+  unpack_rgbw(color, r, g, b, w);
+  scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
   for (size_t i = 0; i < ledCount; ++i) {
-    buffer[i] = pack_rgb(r, g, b);
+    buffer[i] = pack_rgbw(r, g, b, w);
   }
 }
 
@@ -51,9 +52,9 @@ void effect_blend_frame(const EffectParams& params, std::vector<uint32_t>& buffe
     float frac = stopPos - stopIdx;
     uint32_t c1 = stops[stopIdx];
     uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
-    uint8_t r, g, b;
-    blend_rgb_brightness(c1, c2, frac, brightness, r, g, b);
-    buffer[i] = pack_rgb(r, g, b);
+    uint8_t r, g, b, w;
+    blend_rgbw_brightness(c1, c2, frac, brightness, r, g, b, w);
+    buffer[i] = pack_rgbw(r, g, b, w); // RRGGBBWW
   }
 }
 
@@ -95,9 +96,7 @@ void effect_flow_frame(const EffectParams& params, std::vector<uint32_t>& buffer
     uint32_t c1 = colors[i1];
     uint8_t r, g, b, w;
     blend_rgbw_brightness(c0, c1, frac, brightness, r, g, b, w);
-    // Use pack_rgb for RGB, and pack_rgbw for RGBW if needed
-    // If w is always 0, just use pack_rgb
-    return (uint32_t(w) << 24) | pack_rgb(r, g, b);
+    return pack_rgbw(r, g, b, w);
   };
 
   // Fill all LEDs with background palette color
@@ -208,15 +207,15 @@ uint16_t solid_effect() {
   extern SystemState state;
   extern TransitionEngine transition;
   uint8_t brightness = state.brightness;
-  auto scale = [brightness](uint8_t c) -> uint8_t { return (uint16_t(c) * brightness) / 255; };
   size_t n = busManager.getPixelCount();
   uint32_t solidColor = color[0];
-  uint8_t r, g, b;
-  scale_rgb_brightness(solidColor, brightness, r, g, b);
-  std::vector<uint32_t> colors(n, pack_rgb(r, g, b));
+  uint8_t r, g, b, w;
+  unpack_rgbw(solidColor, r, g, b, w);
+  scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
+  std::vector<uint32_t> colors(n, pack_rgbw(r, g, b, w));
   debugPrintStripColors(colors, "solid_effect");
   for (size_t i = 0; i < n; ++i) {
-    busManager.setPixelColor(i, pack_rgb(r, g, b));
+    busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
   }
   showStrip();
   return 0;
@@ -249,7 +248,7 @@ uint16_t blend_effect() {
   // After rendering, print output buffer
   // colors vector holds the final output for each LED
   if (colorCount < 2) {
-    for (size_t i = 0; i < ledCount; ++i) busManager.setPixelColor(i, pack_rgb(0, 0, 0));
+    for (size_t i = 0; i < ledCount; ++i) busManager.setPixelColor(i, pack_rgbw(0, 0, 0, 0));
     showStrip();
     return 0;
   }
@@ -271,10 +270,11 @@ uint16_t blend_effect() {
     float frac = stopPos - stopIdx;
     uint32_t c1 = stops[stopIdx];
     uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
-    uint8_t r, g, b;
-    blend_rgb_brightness(c1, c2, frac, brightness, r, g, b);
-    colors.push_back(pack_rgb(r, g, b));
-    busManager.setPixelColor(i, pack_rgb(r, g, b));
+    uint8_t r, g, b, w;
+    blend_rgbw_brightness(c1, c2, frac, brightness, r, g, b, w);
+    uint32_t c = pack_rgbw(r, g, b, w); // RRGGBBWW
+    colors.push_back(c);
+    busManager.setPixelColor(i, c);
   }
   debugPrintStripColors(colors, "blend_effect");
   showStrip();
@@ -299,10 +299,11 @@ void effect_chase_frame(const EffectParams& params, std::vector<uint32_t>& buffe
   size_t chaseStart = size_t(phase * (ledCount + chaseLen)) % (ledCount + chaseLen);
   for (size_t i = 0; i < ledCount; ++i) {
     bool inChase = (i >= chaseStart && i < chaseStart + chaseLen);
-    uint32_t c = inChase ? colors[0] : (colorCount > 1 ? colors[1] : 0);
-    uint8_t r, g, b;
-    scale_rgb_brightness(c, brightness, r, g, b);
-    buffer[i] = pack_rgb(r, g, b);
+    uint32_t color = inChase ? colors[0] : (colorCount > 1 ? colors[1] : 0);
+    uint8_t r, g, b, w;
+    unpack_rgbw(color, r, g, b, w);
+    scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
+    buffer[i] = pack_rgbw(r, g, b, w);
   }
 }
 
@@ -315,7 +316,10 @@ uint16_t chase_effect() {
   effect_chase_frame(state.params, buffer, n, color, state.params.colors.size(), brightness);
   for (size_t i = 0; i < n; ++i) {
     uint32_t c = buffer[i];
-    busManager.setPixelColor(i, c);
+    uint8_t r, g, b, w;
+    unpack_rgbw(c, r, g, b, w);
+    scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
+    busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
   }
   showStrip();
   return 0;

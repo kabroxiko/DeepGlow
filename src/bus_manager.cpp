@@ -1,5 +1,6 @@
-#include "bus_manager.h"
 #include <NeoPixelBus.h>
+#include "bus_manager.h"
+#include "colors.h"
 
 BusNeoPixel* BusManager::getNeoPixelBus() {
     for (const auto& bus : buses) {
@@ -68,12 +69,17 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
     if (!_strip) {
         return;
     }
-    uint8_t r, g, b;
-    unpack_rgb(color, r, g, b);
+    uint8_t r, g, b, w;
+    if (_type == BusNeoPixelType::SK6812) {
+        unpack_rgbw(color, r, g, b, w);
+    } else {
+        unpack_rgb(color, r, g, b);
+        w = 0;
+    }
     switch (_type) {
         case BusNeoPixelType::SK6812: {
             auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoSk6812Method>*>(_strip);
-            s->SetPixelColor(pix, RgbwColor(g, r, b, 0)); // GRBW order: swap r and g
+            s->SetPixelColor(pix, RgbwColor(g, r, b, w)); // GRBW order: swap r and g
             break;
         }
         case BusNeoPixelType::WS2812B_RGB: {
@@ -96,8 +102,8 @@ uint32_t BusNeoPixel::getPixelColor(uint16_t pix) const {
         case BusNeoPixelType::SK6812: {
             auto* s = static_cast<NeoPixelBus<NeoRgbwFeature, NeoSk6812Method>*>(_strip);
             RgbwColor c = s->GetPixelColor(pix);
-            // Convert GRBW to RGB (ignore W)
-            return pack_rgb(c.R, c.G, c.B);
+            // Convert GRBW to RGBW (swap r/g)
+            return pack_rgbw(c.G, c.R, c.B, c.W);
         }
         case BusNeoPixelType::WS2812B_RGB: {
             auto* s = static_cast<NeoPixelBus<NeoRgbFeature, NeoWs2812xMethod>*>(_strip);

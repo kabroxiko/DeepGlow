@@ -1,13 +1,12 @@
+#include <stdint.h>
 #include "effects.h"
 #include "bus_manager.h"
 #include "state.h"
-#include "effects.h"
 #include "transition.h"
 #include "webserver.h"
 #include "display.h"
+#include "colors.h"
 #include "debug.h"
-#include <stdint.h>
-
 
 // Cache previous brightness for brightness-only transitions
 static uint8_t previousBrightness = 0;
@@ -348,9 +347,9 @@ void updateLEDs() {
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t prev = prevFrame[i];
 			uint32_t next = nextFrame[i];
-			uint8_t r, g, b;
-			blend_rgb_brightness(prev, next, progress, 255, r, g, b);
-			blended[i] = pack_rgb(r, g, b);
+			uint8_t r, g, b, w;
+			blend_rgbw_brightness(prev, next, progress, 255, r, g, b, w);
+			blended[i] = pack_rgbw(r, g, b, w); // RRGGBBWW
 		}
 		bool allZero = true;
 		debugPrint("[updateLEDs] blended frame: ");
@@ -373,9 +372,9 @@ void updateLEDs() {
 		}
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t c = blended[i];
-			uint8_t r, g, b;
-			unpack_rgb(c, r, g, b);
-			busManager.setPixelColor(i, pack_rgb(r, g, b));
+			uint8_t r, g, b, w;
+			unpack_rgbw(c, r, g, b, w);
+			busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
 		}
 		busManager.show();
 	} else {
@@ -421,9 +420,9 @@ void updateLEDs() {
 			renderEffectToBuffer(state.effect, state.params, animFrame, count, animColors, animColorCount, animBrightness);
 			for (size_t i = 0; i < count; ++i) {
 				uint32_t c = animFrame[i];
-				uint8_t r, g, b;
-				unpack_rgb(c, r, g, b);
-				busManager.setPixelColor(i, pack_rgb(r, g, b));
+				uint8_t r, g, b, w;
+				unpack_rgbw(c, r, g, b, w);
+				busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
 			}
 			busManager.show();
 			// Only set relay if power is on

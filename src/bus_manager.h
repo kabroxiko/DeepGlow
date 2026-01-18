@@ -2,9 +2,7 @@
 #include <memory>
 #include <vector>
 #include <stdint.h>
-#include <cstdint>
 #include "debug.h"
-#include "colors.h"
 
 // Abstract base class for all bus types
 class Bus {

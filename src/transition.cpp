@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include "transition.h"
 #include "bus_manager.h"
+#include "colors.h"
 
 // Frame blending API
 void TransitionEngine::setPreviousFrame(const std::vector<uint32_t>& frame) {
@@ -37,17 +38,18 @@ std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool bri
         uint8_t blendedBrightness = (uint8_t)(startBrightness * (1.0f - progress) + endBrightness * progress);
         for (size_t i = 0; i < count; ++i) {
             uint32_t colorVal = previousFrame[i];
-            uint8_t r, g, b;
-            scale_rgb_brightness(colorVal, blendedBrightness, r, g, b);
-            blended[i] = pack_rgb(r, g, b);
+            uint8_t r, g, b, w;
+            unpack_rgbw(colorVal, r, g, b, w);
+            scale_rgbw_brightness(r, g, b, w, blendedBrightness, r, g, b, w);
+            blended[i] = pack_rgbw(r, g, b, w);
         }
     } else {
         for (size_t i = 0; i < count; ++i) {
             uint32_t prev = previousFrame[i];
             uint32_t next = targetFrame[i];
-            uint8_t r, g, b;
-            blend_rgb_brightness(prev, next, progress, 255, r, g, b);
-            blended[i] = pack_rgb(r, g, b);
+            uint8_t r, g, b, w;
+            blend_rgbw_brightness(prev, next, progress, 255, r, g, b, w);
+            blended[i] = pack_rgbw(r, g, b, w);
         }
     }
     bool allZero = true;
@@ -188,7 +190,7 @@ uint8_t TransitionEngine::interpolate(uint8_t start, uint8_t target, float progr
 }
 
 uint32_t TransitionEngine::interpolateColor(uint32_t start, uint32_t target, float progress) {
-    uint8_t r, g, b;
-    blend_rgb_brightness(start, target, progress, 255, r, g, b);
-    return pack_rgb(r, g, b);
+    uint8_t r, g, b, w;
+    blend_rgbw_brightness(start, target, progress, 255, r, g, b, w);
+    return pack_rgbw(r, g, b, w);
 }
