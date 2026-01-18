@@ -1,17 +1,16 @@
+// === Includes ===
 #include "debug.h"
 #include "state.h"
 #include <vector>
 #include <array>
 #include <cstdint>
 #include <cstddef>
-#include <array>
 #include "bus_manager.h"
 #include "effects.h"
-#include "state.h"
 #include "colors.h"
 #include "transition.h"
 
-// Global externs for effect frame functions
+// === Global externs and variables ===
 extern std::array<uint32_t, 8> color;
 extern SystemState state;
 extern EffectParams transitionPrevParams;
@@ -20,28 +19,22 @@ extern BusManager busManager;
 extern Configuration config;
 
 volatile uint8_t g_effectSpeed = 1;
-
-// Effect frame generator function type (no parameters)
-typedef void (*EffectFrameGen)();
-
-// Global buffer and ledCount for frame generators
 static std::vector<uint32_t>* g_effectBuffer = nullptr;
 static size_t g_ledCount = 0;
 
-// Forward declarations for all effect frame generators
+// === Typedefs ===
+typedef void (*EffectFrameGen)();
+
+// === Forward declarations ===
 void effect_solid_frame();
 void effect_blend_frame();
 void effect_flow_frame();
 void effect_chase_frame();
 
-// Registry of effect frame generators (index = effectId)
-std::vector<EffectFrameGen> effectFrameRegistry = {
-  effect_solid_frame,   // 0: Solid
-  effect_blend_frame,   // 1: Blend
-  effect_flow_frame,    // 2: Flow
-  effect_chase_frame    // 3: Chase
-};
+// === Registry ===
+std::vector<EffectRegistryEntry> effectRegistry;
 
+// === Frame generator functions ===
 void effect_solid_frame() {
   uint32_t c = color[0];
   uint8_t r, g, b, w;
@@ -64,6 +57,7 @@ void effect_solid_frame() {
     (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
   }
 }
+REGISTER_EFFECT(0, "Solid", effect_solid_frame)
 
 void effect_blend_frame() {
   if (!g_effectBuffer) return;
@@ -94,6 +88,7 @@ void effect_blend_frame() {
     (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w); // RRGGBBWW
   }
 }
+REGISTER_EFFECT(1, "Blend", effect_blend_frame)
 
 void effect_flow_frame() {
   if (!g_effectBuffer) return;
@@ -153,8 +148,31 @@ void effect_flow_frame() {
     }
   }
 }
+REGISTER_EFFECT(2, "Flow", effect_flow_frame)
 
-// Render the given effect and params into a buffer (does not update LEDs)
+void effect_chase_frame() {
+  if (!g_effectBuffer) return;
+  if (g_ledCount == 0) return;
+  uint32_t now = millis();
+  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
+  uint8_t size = state.params.intensity > 0 ? state.params.intensity : 8; // default chase size
+  uint32_t period = 2000 - ((speed - 1) * 1800 / 99); // 2000ms (slow) to 200ms (fast)
+  float phase = float(now % period) / float(period);
+  size_t chaseLen = (size * g_ledCount) / 255;
+  if (chaseLen < 1) chaseLen = 1;
+  size_t chaseStart = size_t(phase * (g_ledCount + chaseLen)) % (g_ledCount + chaseLen);
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    bool inChase = (i >= chaseStart && i < chaseStart + chaseLen);
+    uint32_t c = inChase ? color[0] : color[1];
+    uint8_t r, g, b, w;
+    unpack_rgbw(c, r, g, b, w);
+    scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
+    (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
+  }
+}
+REGISTER_EFFECT(3, "Chase", effect_chase_frame)
+
+// === Core rendering function ===
 void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
   // Save current global state
   auto old_state = state;
@@ -170,8 +188,8 @@ void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vec
   g_effectBuffer = &buffer;
   g_ledCount = ledCount;
 
-  if (effectId < effectFrameRegistry.size() && effectFrameRegistry[effectId]) {
-    effectFrameRegistry[effectId]();
+  if (effectId < effectRegistry.size() && effectRegistry[effectId].fn) {
+    effectRegistry[effectId].fn();
   } else {
     // fallback: fill with black
     for (size_t i = 0; i < ledCount; ++i) buffer[i] = 0;
@@ -195,17 +213,7 @@ void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vec
   debugPrintln("");
 }
 
-// Call this after initializing or reconfiguring the strip
-void updatePixelCount() {
-  busManager.updatePixelCount();
-}
-
-// Centralized function to show the strip regardless of type/order
-void showStrip() {
-  busManager.show();
-}
-
-// Utility to print all colors sent to the strip
+// === Utility/helper functions ===
 void debugPrintStripColors(const std::vector<uint32_t>& colors, const char* tag) {
   debugPrint("["); debugPrint(tag); debugPrint("] ");
   char buf[12];
@@ -217,14 +225,12 @@ void debugPrintStripColors(const std::vector<uint32_t>& colors, const char* tag)
   debugPrintln("");
 }
 
-// Centralized effect speed to delay mapping
 uint32_t getEffectDelayMs(const EffectParams& params) {
   uint8_t speed = params.speed > 0 ? params.speed : 50; // Default to 50 if not set
   // Map speed (1-100) to delay (fast: 10ms, slow: 200ms)
   return 200 - ((speed - 1) * 190 / 99);
 }
 
-// color_blend for 24/32-bit colors
 static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   const uint32_t TWO_CHANNEL_MASK = 0x00FF00FF;
   uint32_t rb1 =  color1       & TWO_CHANNEL_MASK;
@@ -236,130 +242,11 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
   return rb3 | wg3;
 }
 
-
-// Solid color effect: fills the strip with color[0] or writes to buffer
-uint16_t solid_effect() {
-  extern TransitionEngine transition;
-  uint8_t brightness = state.brightness;
-  size_t n = busManager.getPixelCount();
-  uint32_t solidColor = color[0];
-  uint8_t r, g, b, w;
-  unpack_rgbw(solidColor, r, g, b, w);
-  scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
-  std::vector<uint32_t> colors(n, pack_rgbw(r, g, b, w));
-  debugPrintStripColors(colors, "solid_effect");
-  for (size_t i = 0; i < n; ++i) {
-    busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
-  }
-  showStrip();
-  return 0;
+// === Miscellaneous functions ===
+void updatePixelCount() {
+  busManager.updatePixelCount();
 }
 
-// Blend effect
-uint16_t blend_effect() {
-  uint8_t brightness = state.brightness;
-  size_t ledCount = busManager.getPixelCount();
-  const auto& params = state.params;
-  size_t colorCount = params.colors.size();
-  debugPrint("[blend_effect] params.colors: ");
-  for (size_t i = 0; i < params.colors.size(); ++i) {
-    debugPrint(params.colors[i].c_str()); debugPrint(" ");
-  }
-  debugPrintln("");
-  debugPrint("[blend_effect] colorCount: "); debugPrintln((int)colorCount);
-  debugPrint("[blend_effect] ledCount: ");
-  debugPrintln(ledCount);
-  debugPrint("[blend_effect] colorCount: ");
-  debugPrintln(colorCount);
-  debugPrint("[blend_effect] color stops: ");
-  for (size_t i = 0; i < colorCount; ++i) {
-    debugPrint(params.colors[i].c_str());
-    debugPrint(" ");
-  }
-  debugPrintln("");
-  debugPrint("[blend_effect] speed: "); debugPrintln((int)params.speed);
-  // After rendering, print output buffer
-  // colors vector holds the final output for each LED
-  if (colorCount < 2) {
-    for (size_t i = 0; i < ledCount; ++i) busManager.setPixelColor(i, pack_rgbw(0, 0, 0, 0));
-    showStrip();
-    return 0;
-  }
-  std::vector<uint32_t> colors;
-  colors.reserve(ledCount);
-  std::vector<uint32_t> stops;
-  for (size_t i = 0; i < colorCount; ++i) {
-    stops.push_back((uint32_t)strtoul(params.colors[i].c_str() + (params.colors[i][0] == '#' ? 1 : 0), nullptr, 16));
-  }
-  uint32_t now = millis();
-  uint8_t speed = params.speed > 0 ? params.speed : 50;
-  uint32_t period = 10000 - ((speed - 1) * 9000 / 99);
-  float phase = float(now % period) / float(period);
-  for (size_t i = 0; i < ledCount; ++i) {
-    float ledPos = float(i) / float(ledCount - 1);
-    float shiftedPos = fmodf(ledPos + phase, 1.0f);
-    float stopPos = shiftedPos * (colorCount - 1);
-    int stopIdx = int(stopPos);
-    float frac = stopPos - stopIdx;
-    uint32_t c1 = stops[stopIdx];
-    uint32_t c2 = (stopIdx < int(colorCount - 1)) ? stops[stopIdx + 1] : stops[colorCount - 1];
-    uint8_t r, g, b, w;
-    blend_rgbw_brightness(c1, c2, frac, brightness, r, g, b, w);
-    uint32_t c = pack_rgbw(r, g, b, w); // RRGGBBWW
-    colors.push_back(c);
-    busManager.setPixelColor(i, c);
-  }
-  debugPrintStripColors(colors, "blend_effect");
-  showStrip();
-  return 0;
-}
-
-// Register Flow effect
-uint16_t flow_effect() { return 0; }
-
-// Chase
-void effect_chase_frame() {
-  if (!g_effectBuffer) return;
-  if (g_ledCount == 0) return;
-  uint32_t now = millis();
-  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
-  uint8_t size = state.params.intensity > 0 ? state.params.intensity : 8; // default chase size
-  uint32_t period = 2000 - ((speed - 1) * 1800 / 99); // 2000ms (slow) to 200ms (fast)
-  float phase = float(now % period) / float(period);
-  size_t chaseLen = (size * g_ledCount) / 255;
-  if (chaseLen < 1) chaseLen = 1;
-  size_t chaseStart = size_t(phase * (g_ledCount + chaseLen)) % (g_ledCount + chaseLen);
-  for (size_t i = 0; i < g_ledCount; ++i) {
-    bool inChase = (i >= chaseStart && i < chaseStart + chaseLen);
-    uint32_t c = inChase ? color[0] : color[1];
-    uint8_t r, g, b, w;
-    unpack_rgbw(c, r, g, b, w);
-    scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-    (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
-  }
-}
-
-uint16_t chase_effect() {
-  uint8_t brightness = state.brightness;
-  size_t n = busManager.getPixelCount();
-  std::vector<uint32_t> buffer(n, 0);
-  // Set up global buffer and ledCount for the frame generator
-  extern std::vector<uint32_t>* g_effectBuffer;
-  extern size_t g_ledCount;
-  std::vector<uint32_t>* old_g_effectBuffer = g_effectBuffer;
-  size_t old_g_ledCount = g_ledCount;
-  g_effectBuffer = &buffer;
-  g_ledCount = n;
-  effect_chase_frame();
-  g_effectBuffer = old_g_effectBuffer;
-  g_ledCount = old_g_ledCount;
-  for (size_t i = 0; i < n; ++i) {
-    uint32_t c = buffer[i];
-    uint8_t r, g, b, w;
-    unpack_rgbw(c, r, g, b, w);
-    scale_rgbw_brightness(r, g, b, w, brightness, r, g, b, w);
-    busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
-  }
-  showStrip();
-  return 0;
+void showStrip() {
+  busManager.show();
 }

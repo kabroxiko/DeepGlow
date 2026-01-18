@@ -241,14 +241,14 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 	}
 	BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
-	extern std::vector<void (*)()> effectFrameRegistry;
-	if (effect < effectFrameRegistry.size() && effectFrameRegistry[effect]) {
+	extern std::vector<EffectRegistryEntry> effectRegistry;
+	if (effect < effectRegistry.size() && effectRegistry[effect].fn) {
 		// Update global effect speed if present in params
 		if (params.speed > 0) {
 			extern volatile uint8_t g_effectSpeed;
 			g_effectSpeed = (params.speed * 254) / 100 + 1;
 		}
-		effectFrameRegistry[effect]();
+		effectRegistry[effect].fn();
 	}
 }
 
@@ -310,7 +310,7 @@ void updateLEDs() {
 	}
 	size_t count = busManager.getPixelCount();
 	static bool pendingCommit = false;
-	extern std::vector<void (*)()> effectFrameRegistry;
+	extern std::vector<EffectRegistryEntry> effectRegistry;
 	if (transition.isTransitioning()) {
 		pendingCommit = true;
 		float progress = float(millis() - transition.getStartTime()) / float(transition.getDuration());
