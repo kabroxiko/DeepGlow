@@ -53,13 +53,9 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		return;
 	}
 	Preset& preset = *it;
-	debugPrint("[applyPreset] input brightness: "); debugPrintln((int)brightness);
-	debugPrint("[applyPreset] config.safety.maxBrightness: "); debugPrintln((int)config.safety.maxBrightness);
-	uint8_t brightnessValue = percentToBrightness(brightness);
-	debugPrint("[applyPreset] brightnessValue (0-255): "); debugPrintln((int)brightnessValue);
-	uint8_t maxBrightnessValue = percentToBrightness(config.safety.maxBrightness);
-	debugPrint("[applyPreset] maxBrightnessValue (0-255): "); debugPrintln((int)maxBrightnessValue);
-	uint8_t safeBrightness = (brightnessValue < maxBrightnessValue) ? brightnessValue : maxBrightnessValue;
+	debugPrint("[applyPreset] input brightness (0-255): "); debugPrintln((int)brightness);
+	debugPrint("[applyPreset] config.safety.maxBrightness (0-255): "); debugPrintln((int)config.safety.maxBrightness);
+	uint8_t safeBrightness = (brightness < config.safety.maxBrightness) ? brightness : config.safety.maxBrightness;
 	debugPrint("[applyPreset] safeBrightness (0-255): "); debugPrintln((int)safeBrightness);
 
 	// Capture previous effect and params BEFORE applying new preset
@@ -113,9 +109,8 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		presetColors[i] = 0x00000000;
 	}
 	size_t presetColorCount = n > 0 ? n : 1;
-	uint8_t presetBrightness = (brightness > 0 ? percentToBrightness(brightness) : 255);
-	uint8_t maxPresetBrightness = percentToBrightness(config.safety.maxBrightness);
-	if (presetBrightness > maxPresetBrightness) presetBrightness = maxPresetBrightness;
+	uint8_t presetBrightness = (brightness > 0 ? brightness : 255);
+	if (presetBrightness > config.safety.maxBrightness) presetBrightness = config.safety.maxBrightness;
 	renderEffectToBuffer(preset.effect, preset.params, targetFrame, count, presetColors, presetColorCount, presetBrightness);
 	transition.setTargetFrame(targetFrame);
 	if (doTransition && state.prevEffect >= 0) {
@@ -187,17 +182,17 @@ void setPower(bool power) {
 	uint8_t targetBrightness = 0;
 	if (power) {
 		if (scheduleApplied) {
-			targetBrightness = percentToBrightness(scheduledBrightness);
+			targetBrightness = scheduledBrightness;
 			logicalBrightness = scheduledBrightness; // Ensure reported brightness matches schedule
 			debugPrint("[setPower] using scheduled brightness: "); debugPrintln((int)targetBrightness);
 		} else {
-			// If brightness is 0, use previousBrightness or fallback to 60
+			// If brightness is 0, use previousBrightness or fallback to 153 (60%)
 			uint8_t requested = logicalBrightness;
 			if (requested == 0) {
-				targetBrightness = previousBrightness > 0 ? previousBrightness : percentToBrightness(60);
+				targetBrightness = previousBrightness > 0 ? previousBrightness : 153;
 				debugPrint("[setPower] brightness was 0, using fallback: "); debugPrintln((int)targetBrightness);
 			} else {
-				targetBrightness = percentToBrightness(requested);
+				targetBrightness = requested;
 			}
 		}
 	}
@@ -240,20 +235,18 @@ void setPower(bool power) {
 }
 
 void setBrightness(uint8_t brightness) {
-	// Clamp to percent range, then convert to 0-255 for transition
-	debugPrint("[setBrightness] input: "); debugPrintln((int)brightness);
-	debugPrint("[setBrightness] config.safety.maxBrightness: "); debugPrintln((int)config.safety.maxBrightness);
-	brightness = min(brightness, config.safety.maxBrightness);
-	debugPrint("[setBrightness] clamped brightness: "); debugPrintln((int)brightness);
-	uint8_t brightness255 = percentToBrightness(brightness);
-	logicalBrightness = brightness255;
-	debugPrint("[setBrightness] brightness255 (0-255): "); debugPrintln((int)brightness255);
+	// Clamp to maxBrightness (0-255)
+	debugPrint("[setBrightness] input (0-255): "); debugPrintln((int)brightness);
+	debugPrint("[setBrightness] config.safety.maxBrightness (0-255): "); debugPrintln((int)config.safety.maxBrightness);
+	uint8_t clamped = min(brightness, config.safety.maxBrightness);
+	debugPrint("[setBrightness] clamped brightness: "); debugPrintln((int)clamped);
+	logicalBrightness = clamped;
 	uint32_t transTime = state.transitionTime;
 	if (transTime < config.safety.minTransitionTime) {
 		transTime = config.safety.minTransitionTime;
 	}
 	uint8_t current = transition.getCurrentBrightness();
-	if (brightness255 != current) {
+	if (clamped != current) {
 		if (!transition.isTransitioning()) {
 			transition.forceCurrentBrightness(current);
 		}
@@ -268,7 +261,7 @@ void setBrightness(uint8_t brightness) {
 		// Use current colors for effect transition
 		uint32_t curColor1 = transition.getCurrentColor1();
 		uint32_t curColor2 = transition.getCurrentColor2();
-		transition.startEffectAndBrightnessTransition(brightness255, curColor1, curColor2, transTime);
+		transition.startEffectAndBrightnessTransition(clamped, curColor1, curColor2, transTime);
 		stateDirty = true;
 	}
 }

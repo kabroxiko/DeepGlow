@@ -40,10 +40,10 @@ inline uint32_t parse_hex_rgbw(const char* hexstr) {
 // Math
 inline void scale_rgbw_brightness(uint8_t in_r, uint8_t in_g, uint8_t in_b, uint8_t in_w, uint8_t brightness, uint8_t &out_r, uint8_t &out_g, uint8_t &out_b, uint8_t &out_w) {
   // Allow reaching 255 if both input and brightness are 255
-  out_r = (in_r == 255 && brightness == 255) ? 255 : (uint16_t)in_r * brightness / 255;
-  out_g = (in_g == 255 && brightness == 255) ? 255 : (uint16_t)in_g * brightness / 255;
-  out_b = (in_b == 255 && brightness == 255) ? 255 : (uint16_t)in_b * brightness / 255;
-  out_w = (in_w == 255 && brightness == 255) ? 255 : (uint16_t)in_w * brightness / 255;
+  out_r = (in_r == 255 && brightness == 255) ? 255 : (uint8_t)(((uint16_t)in_r * brightness + 127) / 255);
+  out_g = (in_g == 255 && brightness == 255) ? 255 : (uint8_t)(((uint16_t)in_g * brightness + 127) / 255);
+  out_b = (in_b == 255 && brightness == 255) ? 255 : (uint8_t)(((uint16_t)in_b * brightness + 127) / 255);
+  out_w = (in_w == 255 && brightness == 255) ? 255 : (uint8_t)(((uint16_t)in_w * brightness + 127) / 255);
 }
 inline void blend_rgbw_brightness(uint32_t c0, uint32_t c1, float frac, uint8_t brightness, uint8_t& r, uint8_t& g, uint8_t& b, uint8_t& w) {
   r = (uint8_t)((((c0 >> 24) & 0xFF) * (1.0f - frac) + ((c1 >> 24) & 0xFF) * frac) * brightness / 255);

@@ -264,7 +264,7 @@ bool Configuration::factoryReset() {
 uint8_t percentToBrightness(uint8_t percent) {
     if (percent <= 0) return 0;
     if (percent >= 100) return 255;
-    return (uint8_t)((255 * percent) / 100);
+    return (uint8_t)round((255.0 * percent) / 100.0);
 }
 
 // Helper to load timers from a JsonArray
