@@ -63,8 +63,8 @@ struct NetworkConfig {
 struct TimeConfig {
     String ntpServer;
     String timezone; // IANA timezone string, e.g. "America/Los_Angeles"
-    float latitude;
-    float longitude;
+    double latitude;
+    double longitude;
     bool dstEnabled;
 };
 

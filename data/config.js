@@ -71,6 +71,25 @@ function displayConfig() {
                     opt.textContent = tzName;
                     tzSelect.appendChild(opt);
                 });
+        // --- GPS Button Handler ---
+        const gpsBtn = document.getElementById('getLocationBtn');
+        if (gpsBtn && !gpsBtn._handlerSet) {
+            window._gpsListenerSet = window._gpsListenerSet || false;
+            gpsBtn.onclick = function () {
+                if (!window._gpsListenerSet) {
+                    window.addEventListener('message', function (event) {
+                        if (event.origin !== 'https://locate.wled.me') return;
+                        if (event.data && typeof event.data === 'object' && 'lat' in event.data && 'lon' in event.data) {
+                            document.getElementById('latitude').value = event.data.lat;
+                            document.getElementById('longitude').value = event.data.lon;
+                        }
+                    }, false);
+                    window._gpsListenerSet = true;
+                }
+                window.open('https://locate.wled.me', '_blank');
+            };
+            gpsBtn._handlerSet = true;
+        }
             }
             if (window.config.time.timezone) tzSelect.value = window.config.time.timezone;
         }
