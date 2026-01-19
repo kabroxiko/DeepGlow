@@ -438,6 +438,38 @@ if (saveBtn && !saveBtn._handlerSet) {
     saveBtn._handlerSet = true;
 }
 
+// Attach Reboot button handler
+const rebootBtn = document.getElementById('rebootButton');
+if (rebootBtn && !rebootBtn._handlerSet) {
+    rebootBtn.onclick = async function () {
+        rebootBtn.disabled = true;
+        rebootBtn.textContent = 'Rebooting...';
+        const statusSpan = document.getElementById('systemStatus');
+        if (statusSpan) statusSpan.textContent = '';
+        try {
+            const result = await sendCommandWithStatus('reboot');
+            if (result && result.success) {
+                if (statusSpan) statusSpan.textContent = 'Rebooting device...';
+                rebootBtn.textContent = 'Rebooting...';
+                setTimeout(() => {
+                    rebootBtn.textContent = 'Reboot Device';
+                    rebootBtn.disabled = false;
+                    if (statusSpan) statusSpan.textContent = '';
+                }, 8000);
+            } else {
+                if (statusSpan) statusSpan.textContent = 'Reboot failed!';
+                rebootBtn.textContent = 'Reboot Device';
+                rebootBtn.disabled = false;
+            }
+        } catch (e) {
+            if (statusSpan) statusSpan.textContent = 'Reboot error!';
+            rebootBtn.textContent = 'Reboot Device';
+            rebootBtn.disabled = false;
+        }
+    };
+    rebootBtn._handlerSet = true;
+}
+
 // --- Upload Config Handler ---
 const uploadInput = document.getElementById('uploadConfigInput');
 if (uploadInput && !uploadInput._handlerSet) {
