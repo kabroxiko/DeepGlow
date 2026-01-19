@@ -34,8 +34,6 @@ inline void debugPrintln(const String&) {}
 inline void debugPrintln(int) {}
 inline void debugPrintln(unsigned int) {}
 inline void debugPrintln(unsigned long) {}
-inline void debugPrintln(uint32_t) {}
-inline void debugPrintln(uint32_t, int) {}
 inline void debugPrintln(const IPAddress&) {}
 
 inline void debugPrintIp(uint32_t) {}
@@ -45,6 +43,4 @@ inline void debugPrint(const String&) {}
 inline void debugPrint(int) {}
 inline void debugPrint(unsigned int) {}
 inline void debugPrint(unsigned long) {}
-inline void debugPrint(uint32_t) {}
-inline void debugPrint(uint32_t, int) {}
 #endif

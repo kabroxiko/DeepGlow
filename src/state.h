@@ -8,7 +8,7 @@ struct SystemState {
     uint8_t brightness = 0;
     uint8_t effect = 0;
     EffectParams params;
-    uint32_t transitionTime = 5000;
+    uint32_t transitionTime = 60000;
     uint8_t preset = 0;
     bool inTransition = false;
     int8_t prevEffect = -1;
@@ -16,7 +16,7 @@ struct SystemState {
 };
 
 extern SystemState state;
-void applyPreset(uint8_t presetId);
+void applyPreset(uint8_t presetId, uint8_t brightness);
 void setPower(bool power);
 void setBrightness(uint8_t brightness);
 void setEffect(uint8_t effect, const EffectParams& params);
