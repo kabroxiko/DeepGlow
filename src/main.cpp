@@ -124,7 +124,7 @@ void setup() {
     webServer.onPowerChange(setPower);
     webServer.onBrightnessChange(setBrightness);
     webServer.onEffectChange(setEffect);
-    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId); });
+    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, transition.getTargetBrightness()); });
     webServer.onConfigChange([]() {
         // Immediately apply relay pin and logic changes
         pinMode(config.led.relayPin, OUTPUT);
@@ -161,8 +161,7 @@ void setup() {
             uint32_t prevColor1 = transition.getCurrentColor1();
             uint32_t prevColor2 = transition.getCurrentColor2();
             transition = TransitionEngine();
-            transition.startTransition(prevBrightness, 0);
-            transition.startColorTransition(prevColor1, prevColor2, 0);
+            transition.startEffectAndBrightnessTransition(prevBrightness, prevColor1, prevColor2, 0);
             updateLEDs();
             // Restore effect, brightness, and power after reinitializing LEDs
             setEffect(state.effect, state.params);
@@ -205,6 +204,7 @@ void setup() {
     setPower(state.power);
 
 }
+
 
 void loop() {
     // Prioritize OTA: if OTA is in progress, only handle OTA and show debug dots
@@ -312,31 +312,32 @@ void setupLEDs() {
 }
 
 
-void checkSchedule() {
-    // Always apply the most recent valid scheduled preset for the current time
-    int8_t scheduledPresetId = scheduler.getCurrentScheduledPreset();
-    auto it = std::find_if(config.presets.begin(), config.presets.end(), [scheduledPresetId](const Preset& p) { return p.id == scheduledPresetId; });
-    if (it != config.presets.end()) {
-        if (scheduledPresetId != lastScheduledPreset) {
-            applyPreset(scheduledPresetId);
-            lastScheduledPreset = scheduledPresetId;
-        }
+
+void handleScheduledPreset(int8_t presetId, int currentMinutes) {
+    const Timer* activeTimer = scheduler.getActiveTimer();
+    if (activeTimer && activeTimer->presetId == presetId && presetId != lastScheduledPreset) {
+        debugPrint("[handleScheduledPreset] applying presetId: "); debugPrintln((int)presetId);
+        debugPrint("[handleScheduledPreset] using timer brightness: "); debugPrintln((int)activeTimer->brightness);
+        applyPreset(presetId, activeTimer->brightness);
+        lastScheduledPreset = presetId;
     }
 }
 
+void checkSchedule() {
+    const Timer* activeTimer = scheduler.getActiveTimer();
+    if (activeTimer) {
+        handleScheduledPreset(activeTimer->presetId, scheduler.getTimerMinutes(*activeTimer));
+    }
+}
 
 // Apply the correct schedule as soon as time becomes valid after boot (only once)
+
 void checkAndApplyScheduleAfterBoot() {
     static bool scheduleApplied = false;
     if (!scheduleApplied) {
         if (scheduler.isTimeValid()) {
-            int8_t bootPreset2 = scheduler.getCurrentScheduledPreset();
-            auto it = std::find_if(config.presets.begin(), config.presets.end(), [bootPreset2](const Preset& p) { return p.id == bootPreset2; });
-            if (it != config.presets.end()) {
-                applyPreset(bootPreset2);
-                lastScheduledPreset = bootPreset2;
-            }
-            scheduleApplied = true; 
+            checkSchedule();
+            scheduleApplied = true;
         }
     }
 }

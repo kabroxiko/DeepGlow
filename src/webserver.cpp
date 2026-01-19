@@ -168,15 +168,10 @@ WebServerManager::WebServerManager(Configuration* config, Scheduler* scheduler) 
 }
 
 void WebServerManager::begin() {
-    debugPrintln("[WebServer] begin() called");
     setupWebSocket();
-    debugPrintln("[WebServer] WebSocket setup complete");
     setupRoutes();
-    debugPrintln("[WebServer] Routes setup complete");
     buildEffectsCache();
-    debugPrintln("[WebServer] Effects cache built");
     _server->begin();
-    debugPrintln("[WebServer] Server started");
 }
 
 void WebServerManager::update() {
@@ -521,13 +516,15 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     bool updated = false;
     if (doc.containsKey("brightness")) {
         uint8_t brightness = doc["brightness"];
-        applySafetyLimits(brightness, state.transitionTime);
+        applyBrightnessLimit(brightness);
+        applyTransitionTimeLimit(state.transitionTime);
         if (_brightnessCallback) _brightnessCallback(brightness);
         updated = true;
     }
     if (doc.containsKey("transitionTime")) {
         uint32_t transitionTime = (uint32_t)doc["transitionTime"];
-        applySafetyLimits(state.brightness, transitionTime);
+        applyTransitionTimeLimit(transitionTime);
+        applyBrightnessLimit(state.brightness);
         state.transitionTime = transitionTime;
         updated = true;
     }
@@ -901,20 +898,20 @@ String WebServerManager::getTimersJSON() {
     return output;
 }
 
-bool WebServerManager::applySafetyLimits(uint8_t& brightness, uint32_t& transitionTime) {
-    bool modified = false;
-
-    // maxBrightness is now percent, and brightness is 0-100, so clamp directly
+bool WebServerManager::applyBrightnessLimit(uint8_t& brightness) {
     if (brightness > _config->safety.maxBrightness) {
         brightness = _config->safety.maxBrightness;
-        modified = true;
+        return true;
     }
+    return false;
+}
 
+bool WebServerManager::applyTransitionTimeLimit(uint32_t& transitionTime) {
     if (transitionTime < _config->safety.minTransitionTime) {
         transitionTime = _config->safety.minTransitionTime;
-        modified = true;
+        return true;
     }
-    return modified;
+    return false;
 }
 
 void WebServerManager::broadcastState() {
