@@ -1,6 +1,10 @@
 #ifndef STATE_H
 #define STATE_H
 
+#include <stdint.h>
+
+extern uint8_t previousBrightness;
+
 #include "config.h"
 
 struct SystemState {
@@ -8,13 +12,14 @@ struct SystemState {
     uint8_t brightness = 0;
     uint8_t effect = 0;
     EffectParams params;
-    uint32_t transitionTime = 60000;
+    uint32_t transitionTime = 5000;
     uint8_t preset = 0;
     bool inTransition = false;
     int8_t prevEffect = -1;
     EffectParams prevParams;
 };
 
+extern bool pendingPowerOff;
 extern SystemState state;
 void applyPreset(uint8_t presetId, uint8_t brightness);
 void setPower(bool power);

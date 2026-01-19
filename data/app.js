@@ -35,6 +35,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     setupEventListeners();
 
+    // Power icon click handler
+    const powerIconBtn = document.getElementById('powerIconBtn');
+    if (powerIconBtn) {
+        powerIconBtn.addEventListener('click', () => {
+            sendState({ power: !currentState.power });
+        });
+    }
+
     // Only load effects, presets, and timers on the home page (index.html)
     if (window.location.pathname.endsWith('index.html') || window.location.pathname === '/' || window.location.pathname === '/index.html') {
         loadEffects().then(() => {
@@ -221,9 +229,16 @@ function updateState(state) {
     }
 
     // Update controls without triggering events
-    const powerToggle = document.getElementById('powerToggle');
-    if (powerToggle && powerToggle.checked !== state.power) {
-        powerToggle.checked = state.power;
+    // Update power icon
+    const powerIcon = document.getElementById('powerIcon');
+    if (powerIcon) {
+        if (state.power) {
+            powerIcon.classList.add('power-on');
+            powerIcon.classList.remove('power-off');
+        } else {
+            powerIcon.classList.add('power-off');
+            powerIcon.classList.remove('power-on');
+        }
     }
 
     const brightnessSlider = document.getElementById('brightnessSlider');

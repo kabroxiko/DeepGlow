@@ -1,3 +1,26 @@
+.power-icon-btn {
+    background: none;
+    border: none;
+    outline: none;
+    cursor: pointer;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+}
+.power-icon {
+    font-size: 2rem;
+    transition: color 0.2s, text-shadow 0.2s;
+    color: var(--danger);
+    text-shadow: 0 0 8px rgba(255,68,102,0.3);
+}
+.power-on {
+    color: var(--success) !important;
+    text-shadow: 0 0 8px rgba(0,204,136,0.3);
+}
+.power-off {
+    color: var(--danger) !important;
+    text-shadow: 0 0 8px rgba(255,68,102,0.3);
+}
 .color-pickers-row {
     display: contents;
 }

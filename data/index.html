@@ -14,6 +14,9 @@
             <h1>🐠 Aquarium Control</h1>
             <div class="status-bar">
                 <span class="status-indicator" id="statusIndicator">●</span>
+                <button id="powerIconBtn" class="power-icon-btn" title="Toggle Power">
+                    <span id="powerIcon" class="power-icon">&#x23FB;</span>
+                </button>
                 <span id="currentTime">--:--:--</span>
                 <a href="config.html" class="status-config-link" title="Configuration">
                     <span class="status-config-icon" aria-label="Configuration">⚙️</span>
@@ -25,15 +28,6 @@
         <section class="card">
             <h2>Quick Controls</h2>
             <div class="control-grid">
-                <div class="control-item">
-                    <label class="switch-label">
-                        <span>Power</span>
-                        <label class="switch">
-                            <input type="checkbox" id="powerToggle" checked>
-                            <span class="slider"></span>
-                        </label>
-                    </label>
-                </div>
                 
                 <div class="control-item full-width">
                     <label>

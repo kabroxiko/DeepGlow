@@ -568,9 +568,6 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
         if (updated && _effectCallback) _effectCallback(state.effect, params);
     }
 
-    if (updated) {
-        broadcastState();
-    }
     AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true}");
     for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
     request->send(resp);
@@ -743,8 +740,23 @@ String WebServerManager::getStateJSON() {
     extern TransitionEngine transition;
     extern PendingTransitionState pendingTransition;
     // Only use pendingTransition for fields that actually change during a transition
+    extern bool pendingPowerOff;
+    debugPrint("[getStateJSON] pendingPowerOff: ");
+    debugPrintln((int)pendingPowerOff);
+    debugPrint("[getStateJSON] state.inTransition: ");
+    debugPrintln((int)state.inTransition);
+    // Print call context to help debug duplicate logs
+    static int callCount = 0;
+    callCount++;
+    debugPrint("[getStateJSON] call #");
+    debugPrintln(callCount);
+    // Print stack context if available (ESP32 only)
+#if defined(ESP32)
+    debugPrintln("[getStateJSON] (ESP32) stack trace not available, but call count increments");
+#endif
     if (state.inTransition) {
-        doc["power"] = true;
+        // If pending power-off, report power:false immediately
+        doc["power"] = pendingPowerOff ? false : state.power;
         doc["effect"] = pendingTransition.effect;
         doc["preset"] = pendingTransition.preset;
         JsonObject paramsObj = doc.createNestedObject("params");
@@ -755,7 +767,8 @@ String WebServerManager::getStateJSON() {
             colorsArr.add(c);
         }
     } else {
-        doc["power"] = state.power;
+        // Dynamically report power as false if pendingPowerOff is true, even if not in transition
+        doc["power"] = (pendingPowerOff ? false : state.power);
         doc["effect"] = state.effect;
         doc["preset"] = state.preset;
         JsonObject paramsObj = doc.createNestedObject("params");
@@ -769,7 +782,15 @@ String WebServerManager::getStateJSON() {
     // These fields are always reported from state/transition engine
     uint8_t brightnessHex = transition.getTargetBrightness();
     uint8_t brightnessPercent = (uint8_t)((brightnessHex * 100 + 127) / 255);
-    doc["brightness"] = brightnessPercent;
+    // If pendingPowerOff is true, always report previousBrightness for UI
+    extern uint8_t previousBrightness;
+    if (pendingPowerOff) {
+        // Convert previousBrightness (0-255) to percent for reporting
+        uint8_t prevPercent = (uint8_t)((previousBrightness * 100 + 127) / 255);
+        doc["brightness"] = prevPercent;
+    } else {
+        doc["brightness"] = brightnessPercent;
+    }
     doc["transitionTime"] = state.transitionTime;
     doc["time"] = _scheduler->isTimeValid() ? _scheduler->getCurrentTime() : "--:--";
     doc["sunrise"] = _scheduler->getSunriseTime();

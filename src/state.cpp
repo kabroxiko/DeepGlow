@@ -9,7 +9,10 @@
 #include "debug.h"
 
 // Cache previous brightness for brightness-only transitions
-static uint8_t previousBrightness = 0;
+uint8_t previousBrightness = 0;
+bool pendingPowerOff = false;
+// Centralized state dirty flag for WebSocket updates
+volatile bool stateDirty = false;
 
 // Global transition state for blend_effect
 EffectParams transitionPrevParams;
@@ -19,6 +22,8 @@ PendingTransitionState pendingTransition;
 extern volatile uint8_t g_effectSpeed;
 
 SystemState state;
+// Authoritative logical brightness, always matches what is sent to LEDs
+uint8_t logicalBrightness = 0;
 
 extern BusManager busManager;
 
@@ -56,7 +61,6 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 	debugPrint("[applyPreset] maxBrightnessValue (0-255): "); debugPrintln((int)maxBrightnessValue);
 	uint8_t safeBrightness = (brightnessValue < maxBrightnessValue) ? brightnessValue : maxBrightnessValue;
 	debugPrint("[applyPreset] safeBrightness (0-255): "); debugPrintln((int)safeBrightness);
-	state.brightness = brightness;
 
 	// Capture previous effect and params BEFORE applying new preset
 	state.prevEffect = state.effect;
@@ -80,7 +84,7 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		return;
 	}
 	// Always use the current interpolated state as the new transition's start
-	previousBrightness = transition.getCurrentBrightness();
+	previousBrightness = logicalBrightness;
 	uint32_t prevColor1 = transition.getCurrentColor1();
 	uint32_t prevColor2 = transition.getCurrentColor2();
 
@@ -138,35 +142,101 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		pendingTransition.params.colors.push_back(String(hex));
 	}
 	pendingTransition.preset = preset.id;
-	state.power = true;
 	state.inTransition = true;
 	state.preset = preset.id;
-	webServer.broadcastState();
+
+	stateDirty = true;
 
 }
 
 void setPower(bool power) {
-	if (state.power == power) {
-		return;
+	bool wasOn = state.power;
+	bool inTrans = transition.isTransitioning();
+	bool scheduleApplied = false;
+	uint8_t scheduledBrightness = 0;
+
+	if (power) {
+		// Always apply schedule if active when powering on (including interrupted transitions)
+		const Timer* activeTimer = scheduler.getActiveTimer();
+		if (activeTimer && activeTimer->enabled && activeTimer->brightness > 0) {
+			if (logicalBrightness != activeTimer->brightness) {
+				applyPreset(activeTimer->presetId, activeTimer->brightness);
+				scheduleApplied = true;
+				scheduledBrightness = activeTimer->brightness;
+			}
+		}
+		pendingPowerOff = false; // Ensure state message reports power:true during fade-in
+		state.power = true;
+		digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);
+	} else {
+		// Only capture previousBrightness if this is a new power-off request
+		if (!pendingPowerOff) {
+			uint8_t cur = transition.isTransitioning() ? transition.getCurrentBrightness() : logicalBrightness;
+			debugPrint("[setPower] Capturing previousBrightness for fade-out: ");
+			debugPrintln((int)cur);
+			debugPrint("[setPower] previousBrightness before update: ");
+			debugPrintln((int)previousBrightness);
+			if (cur > 0) previousBrightness = cur;
+			debugPrint("[setPower] previousBrightness after update: ");
+			debugPrintln((int)previousBrightness);
+		}
+		// Don't turn off power/relay yet, wait for transition to finish
+		pendingPowerOff = true;
 	}
-	state.power = power;
-	digitalWrite(config.led.relayPin, power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
-	uint8_t targetBrightness = power ? percentToBrightness(state.brightness) : 0;
+
+	uint8_t targetBrightness = 0;
+	if (power) {
+		if (scheduleApplied) {
+			targetBrightness = percentToBrightness(scheduledBrightness);
+			logicalBrightness = scheduledBrightness; // Ensure reported brightness matches schedule
+			debugPrint("[setPower] using scheduled brightness: "); debugPrintln((int)targetBrightness);
+		} else {
+			// If brightness is 0, use previousBrightness or fallback to 60
+			uint8_t requested = logicalBrightness;
+			if (requested == 0) {
+				targetBrightness = previousBrightness > 0 ? previousBrightness : percentToBrightness(60);
+				debugPrint("[setPower] brightness was 0, using fallback: "); debugPrintln((int)targetBrightness);
+			} else {
+				targetBrightness = percentToBrightness(requested);
+			}
+		}
+	}
+	debugPrint("[setPower] targetBrightness: "); debugPrintln((int)targetBrightness);
+	debugPrint("[setPower] previousBrightness at transition start: "); debugPrintln((int)previousBrightness);
 	uint32_t transTime = state.transitionTime;
 	if (transTime < config.safety.minTransitionTime) {
 		transTime = config.safety.minTransitionTime;
 	}
-	if (power) {
-		transition.forceCurrentBrightness(state.brightness);
+
+	// Interrupt current transition if needed
+	if (inTrans) {
+		// Set the current transition state as the new start point
+		transition.forceCurrentBrightness(transition.getCurrentBrightness());
 	}
-	if (transition.getCurrentBrightness() != targetBrightness || !transition.isTransitioning()) {
-		// Use current colors for effect transition
+
+	if (power) {
+		if (!wasOn || inTrans) {
+			// Always apply preset before starting transition if schedule is active
+			if (scheduleApplied) {
+				applyPreset(scheduler.getActiveTimer()->presetId, scheduledBrightness);
+			}
+			// Always start a brightness transition from current to target when turning ON or interrupting
+			uint8_t startBr = transition.getCurrentBrightness();
+			debugPrint("[setPower] transition start: currentBrightness="); debugPrintln((int)startBr);
+			transition.forceCurrentBrightness(startBr);
+			uint32_t curColor1 = transition.getCurrentColor1();
+			uint32_t curColor2 = transition.getCurrentColor2();
+			transition.startEffectAndBrightnessTransition(targetBrightness, curColor1, curColor2, transTime);
+			debugPrint("[setPower] transition targetBrightness="); debugPrintln((int)targetBrightness);
+		}
+	} else if (!power && (wasOn || inTrans)) {
+		// When turning off, transition to brightness 0, but delay actual power-off
+		transition.forceCurrentBrightness(transition.getCurrentBrightness());
 		uint32_t curColor1 = transition.getCurrentColor1();
 		uint32_t curColor2 = transition.getCurrentColor2();
-		transition.startEffectAndBrightnessTransition(targetBrightness, curColor1, curColor2, transTime);
+		transition.startEffectAndBrightnessTransition(0, curColor1, curColor2, transTime);
 	}
-	webServer.broadcastState();
-
+	stateDirty = true;
 }
 
 void setBrightness(uint8_t brightness) {
@@ -176,6 +246,7 @@ void setBrightness(uint8_t brightness) {
 	brightness = min(brightness, config.safety.maxBrightness);
 	debugPrint("[setBrightness] clamped brightness: "); debugPrintln((int)brightness);
 	uint8_t brightness255 = percentToBrightness(brightness);
+	logicalBrightness = brightness255;
 	debugPrint("[setBrightness] brightness255 (0-255): "); debugPrintln((int)brightness255);
 	uint32_t transTime = state.transitionTime;
 	if (transTime < config.safety.minTransitionTime) {
@@ -198,7 +269,7 @@ void setBrightness(uint8_t brightness) {
 		uint32_t curColor1 = transition.getCurrentColor1();
 		uint32_t curColor2 = transition.getCurrentColor2();
 		transition.startEffectAndBrightnessTransition(brightness255, curColor1, curColor2, transTime);
-		webServer.broadcastState();
+		stateDirty = true;
 	}
 }
 
@@ -226,6 +297,8 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 		}
 		effectRegistry[effect].fn();
 	}
+
+	stateDirty = true;
 }
 
 // Call this when user changes color from UI/API
@@ -243,7 +316,7 @@ void setUserColor(const uint32_t* newColor, size_t count) {
 void updateLEDs() {
     BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
-	if (!state.power) {
+	if (!state.power && !pendingPowerOff) {
 		busManager.turnOffLEDs();
 		state.inTransition = false;
 		state.brightness = 0;
@@ -258,6 +331,14 @@ void updateLEDs() {
 		float progress = float(millis() - transition.getStartTime()) / float(transition.getDuration());
 		if (progress > 1.0f) progress = 1.0f;
 		progress = progress * progress * (3.0f - 2.0f * progress); // smoothstep
+
+		// Debug: log transition brightness blending
+		debugPrint("[updateLEDs] transition: start="); debugPrint((int)transition.getStartBrightness());
+		debugPrint(" target="); debugPrint((int)transition.getTargetBrightness());
+		debugPrint(" current="); debugPrint((int)transition.getCurrentBrightness());
+		char progressStr[16];
+		snprintf(progressStr, sizeof(progressStr), "%.3f", progress);
+		debugPrint(" progress="); debugPrintln(progressStr);
 
 		// Color phase fraction (should match transition engine)
 		float colorFrac = transition.getEffectTransitionFraction();
@@ -322,11 +403,27 @@ void updateLEDs() {
 			uint32_t c = blended[i];
 			if (c != 0) allZero = false;
 		}
+		// Track the last value sent to the LEDs for smooth transition starts
+		static std::vector<uint8_t> lastSentBrightness(count, 0);
+		uint8_t currentBrightness = transition.getCurrentBrightness();
+		logicalBrightness = currentBrightness;
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t c = blended[i];
 			uint8_t r, g, b, w;
 			unpack_rgbw(c, r, g, b, w);
-			busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
+			uint8_t sr, sg, sb, sw;
+			scale_rgbw_brightness(r, g, b, w, currentBrightness, sr, sg, sb, sw);
+			lastSentBrightness[i] = currentBrightness;
+			char buf[64];
+			snprintf(buf, sizeof(buf), "[LED %u] RGBW: %3u %3u %3u %3u (scaled)", (unsigned)i, (unsigned)sr, (unsigned)sg, (unsigned)sb, (unsigned)sw);
+			debugPrintln(buf);
+			busManager.setPixelColor(i, pack_rgbw(sr, sg, sb, sw));
+		}
+		// On transition start, force transition engine's _currentBrightness to match last sent value
+		if (transition.isTransitioning() && progress < 0.01f) {
+			if (!lastSentBrightness.empty()) {
+				transition.forceCurrentBrightness(lastSentBrightness[0]);
+			}
 		}
 		busManager.show();
 	} else {
@@ -348,6 +445,15 @@ void updateLEDs() {
 		uint8_t currentBrightness = transition.getCurrentBrightness();
 		state.inTransition = false;
 		state.brightness = currentBrightness;
+
+		// If pending power-off and brightness is 0, now actually power off
+		if (pendingPowerOff && currentBrightness == 0) {
+			state.power = false;
+			busManager.turnOffLEDs();
+			digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
+			pendingPowerOff = false;
+			return;
+		}
 
 		// --- ANIMATION: render effect every frame ---
 		std::vector<uint32_t> animFrame(count, 0);

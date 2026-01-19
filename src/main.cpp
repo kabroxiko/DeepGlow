@@ -121,7 +121,14 @@ void setup() {
     delay(500); // Give network stack time to settle
 
     // Setup web server callbacks (moved up)
-    webServer.onPowerChange(setPower);
+    // Power change now only calls setPower; schedule logic is handled inside setPower
+    // On power-on, always apply schedule before setting power
+    webServer.onPowerChange([](bool power) {
+        if (power) {
+            checkSchedule();
+        }
+        setPower(power);
+    });
     webServer.onBrightnessChange(setBrightness);
     webServer.onEffectChange(setEffect);
     webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, state.brightness); });
@@ -242,6 +249,12 @@ void loop() {
             lastIp = ipStr;
         }
     }
+    // Centralized WebSocket state update
+    extern volatile bool stateDirty;
+    if (stateDirty) {
+        webServer.broadcastState();
+        stateDirty = false;
+    }
     if (WiFi.getMode() == WIFI_AP) {
         handleCaptivePortalDns();
     }
@@ -318,7 +331,12 @@ void handleScheduledPreset(int8_t presetId, int currentMinutes) {
     if (activeTimer && activeTimer->presetId == presetId && presetId != lastScheduledPreset) {
         debugPrint("[handleScheduledPreset] applying presetId: "); debugPrintln((int)presetId);
         debugPrint("[handleScheduledPreset] using timer brightness: "); debugPrintln((int)activeTimer->brightness);
-        applyPreset(presetId, activeTimer->brightness);
+        // Only call setPower; schedule logic and transition are handled inside setPower
+        if (activeTimer->brightness == 0) {
+            setPower(false);
+        } else {
+            setPower(true);
+        }
         lastScheduledPreset = presetId;
     }
 }
