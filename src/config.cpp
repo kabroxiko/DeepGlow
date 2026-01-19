@@ -127,8 +127,8 @@ bool Configuration::load() {
         JsonObject timeObj = doc["time"];
         time.ntpServer = timeObj["ntpServer"].as<String>();
         time.timezone = timeObj["timezone"].as<String>();
-        time.latitude = timeObj["latitude"];
-        time.longitude = timeObj["longitude"];
+        time.latitude = timeObj["latitude"].as<double>();
+        time.longitude = timeObj["longitude"].as<double>();
         time.dstEnabled = timeObj["dstEnabled"];
     }
     // Timers
@@ -228,8 +228,8 @@ void Configuration::partialUpdate(const JsonObject& update) {
         JsonObject timeObj = update["time"];
         if (timeObj.containsKey("ntpServer")) time.ntpServer = timeObj["ntpServer"].as<String>();
         if (timeObj.containsKey("timezone")) time.timezone = timeObj["timezone"].as<String>();
-        if (timeObj.containsKey("latitude")) time.latitude = timeObj["latitude"];
-        if (timeObj.containsKey("longitude")) time.longitude = timeObj["longitude"];
+        if (timeObj.containsKey("latitude")) time.latitude = timeObj["latitude"].as<double>();
+        if (timeObj.containsKey("longitude")) time.longitude = timeObj["longitude"].as<double>();
         if (timeObj.containsKey("dstEnabled")) time.dstEnabled = timeObj["dstEnabled"];
     }
     if (update.containsKey("timers")) {
