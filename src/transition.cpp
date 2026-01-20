@@ -2,6 +2,7 @@
 #include "transition.h"
 #include "bus_manager.h"
 #include "colors.h"
+#include "effects.h"
 
 void TransitionEngine::startEffectAndBrightnessTransition(uint8_t targetBrightness, uint32_t targetColor1, uint32_t targetColor2, uint32_t duration) {
     // Start color transition first, then brightness after color transition completes
@@ -29,6 +30,35 @@ void TransitionEngine::clearFrames() {
     previousFrame.clear();
     targetFrame.clear();
 }
+
+void TransitionEngine::startColorTransitionWithFrames(const std::vector<String>& newColors, const EffectParams& params, uint8_t targetBrightness, uint32_t duration) {
+    extern BusManager busManager;
+    size_t count = busManager.getPixelCount();
+    // Capture current LED buffer as previous frame
+    std::vector<uint32_t> prevFrame(count, 0);
+    for (size_t i = 0; i < count; ++i) {
+        prevFrame[i] = busManager.getPixelColor(i);
+    }
+    setPreviousFrame(prevFrame);
+    // Generate target frame with new color
+    std::array<uint32_t, 8> targetColors = {0};
+    for (size_t i = 0; i < newColors.size() && i < 8; ++i) {
+        targetColors[i] = (uint32_t)strtoul(newColors[i].c_str() + (newColors[i][0] == '#' ? 1 : 0), nullptr, 16);
+    }
+    size_t colorCount = newColors.size() > 0 ? newColors.size() : 1;
+    std::vector<uint32_t> targetFrame(count, 0);
+    // Use effect 0 (solid) for direct color
+    renderEffectToBuffer(0, params, targetFrame, count, targetColors, colorCount, targetBrightness);
+    setTargetFrame(targetFrame);
+    // Start the transition
+    setStartColor1(_currentColor1);
+    setStartColor2(_currentColor2);
+    startEffectAndBrightnessTransition(targetBrightness, targetColors[0], targetColors[1], duration);
+    debugPrint("[TransitionEngine] Color transition started: prevColor1=0x"); debugPrint((String)_currentColor1);
+    debugPrint(" newColor1=0x"); debugPrint((String)targetColors[0]);
+    debugPrint(" duration="); debugPrintln((int)duration);
+}
+
 std::vector<uint32_t> TransitionEngine::getBlendedFrame(float progress, bool brightnessOnly) {
     std::vector<uint32_t> blended;
     size_t count = previousFrame.size();

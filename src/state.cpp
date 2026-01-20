@@ -68,6 +68,7 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 	for (size_t i = 0; i < n; ++i) {
 		const String& hex = preset.params.colors[i];
 		color[i] = parse_hex_rgbw(hex.c_str()); // Ensure W channel is always supported
+		debugPrint("[applyPreset] color["); debugPrint((int)i); debugPrint("] set to: 0x"); debugPrintln((String)color[i]);
 		if (color[i] == 0x00000000) validPresetColors = false;
 	}
 	// If fewer than 8 colors, fill remaining with black
@@ -129,15 +130,34 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 	}
 
 	// Store new effect/params for later commit after transition
+	debugPrint("[applyPreset] preset.params.colors before pendingTransition: ");
+	for (size_t i = 0; i < preset.params.colors.size(); ++i) {
+		debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(preset.params.colors[i]);
+	}
 	pendingTransition.effect = preset.effect;
 	pendingTransition.params = preset.params;
+	debugPrint("[pendingTransition.params.colors ASSIGN 1] before: ");
+	for (size_t i = 0; i < pendingTransition.params.colors.size(); ++i) {
+		debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(pendingTransition.params.colors[i]);
+	}
 	pendingTransition.params.colors.clear();
 	for (size_t i = 0; i < n; ++i) {
 		char hex[11];
 		snprintf(hex, sizeof(hex), "#%08X", color[i]);
 		pendingTransition.params.colors.push_back(String(hex));
 	}
+	debugPrint("[pendingTransition.params.colors ASSIGN 1] after: ");
+	for (size_t i = 0; i < pendingTransition.params.colors.size(); ++i) {
+		debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(pendingTransition.params.colors[i]);
+	}
 	pendingTransition.preset = preset.id;
+	debugPrint("[applyPreset] doTransition: "); debugPrintln((int)doTransition);
+	debugPrint("[applyPreset] state.prevEffect: "); debugPrintln((int)state.prevEffect);
+	debugPrint("[applyPreset] preset.effect: "); debugPrintln((int)preset.effect);
+	debugPrint("[applyPreset] pendingTransition.params.colors: ");
+	for (size_t i = 0; i < pendingTransition.params.colors.size(); ++i) {
+		debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(pendingTransition.params.colors[i]);
+	}
 	state.power = true;
 	state.inTransition = true;
 	state.preset = preset.id;
@@ -205,16 +225,12 @@ void setBrightness(uint8_t brightness) {
 
 
 void setEffect(uint8_t effect, const EffectParams& params) {
+	debugPrint("[setEffect] incoming params.colors: ");
+	for (size_t i = 0; i < params.colors.size(); ++i) {
+		debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(params.colors[i]);
+	}
 	state.effect = effect;
 	state.params = params;
-	state.params.colors.clear();
-	// Only push actual preset colors, not padded black entries
-	size_t n = colorCount;
-	for (size_t i = 0; i < n; ++i) {
-		char hex[11];
-		snprintf(hex, sizeof(hex), "#%08X", color[i]);
-		state.params.colors.push_back(String(hex));
-	}
 	BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
 	extern std::vector<EffectRegistryEntry> effectRegistry;
@@ -231,10 +247,15 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 // Call this when user changes color from UI/API
 void setUserColor(const uint32_t* newColor, size_t count) {
 	colorCount = count;
+	debugPrint("[setUserColor] newColor count: "); debugPrintln((int)count);
+	for (size_t i = 0; i < count; ++i) {
+		debugPrint("[setUserColor] newColor["); debugPrint((int)i); debugPrint("] = 0x"); debugPrintln((String)newColor[i]);
+	}
 	state.params.colors.clear();
 	for (size_t i = 0; i < 8; ++i) {
 		char hex[11];
 		snprintf(hex, sizeof(hex), "#%08X", color[i]);
+		debugPrint("[setUserColor] color["); debugPrint((int)i); debugPrint("] = 0x"); debugPrint((String)color[i]); debugPrint(" hex: "); debugPrintln(hex);
 		state.params.colors.push_back(String(hex));
 	}
 	setEffect(state.effect, state.params);
@@ -259,17 +280,27 @@ void updateLEDs() {
 		if (progress > 1.0f) progress = 1.0f;
 		progress = progress * progress * (3.0f - 2.0f * progress); // smoothstep
 
-		// Color phase fraction (should match transition engine)
-		float colorFrac = transition.getEffectTransitionFraction();
-		float colorProgress = (progress < colorFrac) ? (progress / colorFrac) : 1.0f;
+		// Show pendingTransition.params.colors in debug output
+		debugPrint("[pendingTransition] colors: ");
+		for (size_t i = 0; i < pendingTransition.params.colors.size(); ++i) {
+			debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(pendingTransition.params.colors[i]);
+		}
 
 		// Determine if this is a brightness-only transition
 		bool brightnessOnly = (pendingTransition.effect == state.effect && pendingTransition.params.colors == state.params.colors);
 
+		// Debug: print transition frame sizes and state
+		debugPrint("[updateLEDs] transition.isTransitioning() = "); debugPrintln(transition.isTransitioning() ? "true" : "false");
+		debugPrint("[updateLEDs] previousFrame.size() = "); debugPrintln((int)transition.getPreviousFrame().size());
+		debugPrint("[updateLEDs] targetFrame.size() = "); debugPrintln((int)transition.getTargetFrame().size());
+
+		// Restore original manual blending logic for debugging
+		float colorFrac = transition.getEffectTransitionFraction();
+		float colorProgress = (progress < colorFrac) ? (progress / colorFrac) : 1.0f;
+
 		std::vector<uint32_t> prevFrame(count, 0);
 		std::vector<uint32_t> nextFrame(count, 0);
 		if (brightnessOnly) {
-			// For brightness-only, render both frames with the same effect/colors, but different brightness
 			std::array<uint32_t, 8> colors = {0};
 			for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
 				const String& hex = pendingTransition.params.colors[i];
@@ -282,10 +313,8 @@ void updateLEDs() {
 			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, colors, colorCount, nextBrightness);
 		} else {
 			if (state.prevEffect == 0) {
-				// Solid effect: use captured buffer for previous frame
 				prevFrame = transition.getPreviousFrame();
 			} else {
-				// Animated effect: re-render previous frame
 				std::array<uint32_t, 8> prevColors = {0};
 				for (size_t i = 0; i < state.prevParams.colors.size() && i < 8; ++i) {
 					const String& hex = state.prevParams.colors[i];
@@ -295,7 +324,6 @@ void updateLEDs() {
 				uint8_t prevBrightness = transition.getCurrentBrightness();
 				renderEffectToBuffer(state.prevEffect, state.prevParams, prevFrame, count, prevColors, prevColorCount, prevBrightness);
 			}
-			// Always re-render next frame (target effect)
 			std::array<uint32_t, 8> nextColors = {0};
 			for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
 				const String& hex = pendingTransition.params.colors[i];
@@ -306,21 +334,14 @@ void updateLEDs() {
 			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, nextColors, nextColorCount, nextBrightness);
 		}
 
-		// Blend the two frames
 		std::vector<uint32_t> blended(count, 0);
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t prev = prevFrame[i];
 			uint32_t next = nextFrame[i];
 			uint8_t r, g, b, w;
-			// Use colorProgress for color blending, progress for brightness
 			float blendFactor = colorProgress;
 			blend_rgbw_brightness(prev, next, blendFactor, 255, r, g, b, w);
-			blended[i] = pack_rgbw(r, g, b, w); // RRGGBBWW
-		}
-		bool allZero = true;
-		for (size_t i = 0; i < count; ++i) {
-			uint32_t c = blended[i];
-			if (c != 0) allZero = false;
+			blended[i] = pack_rgbw(r, g, b, w);
 		}
 		for (size_t i = 0; i < count; ++i) {
 			uint32_t c = blended[i];
@@ -332,13 +353,24 @@ void updateLEDs() {
 	} else {
 		// Only commit pendingTransition after transition completes
 		if (pendingCommit) {
+			debugPrintln("[pendingCommit] Committing pendingTransition to state");
 			state.effect = pendingTransition.effect;
 			state.params = pendingTransition.params;
 			state.preset = pendingTransition.preset;
 			// Restore brightness and color before rendering solid effect
 			state.brightness = transition.getTargetBrightness();
 			if (state.effect == 0 && state.params.colors.size() > 0) {
-				color[0] = parse_hex_rgbw(state.params.colors[0].c_str()); // Use parse_hex_rgbw for color[0] assignment
+				color[0] = parse_hex_rgbw(state.params.colors[0].c_str());
+			}
+			debugPrint("[pendingCommit] state.params.colors: ");
+			for (size_t i = 0; i < state.params.colors.size(); ++i) {
+				debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(state.params.colors[i]);
+			}
+			debugPrint("[pendingCommit] color[]: ");
+			for (size_t i = 0; i < colorCount; ++i) {
+				char buf[12];
+				snprintf(buf, sizeof(buf), "0x%08lX", (unsigned long)color[i]);
+				debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(buf);
 			}
 			setEffect(state.effect, state.params);
 			pendingCommit = false;

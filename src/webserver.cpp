@@ -95,19 +95,25 @@ void buildEffectsCache() {
 void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
     // Actual OTA update logic
     static unsigned int lastDot = 0;
+    debugPrint("[OTA] index: "); debugPrint((int)index);
+    debugPrint(" len: "); debugPrint((int)len);
+    debugPrint(" total: "); debugPrintln((int)total);
     if (index == 0) {
-    #if defined(ESP32)
+#if defined(ESP32)
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-    #elif defined(ESP8266)
+#elif defined(ESP8266)
         if (!Update.begin(total)) {
-    #endif
+#endif
             Update.printError(Serial);
+            debugPrintln("[OTA] Update.begin failed!");
         }
         lastDot = 0;
-        debugPrintln("OTA update started");
+        debugPrintln("[OTA] OTA update started");
     }
-    if (Update.write(data, len) != len) {
+    int written = Update.write(data, len);
+    if (written != (int)len) {
         Update.printError(Serial);
+        debugPrint("[OTA] Update.write failed! written: "); debugPrintln(written);
     }
     // Print progress dots every 1%
     if (total > 0) {
@@ -124,16 +130,17 @@ void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned 
         AsyncWebServerResponse *resp = nullptr;
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
-            debugPrintln("OTA update complete, rebooting");
+            debugPrintln("[OTA] OTA update complete, rebooting");
         } else {
             Update.printError(Serial);
             resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
-            debugPrintln("OTA update failed");
+            debugPrintln("[OTA] OTA update failed");
         }
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
         if (ok) {
             request->onDisconnect([]() {
+                debugPrintln("[OTA] Device will restart now.");
                 delay(100);
                 ESP.restart();
             });
@@ -541,31 +548,62 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     if (doc.containsKey("params")) {
         JsonObject paramsObj = doc["params"];
         EffectParams params = state.params;
+        debugPrint("[POST /api/state] Received params: ");
+        serializeJson(paramsObj, Serial);
+        Serial.println();
         if (paramsObj.containsKey("speed") && !paramsObj["speed"].isNull()) {
             params.speed = (uint8_t)paramsObj["speed"];
+            debugPrint("[POST /api/state] speed: "); debugPrintln((int)params.speed);
             updated = true;
         }
         if (paramsObj.containsKey("intensity") && !paramsObj["intensity"].isNull()) {
             params.intensity = (uint8_t)paramsObj["intensity"];
+            debugPrint("[POST /api/state] intensity: "); debugPrintln((int)params.intensity);
             updated = true;
         }
         if (paramsObj.containsKey("colors")) {
             JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
             std::vector<String> parsedColors;
+            debugPrint("[POST /api/state] colors received: ");
             for (JsonVariant v : colorsArr) {
                 if (v.is<const char*>()) {
                     String hex = v.as<const char*>();
-                    if (hex.length() == 6 && hex[0] != '#') {
+                    debugPrint("  color: "); debugPrintln(hex);
+                    if (hex.length() == 8 && hex[0] != '#') {
                         hex = "#" + hex;
                     }
                     parsedColors.push_back(hex);
                 }
             }
+            // If only color changed, trigger a transition
+            bool colorChanged = (state.params.colors != parsedColors);
             params.colors = parsedColors;
             state.params.colors = parsedColors;
+            extern PendingTransitionState pendingTransition;
+            debugPrint("[POST /api/state] assigning to pendingTransition.params.colors: ");
+            for (size_t i = 0; i < parsedColors.size(); ++i) {
+                debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(parsedColors[i]);
+            }
+            pendingTransition.params.colors = parsedColors;
+            debugPrint("[POST /api/state] after assign pendingTransition.params.colors: ");
+            for (size_t i = 0; i < pendingTransition.params.colors.size(); ++i) {
+                debugPrint("["); debugPrint((int)i); debugPrint("] "); debugPrintln(pendingTransition.params.colors[i]);
+            }
+            if (colorChanged) {
+                debugPrintln("[POST /api/state] Color changed, starting transition");
+                state.inTransition = true;
+                extern TransitionEngine transition;
+                uint8_t targetBrightness = state.brightness;
+                uint32_t transTime = state.transitionTime;
+                applyTransitionTimeLimit(transTime);
+                transition.startColorTransitionWithFrames(parsedColors, state.params, targetBrightness, transTime);
+            }
             updated = true;
         }
-        if (updated && _effectCallback) _effectCallback(state.effect, params);
+        if (updated && _effectCallback) {
+            debugPrintln("[POST /api/state] Notifying effect callback and WebSocket");
+            _effectCallback(state.effect, params);
+        }
     }
 
     if (updated) {
@@ -661,29 +699,6 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* 
     DynamicJsonDocument currentDoc(4096);
     bool loaded = _config->loadFromFile(CONFIG_FILE, currentDoc);
     bool isDifferent = true;
-    if (loaded) {
-        String incoming, stored;
-        serializeJson(doc, incoming);
-        serializeJson(currentDoc, stored);
-        isDifferent = (incoming != stored);
-    }
-    if (!isDifferent) {
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"No changes detected\"}");
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        request->send(resp);
-        return;
-    }
-    // Accept and persist SSID/password if present in network object
-    if (doc.containsKey("network")) {
-        JsonObject netObj = doc["network"];
-        if (netObj.containsKey("ssid")) {
-            _config->network.ssid = netObj["ssid"].as<String>();
-        }
-        if (netObj.containsKey("password")) {
-            _config->network.password = netObj["password"].as<String>();
-        }
-    }
-    // Only update fields present in the uploaded JSON
     _config->partialUpdate(doc.as<JsonObject>());
     bool saveResult = _config->save();
     if (saveResult) {

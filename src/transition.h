@@ -6,11 +6,15 @@
 #include "debug.h"
 
 class TransitionEngine {
+            // Starts a color transition with automatic frame capture and target generation
+            void startColorTransitionWithFrames(const std::vector<String>& newColors, const EffectParams& params, uint8_t targetBrightness, uint32_t duration);
         // Fraction of total duration for effect transition (0.0–1.0)
         float effectTransitionFraction = 0.4f; // 40% of the time for effect
     enum class Phase { None, Color, Brightness };
     Phase _phase = Phase::None;
 public:
+    // Starts a color transition with automatic frame capture and target generation
+    void startColorTransitionWithFrames(const std::vector<String>& newColors, const EffectParams& params, uint8_t targetBrightness, uint32_t duration);
     float getEffectTransitionFraction() const { return effectTransitionFraction; }
     // Setters for transition start values (for smooth interruption)
     void setStartBrightness(uint8_t value) { _startBrightness = value; }

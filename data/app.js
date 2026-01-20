@@ -273,10 +273,27 @@ function updateState(state) {
 
         // Dynamically create color pickers
         const colorPickersRow = document.getElementById('colorPickersRow');
-        if (colorPickersRow) {
+        const whiteSlidersRow = document.getElementById('whiteSlidersRow');
+        if (colorPickersRow && whiteSlidersRow) {
             colorPickersRow.innerHTML = '';
+            whiteSlidersRow.innerHTML = '';
             if (state.params.colors && Array.isArray(state.params.colors)) {
                 state.params.colors.forEach((color, idx) => {
+                    // Parse RRGGBBWW
+                    let hex = color.replace('#','');
+                    let r = 0, g = 0, b = 0, w = 0;
+                    if (hex.length === 8) {
+                        r = parseInt(hex.substring(0,2),16);
+                        g = parseInt(hex.substring(2,4),16);
+                        b = parseInt(hex.substring(4,6),16);
+                        w = parseInt(hex.substring(6,8),16);
+                    } else if (hex.length === 6) {
+                        r = parseInt(hex.substring(0,2),16);
+                        g = parseInt(hex.substring(2,4),16);
+                        b = parseInt(hex.substring(4,6),16);
+                        w = 0;
+                    }
+                    // Color picker (RRGGBB only)
                     const colorDiv = document.createElement('div');
                     colorDiv.className = 'control-item';
                     const label = document.createElement('label');
@@ -284,11 +301,15 @@ function updateState(state) {
                     const input = document.createElement('input');
                     input.type = 'color';
                     input.className = 'color-input';
-                    input.value = color;
+                    input.value = `#${hex.substring(0,6)}`;
                     input.id = `colorPicker${idx}`;
                     input.addEventListener('change', (e) => {
                         let colors = [...state.params.colors];
-                        colors[idx] = e.target.value;
+                        // Keep WW unchanged
+                        let newHex = e.target.value.replace('#','');
+                        if (newHex.length === 6) {
+                            colors[idx] = `#${newHex}${hex.length === 8 ? hex.substring(6,8) : '00'}`;
+                        }
                         sendState({
                             params: {
                                 ...state.params,
@@ -299,6 +320,40 @@ function updateState(state) {
                     label.appendChild(input);
                     colorDiv.appendChild(label);
                     colorPickersRow.appendChild(colorDiv);
+
+                    // White slider
+                    const whiteDiv = document.createElement('div');
+                    whiteDiv.className = 'control-item';
+                    const whiteLabel = document.createElement('label');
+                    whiteLabel.textContent = 'White Channel';
+                    const whiteSlider = document.createElement('input');
+                    whiteSlider.type = 'range';
+                    whiteSlider.min = 0;
+                    whiteSlider.max = 255;
+                    whiteSlider.value = w;
+                    whiteSlider.className = 'slider-input';
+                    whiteSlider.id = `whiteSlider${idx}`;
+                    const whiteValue = document.createElement('span');
+                    whiteValue.textContent = w;
+                    whiteSlider.addEventListener('input', (e) => {
+                        whiteValue.textContent = e.target.value;
+                    });
+                    whiteSlider.addEventListener('change', (e) => {
+                        let colors = [...state.params.colors];
+                        let rgbHex = hex.substring(0,6);
+                        let newW = parseInt(e.target.value).toString(16).padStart(2,'0');
+                        colors[idx] = `#${rgbHex}${newW}`;
+                        sendState({
+                            params: {
+                                ...state.params,
+                                colors
+                            }
+                        });
+                    });
+                    whiteLabel.appendChild(whiteSlider);
+                    whiteLabel.appendChild(whiteValue);
+                    whiteDiv.appendChild(whiteLabel);
+                    whiteSlidersRow.appendChild(whiteDiv);
                 });
             }
         }
