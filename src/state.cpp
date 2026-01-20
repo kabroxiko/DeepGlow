@@ -41,6 +41,8 @@ uint8_t percentToBrightness(uint8_t percent);
 // Transition frame management is now handled by TransitionEngine
 
 void applyPreset(uint8_t presetId, uint8_t brightness) {
+	// Abort any ongoing transition to prevent spikes from previous effect
+	transition.abortTransition();
 	// Find preset by id
 	auto it = std::find_if(config.presets.begin(), config.presets.end(), [presetId](const Preset& p) { return p.id == presetId; });
 	if (it == config.presets.end() || !it->enabled) {

@@ -1,8 +1,13 @@
+
 #include <Arduino.h>
 #include "transition.h"
 #include "bus_manager.h"
 #include "colors.h"
-
+void TransitionEngine::abortTransition() {
+    _active = false;
+    _phase = Phase::None;
+    clearFrames();
+}
 void TransitionEngine::startEffectAndBrightnessTransition(uint8_t targetBrightness, uint32_t targetColor1, uint32_t targetColor2, uint32_t duration) {
     // Start color transition first, then brightness after color transition completes
     // Start combined transition: brightness always over full duration, color only for initial fraction

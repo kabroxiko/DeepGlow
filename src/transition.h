@@ -11,6 +11,8 @@ class TransitionEngine {
     enum class Phase { None, Color, Brightness };
     Phase _phase = Phase::None;
 public:
+    // Interrupt and clear any ongoing transition
+    void abortTransition();
     float getEffectTransitionFraction() const { return effectTransitionFraction; }
     // Setters for transition start values (for smooth interruption)
     void setStartBrightness(uint8_t value) { _startBrightness = value; }
