@@ -286,6 +286,27 @@ function loadPresetsAndConfig() {
 // Only use loadPresetsAndConfig for DOMContentLoaded
 window.addEventListener('DOMContentLoaded', loadPresetsAndConfig);
 
+// Add Timer button handler
+window.addEventListener('DOMContentLoaded', function() {
+    const addTimerBtn = document.getElementById('addTimerButton');
+    if (addTimerBtn && !addTimerBtn._handlerSet) {
+        addTimerBtn.onclick = function() {
+            if (!Array.isArray(window.config.timers)) window.config.timers = [];
+            // Add a default timer object
+            window.config.timers.push({
+                enabled: true,
+                type: 0, // Regular
+                hour: 12,
+                minute: 0,
+                presetId: (window.presets && window.presets.length > 0) ? window.presets[0].id : 0,
+                brightness: 80
+            });
+            displayConfig();
+        };
+        addTimerBtn._handlerSet = true;
+    }
+});
+
 // Update display values for sliders
 // Show % for maxBrightness slider, plain value for minTransition
 const maxBrightnessInput = document.getElementById('maxBrightness');
