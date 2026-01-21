@@ -515,7 +515,7 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
     // Only update fields present in the request
     bool updated = false;
     if (doc.containsKey("brightness")) {
-        uint8_t brightness = doc["brightness"];
+        uint8_t brightness = percentToHex(doc["brightness"]);
         applyBrightnessLimit(brightness);
         applyTransitionTimeLimit(state.transitionTime);
         if (_brightnessCallback) _brightnessCallback(brightness);
@@ -727,7 +727,11 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
     _config->timers[timerId].hour = doc["hour"] | 0;
     _config->timers[timerId].minute = doc["minute"] | 0;
     _config->timers[timerId].presetId = doc["presetId"] | 0;
-    _config->timers[timerId].brightness = doc["brightness"] | 100;
+    // Always store timer brightness as hex internally; convert from percent at API boundary
+    if (doc.containsKey("brightness")) {
+        uint8_t percent = doc["brightness"] | 100;
+        _config->timers[timerId].brightness = percentToHex(percent);
+    }
     
     _config->save();
     
@@ -767,9 +771,7 @@ String WebServerManager::getStateJSON() {
         }
     }
     // These fields are always reported from state/transition engine
-    uint8_t brightnessHex = transition.getTargetBrightness();
-    uint8_t brightnessPercent = (uint8_t)((brightnessHex * 100 + 127) / 255);
-    doc["brightness"] = brightnessPercent;
+    doc["brightness"] = hexToPercent(transition.getTargetBrightness());
     doc["transitionTime"] = state.transitionTime;
     doc["time"] = _scheduler->isTimeValid() ? _scheduler->getCurrentTime() : "--:--";
     doc["sunrise"] = _scheduler->getSunriseTime();
@@ -818,16 +820,14 @@ String WebServerManager::getConfigJSON() {
 
     JsonObject safetyObj = doc.createNestedObject("safety");
     safetyObj["minTransitionTime"] = _config->safety.minTransitionTime;
-    // maxBrightness is now always stored as percent
-    safetyObj["maxBrightness"] = _config->safety.maxBrightness;
-    // Store maxBrightness as percent everywhere
+    // maxBrightness is now always stored as percent for API/config
+    safetyObj["maxBrightness"] = hexToPercent(_config->safety.maxBrightness);
+    // Store maxBrightness as percent everywhere for config/API
     if (doc.containsKey("safety")) {
         JsonObject safetyObj = doc["safety"];
         if (safetyObj.containsKey("maxBrightness")) {
             int percent = safetyObj["maxBrightness"].as<int>();
-            if (percent < 1) percent = 1;
-            if (percent > 100) percent = 100;
-            _config->safety.maxBrightness = percent;
+            _config->safety.maxBrightness = percentToHex(percent);
             safetyObj["maxBrightness"] = percent; // update doc for file save
         }
     }
@@ -864,7 +864,7 @@ String WebServerManager::getConfigJSON() {
         timerObj["hour"] = t.hour;
         timerObj["minute"] = t.minute;
         timerObj["presetId"] = t.presetId;
-        timerObj["brightness"] = t.brightness;
+        timerObj["brightness"] = hexToPercent(t.brightness);
     }
     String output;
     serializeJson(doc, output);
@@ -890,7 +890,7 @@ String WebServerManager::getTimersJSON() {
         timerObj["hour"] = t.hour;
         timerObj["minute"] = t.minute;
         timerObj["presetId"] = t.presetId;
-        timerObj["brightness"] = t.brightness;
+        timerObj["brightness"] = hexToPercent(t.brightness);
     }
 
     String output;
@@ -918,8 +918,7 @@ void WebServerManager::broadcastState() {
     // Sync config.state.brightness with transition engine before broadcasting
     extern TransitionEngine transition;
     // Store as percent for reporting
-    uint8_t brightnessHex = transition.getCurrentBrightness();
-    state.brightness = (uint8_t)((brightnessHex * 100 + 127) / 255);
+    state.brightness = transition.getCurrentBrightness();
     String stateJSON = getStateJSON();
     _ws->textAll(stateJSON);
 }

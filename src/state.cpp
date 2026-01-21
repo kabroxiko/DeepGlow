@@ -35,9 +35,6 @@ extern void* strip;
 
 extern int8_t lastScheduledPreset;
 
-// Forward declaration for percentToBrightness (defined in config.cpp)
-uint8_t percentToBrightness(uint8_t percent);
-
 // Transition frame management is now handled by TransitionEngine
 
 void applyPreset(uint8_t presetId, uint8_t brightness) {
@@ -50,15 +47,9 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		return;
 	}
 	Preset& preset = *it;
-	debugPrint("[applyPreset] input brightness: "); debugPrintln((int)brightness);
-	debugPrint("[applyPreset] config.safety.maxBrightness: "); debugPrintln((int)config.safety.maxBrightness);
-	uint8_t brightnessValue = percentToBrightness(brightness);
-	debugPrint("[applyPreset] brightnessValue (0-255): "); debugPrintln((int)brightnessValue);
-	uint8_t maxBrightnessValue = percentToBrightness(config.safety.maxBrightness);
-	debugPrint("[applyPreset] maxBrightnessValue (0-255): "); debugPrintln((int)maxBrightnessValue);
-	uint8_t safeBrightness = (brightnessValue < maxBrightnessValue) ? brightnessValue : maxBrightnessValue;
-	debugPrint("[applyPreset] safeBrightness (0-255): "); debugPrintln((int)safeBrightness);
-	state.brightness = brightness;
+	uint8_t maxBrightness = config.safety.maxBrightness;
+	uint8_t safeBrightness = (brightness < maxBrightness) ? brightness : maxBrightness;
+	state.brightness = safeBrightness;
 
 	// Capture previous effect and params BEFORE applying new preset
 	state.prevEffect = state.effect;
@@ -87,10 +78,7 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 	uint32_t prevColor2 = transition.getCurrentColor2();
 
 	bool doTransition = (state.prevEffect >= 0);
-	uint32_t transTime = state.transitionTime;
-	if (transTime < config.safety.minTransitionTime) {
-		transTime = config.safety.minTransitionTime;
-	}
+	webServer.applyTransitionTimeLimit(state.transitionTime);
 
 	size_t count = busManager.getPixelCount();
 	// Capture previous frame for transition blending from the actual displayed LED buffer
@@ -111,10 +99,10 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		presetColors[i] = 0x00000000;
 	}
 	size_t presetColorCount = n > 0 ? n : 1;
-	uint8_t presetBrightness = (brightness > 0 ? percentToBrightness(brightness) : 255);
-	uint8_t maxPresetBrightness = percentToBrightness(config.safety.maxBrightness);
-	if (presetBrightness > maxPresetBrightness) presetBrightness = maxPresetBrightness;
-	renderEffectToBuffer(preset.effect, preset.params, targetFrame, count, presetColors, presetColorCount, presetBrightness);
+	uint8_t presetBrightnessHex = (brightness > 0 ? brightness : 255);
+	uint8_t maxPresetBrightnessHex = config.safety.maxBrightness;
+	if (presetBrightnessHex > maxPresetBrightnessHex) presetBrightnessHex = maxPresetBrightnessHex;
+	renderEffectToBuffer(preset.effect, preset.params, targetFrame, count, presetColors, presetColorCount, presetBrightnessHex);
 	transition.setTargetFrame(targetFrame);
 	if (doTransition && state.prevEffect >= 0) {
 		transition.forceCurrentBrightness(previousBrightness);
@@ -123,11 +111,11 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 		transition.setStartColor2(prevColor2);
 		uint32_t newColor1 = color[0];
 		uint32_t newColor2 = color[1];
-		transition.startEffectAndBrightnessTransition(safeBrightness, newColor1, newColor2, transTime);
+		transition.startEffectAndBrightnessTransition(safeBrightness, newColor1, newColor2, state.transitionTime);
 	} else {
 		// Boot/first transition
 		transition.forceCurrentBrightness(previousBrightness);
-		transition.startEffectAndBrightnessTransition(safeBrightness, color[0], color[1], transTime);
+		transition.startEffectAndBrightnessTransition(safeBrightness, color[0], color[1], state.transitionTime);
 	}
 
 	// Store new effect/params for later commit after transition
@@ -153,11 +141,8 @@ void setPower(bool power) {
 	}
 	state.power = power;
 	digitalWrite(config.led.relayPin, power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
-	uint8_t targetBrightness = power ? percentToBrightness(state.brightness) : 0;
-	uint32_t transTime = state.transitionTime;
-	if (transTime < config.safety.minTransitionTime) {
-		transTime = config.safety.minTransitionTime;
-	}
+	uint8_t targetBrightness = power ? state.brightness : 0;
+	webServer.applyTransitionTimeLimit(state.transitionTime);
 	if (power) {
 		transition.forceCurrentBrightness(state.brightness);
 	}
@@ -165,26 +150,20 @@ void setPower(bool power) {
 		// Use current colors for effect transition
 		uint32_t curColor1 = transition.getCurrentColor1();
 		uint32_t curColor2 = transition.getCurrentColor2();
-		transition.startEffectAndBrightnessTransition(targetBrightness, curColor1, curColor2, transTime);
+		transition.startEffectAndBrightnessTransition(targetBrightness, curColor1, curColor2, state.transitionTime);
 	}
 	webServer.broadcastState();
 
 }
 
 void setBrightness(uint8_t brightness) {
-	// Clamp to percent range, then convert to 0-255 for transition
-	debugPrint("[setBrightness] input: "); debugPrintln((int)brightness);
-	debugPrint("[setBrightness] config.safety.maxBrightness: "); debugPrintln((int)config.safety.maxBrightness);
-	brightness = min(brightness, config.safety.maxBrightness);
-	debugPrint("[setBrightness] clamped brightness: "); debugPrintln((int)brightness);
-	uint8_t brightness255 = percentToBrightness(brightness);
-	debugPrint("[setBrightness] brightness255 (0-255): "); debugPrintln((int)brightness255);
-	uint32_t transTime = state.transitionTime;
-	if (transTime < config.safety.minTransitionTime) {
-		transTime = config.safety.minTransitionTime;
-	}
+	uint8_t hexValue = brightness;
+	// Use existing helper to apply safety brightness limit
+	webServer.applyBrightnessLimit(hexValue);
+	state.brightness = hexValue;
+	webServer.applyTransitionTimeLimit(state.transitionTime);
 	uint8_t current = transition.getCurrentBrightness();
-	if (brightness255 != current) {
+	if (hexValue != current) {
 		if (!transition.isTransitioning()) {
 			transition.forceCurrentBrightness(current);
 		}
@@ -199,7 +178,7 @@ void setBrightness(uint8_t brightness) {
 		// Use current colors for effect transition
 		uint32_t curColor1 = transition.getCurrentColor1();
 		uint32_t curColor2 = transition.getCurrentColor2();
-		transition.startEffectAndBrightnessTransition(brightness255, curColor1, curColor2, transTime);
+		transition.startEffectAndBrightnessTransition(hexValue, curColor1, curColor2, state.transitionTime);
 		webServer.broadcastState();
 	}
 }

@@ -3,12 +3,14 @@
 
 #include "config.h"
 
+
+// All internal state uses hex (0-255)
 struct SystemState {
     bool power = false;
-    uint8_t brightness = 0;
+    uint8_t brightness = 0; // hex (0-255)
     uint8_t effect = 0;
     EffectParams params;
-    uint32_t transitionTime = 5000;
+    uint32_t transitionTime = 3600000;
     uint8_t preset = 0;
     bool inTransition = false;
     int8_t prevEffect = -1;

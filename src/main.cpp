@@ -124,7 +124,7 @@ void setup() {
     webServer.onPowerChange(setPower);
     webServer.onBrightnessChange(setBrightness);
     webServer.onEffectChange(setEffect);
-    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, transition.getTargetBrightness()); });
+    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, transition.getTargetBrightness()); }); // already hex
     webServer.onConfigChange([]() {
         // Immediately apply relay pin and logic changes
         pinMode(config.led.relayPin, OUTPUT);
@@ -235,7 +235,7 @@ void loop() {
         }
         String ipStr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString() : WiFi.localIP().toString();
         if (presetName != lastPreset || state.power != lastPower || state.brightness != lastBrightness || ipStr != lastIp) {
-            display_status(presetName.c_str(), state.power, state.brightness, ipStr.c_str());
+            display_status(presetName.c_str(), state.power, ipStr.c_str());
             lastPreset = presetName;
             lastPower = state.power;
             lastBrightness = state.brightness;
@@ -316,9 +316,8 @@ void setupLEDs() {
 void handleScheduledPreset(int8_t presetId, int currentMinutes) {
     const Timer* activeTimer = scheduler.getActiveTimer();
     if (activeTimer && activeTimer->presetId == presetId && presetId != lastScheduledPreset) {
-        debugPrint("[handleScheduledPreset] applying presetId: "); debugPrintln((int)presetId);
-        debugPrint("[handleScheduledPreset] using timer brightness: "); debugPrintln((int)activeTimer->brightness);
-        applyPreset(presetId, activeTimer->brightness);
+        uint8_t brightness = activeTimer->brightness;
+        applyPreset(presetId, brightness);
         lastScheduledPreset = presetId;
     }
 }
