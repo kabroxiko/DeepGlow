@@ -1,0 +1,69 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up PlatformIO
+        run: |
+          python -m pip install --upgrade pip
+          pip install platformio
+
+      - name: Install intelhex for esptool
+        run: pip install intelhex
+
+      - name: Build firmware
+        run: |
+          platformio run
+
+      - name: Compress firmware binaries
+        run: |
+          find .pio/build -type f -name '*.bin' -exec gzip -k {} \;
+
+      - name: Rename .bin.gz files with env and version
+        run: |
+          VERSION=$(git describe --tags --always)
+          for f in .pio/build/*/*.bin.gz; do \
+            ENV=$(basename $(dirname "$f")); \
+            BASE=$(basename "$f" .bin.gz); \
+            mv "$f" ".pio/build/$ENV/${BASE}_${ENV}_${VERSION}.bin.gz"; \
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-bin-gz
+          path: .pio/build/*/*.bin.gz
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware-bin-gz
+          path: firmware
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: firmware/*/*.bin.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

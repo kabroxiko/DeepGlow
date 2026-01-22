@@ -649,7 +649,9 @@ void WebServerManager::handleGetPresets(AsyncWebServerRequest* request) {
 }
 
 void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
+    #if defined(ESP32)
     try {
+    #endif
         StaticJsonDocument<512> doc;
         String jsonStr = extractJsonBody(request, data, len);
         if (!parseJsonOrRespond(request, jsonStr, doc)) return;
@@ -701,11 +703,13 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
             for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
             request->send(resp);
         }
+    #if defined(ESP32)
     } catch (...) {
         AsyncWebServerResponse *resp = request->beginResponse(500, "application/json", "{\"error\":\"Internal server error\"}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
     }
+    #endif
 }
 
 void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
