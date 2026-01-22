@@ -8,6 +8,7 @@ using std::vector;
 #include <vector>
 #include <LittleFS.h>
 #include <ArduinoJson.h>
+#include "debug.h"
 
 #define FILESYSTEM LittleFS
 
@@ -75,6 +76,7 @@ bool Configuration::saveToFile(const char* path, const JsonDocument& doc) {
     return written > 0;
 }
 
+
 bool Configuration::load() {
     // Load defaults from config_default.inc
     StaticJsonDocument<2048> doc;
@@ -86,13 +88,15 @@ bool Configuration::load() {
     }
 
     bool updated = false;
-    if (!loadFromFile(CONFIG_FILE, doc)) {
+    bool loadedFromFile = loadFromFile(CONFIG_FILE, doc);
+    if (!loadedFromFile) {
         doc = defaultsDoc;
         updated = true;
     } else {
         // Deep merge: fill missing/null fields from defaults
         mergeJson(doc, defaultsDoc);
-        updated = true; // always update to ensure defaults are saved
+        saveToFile(CONFIG_FILE, doc);
+        updated = true;
     }
 
     // (copy the field assignment logic from before, but now doc is always complete)
@@ -112,6 +116,15 @@ bool Configuration::load() {
         safety.minTransitionTime = safetyObj["minTransitionTime"];
         int percent = safetyObj["maxBrightness"];
         safety.maxBrightness = percentToHex(percent);
+    }
+    // Transition Times
+    if (doc.containsKey("transitionTimes")) {
+        JsonObject tObj = doc["transitionTimes"];
+        if (tObj.containsKey("powerOn")) transitionTimes.powerOn = tObj["powerOn"];
+        if (tObj.containsKey("schedule")) transitionTimes.schedule = tObj["schedule"];
+        if (tObj.containsKey("manual")) transitionTimes.manual = tObj["manual"];
+        if (tObj.containsKey("effect")) transitionTimes.effect = tObj["effect"];
+        // ...existing code...
     }
     // Network Configuration
     if (doc.containsKey("network")) {
@@ -158,6 +171,13 @@ bool Configuration::save() {
     JsonObject safetyObj = doc.createNestedObject("safety");
     safetyObj["minTransitionTime"] = safety.minTransitionTime;
     safetyObj["maxBrightness"] = hexToPercent(safety.maxBrightness);
+
+    // Transition Times
+    JsonObject tObj = doc.createNestedObject("transitionTimes");
+    tObj["powerOn"] = transitionTimes.powerOn;
+    tObj["schedule"] = transitionTimes.schedule;
+    tObj["manual"] = transitionTimes.manual;
+    tObj["effect"] = transitionTimes.effect;
 
     // Network Configuration
     JsonObject netObj = doc.createNestedObject("network");
@@ -209,6 +229,13 @@ void Configuration::partialUpdate(const JsonObject& update) {
             int percent = safetyObj["maxBrightness"];
             safety.maxBrightness = percentToHex(percent);
         }
+    }
+    if (update.containsKey("transitionTimes")) {
+        JsonObject tObj = update["transitionTimes"];
+        if (tObj.containsKey("powerOn")) transitionTimes.powerOn = tObj["powerOn"];
+        if (tObj.containsKey("schedule")) transitionTimes.schedule = tObj["schedule"];
+        if (tObj.containsKey("manual")) transitionTimes.manual = tObj["manual"];
+        if (tObj.containsKey("effect")) transitionTimes.effect = tObj["effect"];
     }
     if (update.containsKey("network")) {
         JsonObject netObj = update["network"];

@@ -43,7 +43,6 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 	// Find preset by id
 	auto it = std::find_if(config.presets.begin(), config.presets.end(), [presetId](const Preset& p) { return p.id == presetId; });
 	if (it == config.presets.end() || !it->enabled) {
-		debugPrintln("Invalid preset ID");
 		return;
 	}
 	Preset& preset = *it;
@@ -78,6 +77,7 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
 	uint32_t prevColor2 = transition.getCurrentColor2();
 
 	bool doTransition = (state.prevEffect >= 0);
+	// transitionTime is set by caller (main.cpp) for scheduled presets and boot
 	webServer.applyTransitionTimeLimit(state.transitionTime);
 
 	size_t count = busManager.getPixelCount();
@@ -142,6 +142,8 @@ void setPower(bool power) {
 	state.power = power;
 	digitalWrite(config.led.relayPin, power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
 	uint8_t targetBrightness = power ? state.brightness : 0;
+	// Use powerOn transition time for power changes
+	state.transitionTime = config.transitionTimes.powerOn;
 	webServer.applyTransitionTimeLimit(state.transitionTime);
 	if (power) {
 		transition.forceCurrentBrightness(state.brightness);
@@ -153,7 +155,6 @@ void setPower(bool power) {
 		transition.startEffectAndBrightnessTransition(targetBrightness, curColor1, curColor2, state.transitionTime);
 	}
 	webServer.broadcastState();
-
 }
 
 void setBrightness(uint8_t brightness) {
@@ -161,6 +162,8 @@ void setBrightness(uint8_t brightness) {
 	// Use existing helper to apply safety brightness limit
 	webServer.applyBrightnessLimit(hexValue);
 	state.brightness = hexValue;
+	// Use manual transition time for manual brightness changes
+	state.transitionTime = config.transitionTimes.manual;
 	webServer.applyTransitionTimeLimit(state.transitionTime);
 	uint8_t current = transition.getCurrentBrightness();
 	if (hexValue != current) {
@@ -218,11 +221,13 @@ void setUserColor(const uint32_t* newColor, size_t count) {
 		snprintf(hex, sizeof(hex), "#%08X", color[i]);
 		state.params.colors.push_back(String(hex));
 	}
+	// Use effect transition time for color/effect changes
+	state.transitionTime = config.transitionTimes.manual;
 	setEffect(state.effect, state.params);
 }
 
 void updateLEDs() {
-    BusNeoPixel* neo = busManager.getNeoPixelBus();
+	BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
 	if (!state.power) {
 		busManager.turnOffLEDs();

@@ -59,6 +59,13 @@ inline uint8_t hexToPercent(uint8_t hex) {
     return (uint8_t)((hex * 100 + 127) / 255); // round to nearest
 }
 
+struct TransitionTimesConfig {
+    uint32_t powerOn;
+    uint32_t schedule;
+    uint32_t manual;
+    uint32_t effect;
+};
+
 struct SafetyConfig {
     uint32_t minTransitionTime;
     uint8_t maxBrightness; // internal (0-255)
@@ -113,10 +120,12 @@ struct Preset {
 
 
 // Global Configuration Class
+
 class Configuration {
 public:
     LEDConfig led;
     SafetyConfig safety;
+    TransitionTimesConfig transitionTimes;
     NetworkConfig network;
     TimeConfig time;
     std::vector<Preset> presets;

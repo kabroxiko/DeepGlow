@@ -10,7 +10,7 @@ struct SystemState {
     uint8_t brightness = 0; // hex (0-255)
     uint8_t effect = 0;
     EffectParams params;
-    uint32_t transitionTime = 3600000;
+    uint32_t transitionTime; // Set from config/logic only
     uint8_t preset = 0;
     bool inTransition = false;
     int8_t prevEffect = -1;

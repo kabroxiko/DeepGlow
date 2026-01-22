@@ -117,8 +117,14 @@ void TransitionEngine::update() {
     // Brightness always transitions over full duration
     _currentBrightness = interpolate(_startBrightness, _targetBrightness, progress);
 
-    // Color transitions only for the initial fraction of the duration
-    float colorFrac = effectTransitionFraction;
+    // Use transitionTimes.effect to determine the fraction of the transition for effect/color
+    extern Configuration config;
+    float colorFrac = 1.0f;
+    if (config.transitionTimes.effect > 0 && _duration > 0) {
+        colorFrac = float(config.transitionTimes.effect) / float(_duration);
+        if (colorFrac > 1.0f) colorFrac = 1.0f;
+        if (colorFrac < 0.01f) colorFrac = 0.01f;
+    }
     float colorProgress = (progress < colorFrac) ? (progress / colorFrac) : 1.0f;
     if (colorProgress < 1.0f) {
         _currentColor1 = interpolateColor(_startColor1, _targetColor1, colorProgress);
@@ -146,7 +152,7 @@ uint32_t TransitionEngine::getCurrentColor2() {
 }
 
 uint8_t TransitionEngine::interpolate(uint8_t start, uint8_t target, float progress) {
-    return start + (uint8_t)((float)(target - start) * progress);
+    return start + (uint8_t)ceilf((float)(target - start) * progress);
 }
 
 uint32_t TransitionEngine::interpolateColor(uint32_t start, uint32_t target, float progress) {

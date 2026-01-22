@@ -317,7 +317,13 @@ void handleScheduledPreset(int8_t presetId, int currentMinutes) {
     const Timer* activeTimer = scheduler.getActiveTimer();
     if (activeTimer && activeTimer->presetId == presetId && presetId != lastScheduledPreset) {
         uint8_t brightness = activeTimer->brightness;
+        // If this is the first schedule application after boot, use powerOn transition time
+        static bool firstScheduleApplied = false;
+        uint32_t transitionTime = firstScheduleApplied ? config.transitionTimes.schedule : config.transitionTimes.powerOn;
+        webServer.applyTransitionTimeLimit(transitionTime);
+        state.transitionTime = transitionTime;
         applyPreset(presetId, brightness);
+        firstScheduleApplied = true;
         lastScheduledPreset = presetId;
     }
 }

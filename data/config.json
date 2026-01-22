@@ -24,6 +24,12 @@
 		"longitude": 0.0,
 		"dstEnabled": true
 	},
+	"transitionTimes": {
+		"powerOn": 60000,
+		"schedule": 3600000,
+		"manual": 10000,
+		"effect": 10000
+	},
 	"timers": [
 		{ "enabled": true, "type": 0, "hour": 0,  "minute": 0,  "presetId": 0, "brightness": 0 },
 		{ "enabled": true, "type": 0, "hour": 7,  "minute": 0,  "presetId": 1, "brightness": 60 },
