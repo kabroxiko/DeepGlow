@@ -1,6 +1,6 @@
 [] add retry to wifi connection
 [x] reconnect to wifi when lost connection
-[] get bauds from config
+[x] get bauds from config
 [] display must show actual live values
 [] create github actions
 [x] check timers every round minute not every 60s

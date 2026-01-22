@@ -77,7 +77,7 @@ void setup() {
     // Set relay to off state at boot
     digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
     #ifdef DEBUG_SERIAL
-    Serial.begin(115200);
+    Serial.begin(SERIAL_BAUD);
     delay(1000);
     #endif
     debugPrintln();
