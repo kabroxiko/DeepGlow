@@ -227,6 +227,33 @@ void loop() {
             lastCheckedMinute = currentMinute;
         }
     }
+    // --- WiFi reconnect logic ---
+    static uint32_t lastWiFiCheck = 0;
+    static int wifiReconnectAttempts = 0;
+    const int wifiReconnectInterval = 10000; // 10 seconds
+    const int maxWiFiReconnectAttempts = 5;
+    if (WiFi.getMode() != WIFI_AP && config.network.ssid.length() > 0) {
+        if (WiFi.status() != WL_CONNECTED) {
+            uint32_t now = millis();
+            if (now - lastWiFiCheck > wifiReconnectInterval) {
+                debugPrintln("[WiFi] Lost connection, attempting reconnect...");
+                WiFi.disconnect();
+                delay(100);
+                WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
+                wifiReconnectAttempts++;
+                lastWiFiCheck = now;
+                if (wifiReconnectAttempts >= maxWiFiReconnectAttempts) {
+                    debugPrintln("[WiFi] Too many failed reconnects, switching to AP mode");
+                    WiFi.mode(WIFI_AP);
+                    WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
+                    startCaptivePortal(WiFi.softAPIP());
+                    wifiReconnectAttempts = 0;
+                }
+            }
+        } else {
+            wifiReconnectAttempts = 0;
+        }
+    }
     static uint32_t lastFrame = 0;
     uint32_t now = millis();
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
