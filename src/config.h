@@ -5,12 +5,6 @@
 #include <ArduinoJson.h>
 #include <vector>
 
-// Version
-#define FIRMWARE_VERSION "1.0.0"
-#define FIRMWARE_NAME "AquariumLED"
-
-
-
 // LED Configuration
 #define MAX_LED_COUNT 512
 #define FRAMES_PER_SECOND 60

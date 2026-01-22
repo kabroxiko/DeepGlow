@@ -36,6 +36,8 @@
 #include "config.h"
 #include "state.h"
 
+
+#include "version.h"
 #include "display.h"
 
 
@@ -79,11 +81,13 @@ void setup() {
     #ifdef DEBUG_SERIAL
     Serial.begin(SERIAL_BAUD);
     delay(1000);
+    Serial.println();
+    Serial.println("=================================");
+    Serial.println("  Aquarium LED Controller");
+    Serial.print("  Version: ");
+    Serial.println(getFirmwareVersion());
+    Serial.println("=================================");
     #endif
-    debugPrintln();
-    debugPrintln("=================================");
-    debugPrintln("  Aquarium LED Controller v1.0  ");
-    debugPrintln("=================================");
     
     // List files in LittleFS for debugging
     LittleFS.begin();

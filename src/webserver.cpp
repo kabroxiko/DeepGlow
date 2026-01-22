@@ -19,6 +19,8 @@
 #include "transition.h"
 #include "presets.h"
 #include "state.h"
+#include <LittleFS.h>
+#include "version.h"
 
 // Helper: CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
@@ -96,6 +98,7 @@ void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned 
     // Actual OTA update logic
     static unsigned int lastDot = 0;
     if (index == 0) {
+        LittleFS.end(); // Free filesystem before OTA
     #if defined(ESP32)
         if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
     #elif defined(ESP8266)
@@ -192,6 +195,14 @@ void WebServerManager::setupWebSocket() {
 }
 
 void WebServerManager::setupRoutes() {
+
+    // Version API endpoint
+    _server->on("/api/version", HTTP_GET, [](AsyncWebServerRequest* request) {
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", String("{\"version\":\"") + getFirmwareVersion() + "\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
+    #include "version.h"
     // Debug: Log every incoming HTTP request
     _server->onNotFound([this](AsyncWebServerRequest* request) {
         debugPrintln(String("[HTTP] NotFound: ") + request->url());

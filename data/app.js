@@ -41,6 +41,19 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof loadPresets === 'function') loadPresets();
             if (typeof loadTimers === 'function') loadTimers();
         });
+        // Fetch and display version
+        fetch(BASE_URL + '/api/version')
+            .then(r => r.json())
+            .then(data => {
+                if (data && data.version) {
+                    const vEl = document.getElementById('versionString');
+                    if (vEl) vEl.textContent = 'Version: ' + data.version;
+                }
+            })
+            .catch(() => {
+                const vEl = document.getElementById('versionString');
+                if (vEl) vEl.textContent = 'Version: (unavailable)';
+            });
     }
 
 // Load all available effects from backend
