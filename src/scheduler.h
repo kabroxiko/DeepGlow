@@ -24,7 +24,6 @@ public:
     String getSunriseTime();
     String getSunsetTime();
 
-    int8_t checkTimers();  // Returns preset ID to apply, -1 if none
     // Returns the brightness for the given presetId and time (minutes), or 100 if not found
     uint8_t getScheduledBrightness(int8_t presetId, int currentMinutes);
     int8_t getCurrentScheduledPreset();  // Returns preset that should be active on boot
@@ -38,7 +37,6 @@ public:
     NTPClient* _timeClient;
 
     uint32_t _lastNTPUpdate = 0;
-    uint32_t _lastTimerCheck = 0;
 
     int _sunriseMinutes = -1;  // Minutes since midnight
     int _sunsetMinutes = -1;

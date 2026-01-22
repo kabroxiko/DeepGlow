@@ -218,7 +218,15 @@ void loop() {
     scheduler.update();
     webServer.update();
     transition.update();
-    checkSchedule();
+    // Only check schedule on a new round minute
+    {
+        static int lastCheckedMinute = -1;
+        int currentMinute = scheduler.getCurrentMinute();
+        if (currentMinute != lastCheckedMinute) {
+            checkSchedule();
+            lastCheckedMinute = currentMinute;
+        }
+    }
     static uint32_t lastFrame = 0;
     uint32_t now = millis();
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {

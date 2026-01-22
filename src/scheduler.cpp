@@ -301,35 +301,6 @@ int Scheduler::getTimerMinutes(const Timer& timer) {
     return minutes;
 }
 
-int8_t Scheduler::checkTimers() {
-    if (!isTimeValid()) {
-        return -1;
-    }
-    // Check only once per minute
-    uint32_t now = millis();
-    if (now - _lastTimerCheck < 60000) {
-        return -1;
-    }
-    _lastTimerCheck = now;
-    int hour = getCurrentHour();
-    int minute = getCurrentMinute();
-    int currentMinutes = timeToMinutes(hour, minute);
-    // Check all timers
-    for (size_t i = 0; i < _config->timers.size(); i++) {
-        const Timer& t = _config->timers[i];
-        if (!isTimerActive(t, 0)) {
-            continue;
-        }
-        int timerMinutes = getTimerMinutes(t);
-        if (timerMinutes == -1) {
-            continue;
-        }
-        if (currentMinutes == timerMinutes) {
-            return t.presetId;
-        }
-    }
-    return -1;
-}
 
 int8_t Scheduler::getCurrentScheduledPreset() {
     if (!isTimeValid()) return -1;
