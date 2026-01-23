@@ -9,18 +9,29 @@
 #include "web_assets/config_html.inc"
 #include "web_assets/config_js.inc"
 
-#include "webserver.h"
+#include <Ticker.h>
+#include <LittleFS.h>
+#include <WiFiClientSecure.h>
+
 #if defined(ESP32)
 #include <Update.h>
 #elif defined(ESP8266)
 #include <Updater.h>
 #endif
+
 #include "effects.h"
 #include "transition.h"
 #include "presets.h"
 #include "state.h"
-#include <LittleFS.h>
 #include "version.h"
+#include "ota.h"
+#include "webserver.h"
+
+// Stub implementations for OTA memory management hooks
+void pauseEffects() {}
+void pauseWebServer() {}
+void resumeEffects() {}
+void resumeWebServer() {}
 
 // Helper: CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
@@ -39,6 +50,18 @@ static String urlDecode(const String& input);
 // Cached effect list JSON
 static String cachedEffectsJson;
 static bool effectsCacheReady = false;
+
+// --- OTA Status WebSocket Broadcast ---
+void WebServerManager::broadcastOtaStatus(const String& status, const String& message, int progress) {
+    StaticJsonDocument<256> doc;
+    doc["type"] = "ota_status";
+    doc["status"] = status;
+    if (message.length() > 0) doc["message"] = message;
+    if (progress >= 0) doc["progress"] = progress;
+    String json;
+    serializeJson(doc, json);
+    if (_ws) _ws->textAll(json);
+}
 
 // Helper: Extract JSON body from POST request (for upload handler)
 static String extractJsonBody(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
@@ -93,57 +116,6 @@ void buildEffectsCache() {
     effectsCacheReady = true;
 }
 
-// Place at the very end of the file, after all other code
-void WebServerManager::handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
-    // Actual OTA update logic
-    static unsigned int lastDot = 0;
-    if (index == 0) {
-        LittleFS.end(); // Free filesystem before OTA
-    #if defined(ESP32)
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-    #elif defined(ESP8266)
-        if (!Update.begin(total)) {
-    #endif
-            Update.printError(Serial);
-        }
-        lastDot = 0;
-        debugPrintln("OTA update started");
-    }
-    if (Update.write(data, len) != len) {
-        Update.printError(Serial);
-    }
-    // Print progress dots every 1%
-    if (total > 0) {
-        unsigned int dot = ((index + len) * 100) / total;
-        while (lastDot < dot) {
-            lastDot++;
-            debugPrint(".");
-        }
-    }
-    if (index + len == total) {
-        debugPrintln("");
-        lastDot = 0; // reset for next OTA
-        bool ok = Update.end(true);
-        AsyncWebServerResponse *resp = nullptr;
-        if (ok) {
-            resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
-            debugPrintln("OTA update complete, rebooting");
-        } else {
-            Update.printError(Serial);
-            resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
-            debugPrintln("OTA update failed");
-        }
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        request->send(resp);
-        if (ok) {
-            request->onDisconnect([]() {
-                delay(100);
-                ESP.restart();
-            });
-        }
-    }
-}
-
 static String urlDecode(const String& input) {
     String decoded;
     char temp[3] = {0};
@@ -194,15 +166,11 @@ void WebServerManager::setupWebSocket() {
     _server->addHandler(_ws);
 }
 
+
+
+
 void WebServerManager::setupRoutes() {
 
-    // Version API endpoint
-    _server->on("/api/version", HTTP_GET, [](AsyncWebServerRequest* request) {
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", String("{\"version\":\"") + getFirmwareVersion() + "\"}");
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        request->send(resp);
-    });
-    #include "version.h"
     // Debug: Log every incoming HTTP request
     _server->onNotFound([this](AsyncWebServerRequest* request) {
         debugPrintln(String("[HTTP] NotFound: ") + request->url());
@@ -214,6 +182,27 @@ void WebServerManager::setupRoutes() {
         String logMsg = String("[HTTP] ") + (request->method() == HTTP_GET ? "GET " : request->method() == HTTP_POST ? "POST " : "OTHER ") + request->url();
         debugPrintln(logMsg);
     };
+    // Version API endpoint
+    _server->on("/api/version", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
+        logRequest(request);
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", String("{\"version\":\"") + getFirmwareVersion() + "\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
+    // Update API endpoint: POST /api/update (OTA with .bin.gz support)
+    _server->on("/api/update", HTTP_POST, [logRequest, this](AsyncWebServerRequest* request) {
+        logRequest(request);
+        debugPrintln("[OTA] /api/update called. Launching OTA FreeRTOS task.");
+        static const char* firmwareUrl = "https://github.com/kabroxiko/DeepGlow/releases/download/v1.0.0/firmware_esp32d_debug_1.0.0.bin.gz";
+    #if defined(ESP32)
+        Serial.printf("[OTA] Free heap before OTA: %u\n", ESP.getFreeHeap());
+        xTaskCreatePinnedToCore(
+            otaTask, "otaTask", 16384, (void*)firmwareUrl, 1, nullptr, 1);
+    #endif
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+    });
 
     // System command API (reboot, update, etc.)
     _server->on("/api/command", HTTP_OPTIONS, [logRequest](AsyncWebServerRequest* request) {
@@ -287,8 +276,7 @@ void WebServerManager::setupRoutes() {
             }
         },
         NULL,
-        [this, logRequest](AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
-            logRequest(request);
+        [logRequest](AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
             handleOTAUpdate(request, reinterpret_cast<uint8_t*>(data), static_cast<size_t>(len), static_cast<size_t>(index), static_cast<size_t>(total));
         }
     );

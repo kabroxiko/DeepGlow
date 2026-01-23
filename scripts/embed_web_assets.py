@@ -38,18 +38,7 @@ def asset_needs_update(src_path, inc_path, force=False):
 	return src_mtime > inc_mtime
 
 
-# Download fflate.min.js from CDN if not present
-import urllib.request
-FFLATE_URL = 'https://cdn.jsdelivr.net/npm/fflate/umd/index.min.js'
-FFLATE_LOCAL = os.path.join(ASSET_DIR, 'fflate.min.js')
-if not os.path.exists(FFLATE_LOCAL):
-	print('Downloading fflate.min.js...')
-	try:
-		urllib.request.urlretrieve(FFLATE_URL, FFLATE_LOCAL)
-		print('fflate.min.js downloaded.')
-	except Exception as e:
-		print(f'ERROR: Failed to download fflate.min.js: {e}', file=sys.stderr)
-		sys.exit(1)
+
 
 
 # Ensure html-minifier-terser and terser are available once at the start

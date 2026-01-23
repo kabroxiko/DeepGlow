@@ -43,6 +43,7 @@
 
 // Global BusManager instance
 BusManager busManager;
+WebServerManager* webServerPtr = nullptr;
 
 // Track last configuration for change detection
 Configuration lastConfiguration;
@@ -74,6 +75,7 @@ void checkSchedule();
 void checkAndApplyScheduleAfterBoot();
 
 void setup() {
+    webServerPtr = &webServer;
     // Initialize relay pin from config
     pinMode(config.led.relayPin, OUTPUT);
     // Set relay to off state at boot
