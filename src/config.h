@@ -85,6 +85,7 @@ struct EffectParams {
     uint8_t speed = 100; // percent (0–100)
     uint8_t intensity = 128;
     std::vector<String> colors = {"#000000", "#000000"};
+    bool reverse = false;
 };
 
 struct Timer {
