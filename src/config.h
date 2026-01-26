@@ -133,6 +133,9 @@ public:
     bool factoryReset();
     void setDefaults();
 
+    // Serialize config to JSON string for API
+    String toJsonString();
+
     // GPS and timezone helpers
     void updateLocationFromGPS(float lat, float lon, bool valid);
     int getTimezoneOffsetSeconds(); // Returns offset in seconds for current timezone

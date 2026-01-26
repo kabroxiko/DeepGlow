@@ -476,9 +476,10 @@ void WebServerManager::setupRoutes() {
     });
     _server->on("/api/config", HTTP_GET, [this, logRequest](AsyncWebServerRequest* request) {
         logRequest(request);
-        handleGetConfig(request);
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", _config->toJsonString());
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
     });
-    
     _server->on("/api/config", HTTP_POST,
         [this, logRequest](AsyncWebServerRequest* request) {
             logRequest(request);
@@ -494,6 +495,7 @@ void WebServerManager::setupRoutes() {
             handleSetConfig(request, (uint8_t*)body.c_str(), body.length());
         }
     );
+
     // Factory Reset API
     _server->on("/api/factory_reset", HTTP_POST, [this, logRequest](AsyncWebServerRequest* request) {
         logRequest(request);
@@ -700,13 +702,7 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
     #endif
 }
 
-void WebServerManager::handleGetConfig(AsyncWebServerRequest* request) {
-    {
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", getConfigJSON());
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        request->send(resp);
-    }
-}
+
 
 void WebServerManager::handleSetConfig(AsyncWebServerRequest* request, uint8_t* data, size_t len) {
     // Parse uploaded JSON
@@ -864,68 +860,7 @@ String WebServerManager::getPresetsJSON() {
     return output;
 }
 
-String WebServerManager::getConfigJSON() {
-    StaticJsonDocument<4096> doc;
-    JsonObject ledObj = doc.createNestedObject("led");
-    ledObj["pin"] = _config->led.pin;
-    ledObj["count"] = _config->led.count;
-    ledObj["type"] = _config->led.type;
-    ledObj["colorOrder"] = _config->led.colorOrder;
-    ledObj["relayPin"] = _config->led.relayPin;
-    ledObj["relayActiveHigh"] = _config->led.relayActiveHigh;
 
-    JsonObject safetyObj = doc.createNestedObject("safety");
-    safetyObj["minTransitionTime"] = _config->safety.minTransitionTime;
-    // maxBrightness is now always stored as percent for API/config
-    safetyObj["maxBrightness"] = hexToPercent(_config->safety.maxBrightness);
-    // Store maxBrightness as percent everywhere for config/API
-    if (doc.containsKey("safety")) {
-        JsonObject safetyObj = doc["safety"];
-        if (safetyObj.containsKey("maxBrightness")) {
-            int percent = safetyObj["maxBrightness"].as<int>();
-            _config->safety.maxBrightness = percentToHex(percent);
-            safetyObj["maxBrightness"] = percent; // update doc for file save
-        }
-    }
-
-    JsonObject timeObj = doc.createNestedObject("time");
-    timeObj["ntpServer"] = _config->time.ntpServer;
-    timeObj["timezone"] = _config->time.timezone;
-    timeObj["latitude"] = _config->time.latitude;
-    timeObj["longitude"] = _config->time.longitude;
-    timeObj["dstEnabled"] = _config->time.dstEnabled;
-
-    // Add network fields
-    JsonObject netObj = doc.createNestedObject("network");
-    netObj["hostname"] = _config->network.hostname;
-    netObj["apPassword"] = _config->network.apPassword;
-    netObj["ssid"] = _config->network.ssid;
-
-    // Add timers array to config JSON (not as 'schedule', but as 'timers' for consistency with upload)
-    JsonArray timersArray = doc.createNestedArray("timers");
-    size_t timerCount = 0;
-    // Determine timer count from config object (timers loaded from config.json)
-    for (size_t i = 0; i < _config->timers.size(); i++) {
-        if (_config->timers[i].enabled || _config->timers[i].hour != 0 || _config->timers[i].minute != 0) {
-            timerCount++;
-        }
-    }
-    if (timerCount == 0) timerCount = _config->timers.size();
-    for (size_t i = 0; i < _config->timers.size(); i++) {
-        const auto& t = _config->timers[i];
-        JsonObject timerObj = timersArray.createNestedObject();
-        timerObj["id"] = i;
-        timerObj["enabled"] = t.enabled;
-        timerObj["type"] = t.type;
-        timerObj["hour"] = t.hour;
-        timerObj["minute"] = t.minute;
-        timerObj["presetId"] = t.presetId;
-        timerObj["brightness"] = hexToPercent(t.brightness);
-    }
-    String output;
-    serializeJson(doc, output);
-    return output;
-}
 
 String WebServerManager::getTimersJSON() {
     StaticJsonDocument<2048> doc;
