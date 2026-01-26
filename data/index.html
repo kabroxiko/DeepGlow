@@ -45,10 +45,11 @@
                 
                 <div class="control-item full-width">
                     <label>
-                        <span>Transition Time (seconds)</span>
-                        <span id="transitionValue">5</span>
+                        <span>Transition Time</span>
+                        <span id="transitionValue"></span>
                     </label>
-                    <input type="range" id="transitionSlider" min="0" max="28800" value="5" class="slider-input" step="1">
+                    <!-- Custom mapping: 0–59 for seconds, 60–119 for minutes, 120–127 for hours -->
+                    <input type="range" id="transitionSlider" min="0" max="127" value="5" class="slider-input" step="1">
                 </div>
                 
                 <div class="control-item full-width">

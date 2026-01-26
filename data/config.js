@@ -53,17 +53,36 @@ function displayConfig() {
             document.getElementById('maxBrightnessValue').textContent = percent + '%';
         }
         if (window.config.safety.minTransitionTime !== undefined) {
-            const minTransSeconds = Math.floor(Number(window.config.safety.minTransitionTime) / 1000);
-            document.getElementById('minTransition').value = minTransSeconds;
-            document.getElementById('minTransitionValue').textContent = minTransSeconds;
+            // Convert ms to slider value using custom mapping
+            const ms = Number(window.config.safety.minTransitionTime);
+            let sliderVal = 0;
+            const sec = Math.round(ms / 1000);
+            if (sec <= 59) sliderVal = sec;
+            else if (sec < 3600) sliderVal = 59 + Math.round(sec / 60);
+            else sliderVal = 119 + Math.round(sec / 3600);
+            document.getElementById('minTransition').value = sliderVal;
+            document.getElementById('minTransitionValue').textContent = formatTransitionTime(sec);
         }
     }
     // Transition Times
     if (window.config.transitionTimes) {
-        document.getElementById('ttPowerOn').value = Math.floor((window.config.transitionTimes.powerOn || 0) / 1000);
-        document.getElementById('ttSchedule').value = Math.floor((window.config.transitionTimes.schedule || 0) / 1000);
-        document.getElementById('ttManual').value = Math.floor((window.config.transitionTimes.manual || 0) / 1000);
-        document.getElementById('ttEffect').value = Math.floor((window.config.transitionTimes.effect || 0) / 1000);
+        const ttFields = [
+            { id: 'ttPowerOn', val: window.config.transitionTimes.powerOn },
+            { id: 'ttSchedule', val: window.config.transitionTimes.schedule },
+            { id: 'ttManual', val: window.config.transitionTimes.manual },
+            { id: 'ttEffect', val: window.config.transitionTimes.effect }
+        ];
+        ttFields.forEach(f => {
+            const el = document.getElementById(f.id);
+            let sliderVal = 0;
+            const sec = Math.round((f.val || 0) / 1000);
+            if (sec <= 59) sliderVal = sec;
+            else if (sec < 3600) sliderVal = 59 + Math.round(sec / 60);
+            else sliderVal = 119 + Math.round(sec / 3600);
+            if (el) el.value = sliderVal;
+            const valSpan = document.getElementById(f.id + 'Value');
+            if (valSpan) valSpan.textContent = formatTransitionTime(sec);
+        });
     }
     // Time
     if (window.config.time) {
@@ -303,13 +322,45 @@ if (maxBrightnessInput) {
         document.getElementById('maxBrightnessValue').textContent = e.target.value + '%';
     });
 }
+
+
 const minTransitionInput = document.getElementById('minTransition');
 if (minTransitionInput) {
+    minTransitionInput.min = 0;
+    minTransitionInput.max = 127;
+    minTransitionInput.step = 1;
     minTransitionInput.addEventListener('input', e => {
-        document.getElementById('minTransitionValue').textContent = e.target.value;
+        let seconds = steppedTransitionValue(e.target.value);
+        minTransitionInput.value = e.target.value;
+        document.getElementById('minTransitionValue').textContent = formatTransitionTime(seconds);
     });
+    // Set initial display with unit
+    let initial = minTransitionInput.value;
+    let seconds = steppedTransitionValue(initial);
+    minTransitionInput.value = initial;
+    document.getElementById('minTransitionValue').textContent = formatTransitionTime(seconds);
 }
 
+// Transition Times sliders: stepped and show value
+['ttPowerOn','ttSchedule','ttManual','ttEffect'].forEach(id => {
+    const el = document.getElementById(id);
+    const valSpan = document.getElementById(id + 'Value');
+    if (el && valSpan) {
+        el.min = 0;
+        el.max = 127;
+        el.step = 1;
+        el.addEventListener('input', e => {
+            let seconds = steppedTransitionValue(e.target.value);
+            el.value = e.target.value;
+            valSpan.textContent = formatTransitionTime(seconds);
+        });
+        // Set initial display with unit
+        let initial = el.value;
+        let seconds = steppedTransitionValue(initial);
+        el.value = initial;
+        valSpan.textContent = formatTransitionTime(seconds);
+    }
+});
 
 async function sendCommandWithStatus(command) {
     try {
@@ -377,7 +428,13 @@ function saveConfig() {
         const safetyUpdate = {};
         const maxBrightness = Math.max(1, Math.min(100, parseInt(document.getElementById('maxBrightness').value)));
         if (!orig.safety || maxBrightness !== orig.safety.maxBrightness) safetyUpdate.maxBrightness = maxBrightness;
-        const minTransitionTime = Math.max(2, parseInt(document.getElementById('minTransition').value)) * 1000;
+        // Convert slider value to seconds using custom mapping
+        const sliderVal = parseInt(document.getElementById('minTransition').value);
+        let minTransitionTime = 0;
+        if (sliderVal <= 59) minTransitionTime = sliderVal * 1000;
+        else if (sliderVal <= 119) minTransitionTime = (sliderVal - 59) * 60 * 1000;
+        else if (sliderVal <= 127) minTransitionTime = (sliderVal - 119) * 3600 * 1000;
+        else minTransitionTime = 28800 * 1000;
         if (!orig.safety || minTransitionTime !== orig.safety.minTransitionTime) safetyUpdate.minTransitionTime = minTransitionTime;
         if (Object.keys(safetyUpdate).length > 0) update.safety = safetyUpdate;
     }
