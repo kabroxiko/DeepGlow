@@ -1,8 +1,8 @@
 #include "presets.h"
 using std::vector;
 
-#include "web_assets/config_default.inc"
-#include "web_assets/timezones_json.inc"
+#include "inc/config_default.inc"
+#include "inc/timezones_json.inc"
 #include "config.h"
 
 #include <vector>

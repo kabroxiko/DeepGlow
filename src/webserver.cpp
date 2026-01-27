@@ -1,13 +1,13 @@
 #if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)
 #include <pgmspace.h>
 #endif
-#include "web_assets/index_html.inc"
-#include "web_assets/wifi_html.inc"
-#include "web_assets/app_js.inc"
-#include "web_assets/style_css.inc"
-#include "web_assets/fflate_min_js.inc"
-#include "web_assets/config_html.inc"
-#include "web_assets/config_js.inc"
+#include "inc/index_html.inc"
+#include "inc/wifi_html.inc"
+#include "inc/app_js.inc"
+#include "inc/style_css.inc"
+#include "inc/fflate_min_js.inc"
+#include "inc/config_html.inc"
+#include "inc/config_js.inc"
 
 #include <Ticker.h>
 #include <LittleFS.h>

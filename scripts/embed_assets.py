@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 
-# PlatformIO pre-build script: embed web assets as .inc files
+# PlatformIO pre-build script: embed assets as .inc files
 # Import("env")
 import os
 import subprocess
@@ -15,12 +15,12 @@ import argparse
 # Skip script if PlatformIO target is erase, or clean
 pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
 if any(x in pio_targets for x in ['erase', 'clean', 'buildfs', 'uploadfs']):
-	print('embed_web_assets.py: Skipping script for erase/clean target.')
+	print('embed_assets.py: Skipping script for erase/clean target.')
 	sys.exit(0)
 
 # Use project root as base (PlatformIO sets cwd to project root)
-ASSET_DIR = os.path.join(os.getcwd(), 'data')
-OUT_DIR = os.path.join(os.getcwd(), 'src/web_assets')
+ASSET_DIR = os.path.join(os.getcwd(), 'src/assets')
+OUT_DIR = os.path.join(os.getcwd(), 'src/inc')
 
 # Ensure output directory exists
 os.makedirs(OUT_DIR, exist_ok=True)
@@ -221,7 +221,7 @@ do_minify = minify_opt.lower() in ('1', 'true', 'yes', 'on')
 parser = argparse.ArgumentParser()
 parser.add_argument('--force', action='store_true', help='Force regeneration of all .inc files')
 args, unknown = parser.parse_known_args()
-force = args.force or os.environ.get('EMBED_WEB_ASSETS_FORCE', '0') in ('1', 'true', 'yes', 'on')
+force = args.force or os.environ.get('EMBED_ASSETS_FORCE', '0') in ('1', 'true', 'yes', 'on')
 
 all_ok = True
 for src, dst in ASSETS:
