@@ -14,7 +14,8 @@
 #define ABSOLUTE_MAX_BRIGHTNESS 255
 
 // NTP Configuration
-#define NTP_UPDATE_INTERVAL 3600000  // 1 hour
+#define NTP_UPDATE_INTERVAL 14400000  // 4 hours
+#define NTP_RETRY_INTERVAL 300000     // 5 minutes
 
 // File Paths
 #define CONFIG_FILE "/config.json"
