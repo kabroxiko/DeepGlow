@@ -6,7 +6,48 @@ window.config = window.config || {};
 
 // Load timezones from API and populate combo
 let TIMEZONES = [];
-    let _loaded = { timezones: false, presets: false, config: false };
+let _loaded = { timezones: false, presets: false, config: false };
+
+// Track if transition times were changed
+let transitionTimesChanged = false;
+
+// --- Sun times WebSocket handler ---
+function handleSunTimesFromWs(event) {
+    try {
+        const data = JSON.parse(event.data);
+        let updated = false;
+        if ('sunrise' in data) {
+            window.sunriseTime = data.sunrise;
+            updated = true;
+        }
+        if ('sunset' in data) {
+            window.sunsetTime = data.sunset;
+            updated = true;
+        }
+        if (updated) {
+            window._sunTimesFirstReceived = true;
+            if (typeof displayConfig === 'function') displayConfig();
+        }
+    } catch (e) {
+    }
+}
+
+// --- Attach sun times listener to ws as early as possible ---
+if (!window._sunTimesWsListenerAdded) {
+    window._sunTimesWsListenerAdded = true;
+    if (window.ws) {
+        window.ws.addEventListener('message', handleSunTimesFromWs);
+    }
+    Object.defineProperty(window, 'ws', {
+        set(v) {
+            this._ws = v;
+            if (v) {
+                v.addEventListener('message', handleSunTimesFromWs);
+            }
+        },
+        get() { return this._ws; }
+    });
+}
 
 function showMainContainerWhenReady() {
     if (_loaded.timezones && _loaded.presets && _loaded.config) {
@@ -117,26 +158,13 @@ function displayConfig() {
     if (!shallowEqual(window.config.timers, lastTimers)) {
         lastTimers = JSON.parse(JSON.stringify(window.config.timers));
         const table = document.getElementById('scheduleTableConfig');
+        console.debug('[SCHEDULE] Rendering schedule table. Timers:', window.config.timers);
         if (table) {
             const tbody = table.querySelector('tbody');
             tbody.innerHTML = '';
             if (!Array.isArray(window.config.timers)) window.config.timers = [];
-            const sortedTimers = [...window.config.timers].sort((a, b) => {
-                const isSunA = a.type === 1 || a.type === 2;
-                const isSunB = b.type === 1 || b.type === 2;
-                if (isSunA && !isSunB) return 1;
-                if (!isSunA && isSunB) return -1;
-                if (isSunA && isSunB) return 0;
-                const isZeroA = (a.hour === 0 && a.minute === 0);
-                const isZeroB = (b.hour === 0 && b.minute === 0);
-                if (isZeroA && !isZeroB) return 1;
-                if (!isZeroA && isZeroB) return -1;
-                if (isZeroA && isZeroB) return 0;
-                const ta = (a.hour || 0) * 60 + (a.minute || 0);
-                const tb = (b.hour || 0) * 60 + (b.minute || 0);
-                return ta - tb;
-            });
-            sortedTimers.forEach((timer, idx) => {
+            // Render timers in their current order (no sorting)
+            window.config.timers.forEach((timer, idx) => {
                 const tr = document.createElement('tr');
                 // Store original index to update correct timer
                 const originalIdx = window.config.timers.indexOf(timer);
@@ -152,18 +180,35 @@ function displayConfig() {
                 tr.appendChild(enabledTd);
                 // Type select
                 const typeTd = document.createElement('td');
-                const typeSelect = document.createElement('select');
-                ['Regular', 'Sunrise', 'Sunset'].forEach((label, val) => {
-                    const opt = document.createElement('option');
-                    opt.value = val;
-                    opt.textContent = label;
-                    if (timer.type === val) opt.selected = true;
-                    typeSelect.appendChild(opt);
+                const typeNames = ['Regular', 'Sunrise', 'Sunset'];
+                typeNames.forEach((label, val) => {
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = `type_${originalIdx}`;
+                    radio.value = val;
+                    radio.checked = (timer.type === val);
+                    radio.addEventListener('change', () => {
+                        if (radio.checked) {
+                            // Prevent multiple Sunrise or Sunset
+                            if (val === 1 || val === 2) {
+                                window.config.timers.forEach((t, i) => {
+                                    if (i !== originalIdx && t.type === val) {
+                                        t.type = 0; // Set to Regular
+                                    }
+                                });
+                            }
+                            window.config.timers[originalIdx].type = val;
+                            // Re-render table to update radios and sunrise/sunset label
+                            if (typeof displayConfig === 'function') displayConfig();
+                            else location.reload();
+                        }
+                    });
+                    const radioLabel = document.createElement('label');
+                    radioLabel.style.marginRight = '0.5em';
+                    radioLabel.appendChild(radio);
+                    radioLabel.appendChild(document.createTextNode(label));
+                    typeTd.appendChild(radioLabel);
                 });
-                typeSelect.addEventListener('change', () => {
-                    window.config.timers[originalIdx].type = parseInt(typeSelect.value);
-                });
-                typeTd.appendChild(typeSelect);
                 tr.appendChild(typeTd);
                 // Time input (HH:MM, disabled for sunrise/sunset)
                 const timeTd = document.createElement('td');
@@ -175,14 +220,51 @@ function displayConfig() {
                     window.config.timers[originalIdx].hour = h || 0;
                     window.config.timers[originalIdx].minute = m || 0;
                 });
-                timeTd.appendChild(timeInput);
-                tr.appendChild(timeTd);
-                // Disable time input for sunrise/sunset
+                const sunLabel = document.createElement('span');
+                sunLabel.style.display = 'none';
                 function updateTimeInput() {
-                    const isSun = typeSelect.value === '1' || typeSelect.value === '2';
-                    timeInput.disabled = isSun;
+                    const typeVal = window.config.timers[originalIdx].type;
+                    if (typeVal === 1) {
+                        // Sunrise
+                        timeInput.style.display = 'none';
+                        sunLabel.style.display = '';
+                        if (window.sunriseTime) {
+                            sunLabel.textContent = window.sunriseTime;
+                        } else {
+                            sunLabel.textContent = '';
+                            // Only show toast if the label is visible and no value is present after a short delay
+                            setTimeout(() => {
+                                if (!window.sunriseTime && sunLabel.offsetParent !== null) {
+                                    if (typeof showToast === 'function') showToast('Sunrise time not available from device.', 4000);
+                                } else if (window.sunriseTime) {
+                                    sunLabel.textContent = window.sunriseTime;
+                                }
+                            }, 500);
+                        }
+                    } else if (typeVal === 2) {
+                        // Sunset
+                        timeInput.style.display = 'none';
+                        sunLabel.style.display = '';
+                        if (window.sunsetTime) {
+                            sunLabel.textContent = window.sunsetTime;
+                        } else {
+                            sunLabel.textContent = '';
+                            setTimeout(() => {
+                                if (!window.sunsetTime && sunLabel.offsetParent !== null) {
+                                    if (typeof showToast === 'function') showToast('Sunset time not available from device.', 4000);
+                                } else if (window.sunsetTime) {
+                                    sunLabel.textContent = window.sunsetTime;
+                                }
+                            }, 500);
+                        }
+                    } else {
+                        timeInput.style.display = '';
+                        sunLabel.style.display = 'none';
+                    }
                 }
-                typeSelect.addEventListener('change', updateTimeInput);
+                timeTd.appendChild(timeInput);
+                timeTd.appendChild(sunLabel);
+                tr.appendChild(timeTd);
                 updateTimeInput();
                 // Preset select
                 const presetTd = document.createElement('td');
@@ -353,6 +435,7 @@ if (minTransitionInput) {
             let seconds = steppedTransitionValue(e.target.value);
             el.value = e.target.value;
             valSpan.textContent = formatTransitionTime(seconds);
+            transitionTimesChanged = true;
         });
         // Set initial display with unit
         let initial = el.value;
@@ -438,8 +521,8 @@ function saveConfig() {
         if (!orig.safety || minTransitionTime !== orig.safety.minTransitionTime) safetyUpdate.minTransitionTime = minTransitionTime;
         if (Object.keys(safetyUpdate).length > 0) update.safety = safetyUpdate;
     }
-    // Transition Times
-    if (window.config.transitionTimes) {
+    // Transition Times: only include if changed
+    if (transitionTimesChanged && window.config.transitionTimes) {
         const ttUpdate = {};
         const powerOn = parseInt(document.getElementById('ttPowerOn').value) * 1000;
         const schedule = parseInt(document.getElementById('ttSchedule').value) * 1000;
@@ -486,6 +569,7 @@ function saveConfig() {
         }
     }
     // Send only changed fields to backend
+    // Reset transitionTimesChanged after save
     fetch(BASE_URL + '/api/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -502,6 +586,7 @@ function saveConfig() {
         }
     })
     .then(() => {
+        transitionTimesChanged = false;
         const saveBtn = document.getElementById('saveConfigButton');
         if (saveBtn) {
             const originalText = saveBtn.textContent;
