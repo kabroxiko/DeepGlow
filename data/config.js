@@ -569,6 +569,32 @@ if (rebootBtn && !rebootBtn._handlerSet) {
 }
 
 // Attach Update button handler
+// Attach GPS button handler
+const gpsBtn = document.getElementById('getLocationBtn');
+if (gpsBtn && !gpsBtn._handlerSet) {
+    window._gpsListenerSet = window._gpsListenerSet || false;
+    gpsBtn.onclick = function () {
+        if (!window._gpsListenerSet) {
+            window.addEventListener('message', function (event) {
+                if (event.origin !== 'https://locate.wled.me') return;
+                if (event.data && typeof event.data === 'object' && 'lat' in event.data && 'lon' in event.data) {
+                    document.getElementById('latitude').value = event.data.lat;
+                    document.getElementById('longitude').value = event.data.lon;
+                    if (window._gpsPopup && !window._gpsPopup.closed) window._gpsPopup.close();
+                }
+            }, false);
+            window._gpsListenerSet = true;
+        }
+        // Open as larger popup window
+        const w = 500, h = 500;
+        const left = window.screenX + (window.outerWidth - w) / 2;
+        const top = window.screenY + (window.outerHeight - h) / 2;
+        window._gpsPopup = window.open('https://locate.wled.me', 'wled_gps', `width=${w},height=${h},left=${left},top=${top},resizable,scrollbars`);
+        if (window._gpsPopup) window._gpsPopup.focus();
+    };
+    gpsBtn._handlerSet = true;
+}
+
 const updateBtn = document.getElementById('updateButton');
 if (updateBtn && !updateBtn._handlerSet) {
     updateBtn.onclick = async function () {
