@@ -118,13 +118,6 @@ function loadEffects() {
             }
             try {
                 let fileToSend = otaFile;
-                // If .gz, decompress in browser using fflate
-                if (otaFile.name.endsWith('.gz')) {
-                    const arrayBuffer = await otaFile.arrayBuffer();
-                    // fflate is loaded globally
-                    const decompressed = fflate.gunzipSync(new Uint8Array(arrayBuffer));
-                    fileToSend = new Blob([decompressed], { type: 'application/octet-stream' });
-                }
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', BASE_URL + '/ota', true);
                 xhr.setRequestHeader('Accept', 'application/json');

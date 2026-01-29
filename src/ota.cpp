@@ -3,6 +3,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include <ArduinoOTA.h>
+#include "esp_task_wdt.h"
 #endif
 #include <LittleFS.h>
 #include <ESPAsyncWebServer.h>
@@ -58,23 +59,29 @@ static size_t totalBytesWritten = 0;
 static bool updateStarted = false;
 static bool gzWriteCallback(unsigned char* buff, size_t buffsize) {
     if (!updateStarted) {
+        Serial.println("[DEBUG] Starting update for decompressed data...");
         if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
-            Serial.println("Failed to begin update");
+            Serial.println("[ERROR] Failed to begin update");
             return false;
         }
         updateStarted = true;
-        Serial.println("Update started, writing decompressed data...");
+        Serial.println("[DEBUG] Update started, writing decompressed data...");
     }
     size_t written = Update.write(buff, buffsize);
     if (written == buffsize) {
         totalBytesWritten += written;
-        if (totalBytesWritten % 102400 < 4096) {
-                Serial.printf("Written: %d KB\n", totalBytesWritten / 1024);
+        static uint8_t dotCount = 0;
+        if (++dotCount >= 8) {
+            Serial.print(".");
+            dotCount = 0;
         }
-        yield(); // allow background tasks to run
+        #ifdef ESP32
+        esp_task_wdt_reset();
+        #endif
+        yield();
         return true;
     } else {
-        Serial.printf("Write error: only wrote %d of %d bytes\n", written, buffsize);
+        Serial.printf("[ERROR] Write error: only wrote %d of %d bytes\n", written, buffsize);
         return false;
     }
 }
@@ -182,13 +189,18 @@ bool performGzOtaUpdate(String& errorOut) {
     GZUnpacker->setStreamWriter(gzWriteCallback);
     GZUnpacker->setGzProgressCallback([](uint8_t progress) {
         if (webServerPtr) webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
-        static uint8_t lastProgress = 0;
-        if (progress != lastProgress && progress % 10 == 0) {
-            Serial.printf("Decompression progress: %d%%\n", progress);
-            lastProgress = progress;
+        static uint8_t dotCount = 0;
+        if (++dotCount >= 8) {
+            Serial.print(".");
+            dotCount = 0;
         }
+        #ifdef ESP32
+        esp_task_wdt_reset();
+        #endif
+        yield();
     });
 
+    // Use direct gzStreamExpander call, let callbacks handle watchdog/yield
     bool success = GZUnpacker->gzStreamExpander(stream, contentLength);
     delete GZUnpacker;
     http.end();
@@ -240,34 +252,81 @@ bool performGzOtaUpdate(String& errorOut) {
 // OTA direct POST handler (moved from webserver.cpp)
 void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsigned int len, unsigned int index, unsigned int total) {
     static unsigned int lastDot = 0;
+    static File gzFile;
+    static bool isGz = false;
+    static size_t uploaded = 0;
     if (index == 0) {
-        LittleFS.end(); // Free filesystem before OTA
-    #if defined(ESP32)
-        if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-    #elif defined(ESP8266)
-        if (!Update.begin(total)) {
-    #endif
+        LittleFS.end();
+        // Clean up any previous upload file to free space
+        if (LittleFS.begin()) {
+            LittleFS.remove("/ota_upload.bin.gz");
+        }
+        // Check gzip magic number
+        isGz = (len >= 2 && data[0] == 0x1F && data[1] == 0x8B);
+        uploaded = 0;
+        if (isGz) {
+            if (LittleFS.begin()) {
+                gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
+            }
+        } else {
+        #if defined(ESP32)
+            if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+        #elif defined(ESP8266)
+            if (!Update.begin(total)) {
+        #endif
+                Update.printError(Serial);
+            }
+            lastDot = 0;
+        }
+    }
+    if (isGz) {
+        if (gzFile) gzFile.write(data, len);
+        uploaded += len;
+        // Show a dot for every 64KB uploaded
+        if (uploaded % 65536 < len) {
+            Serial.print(".");
+        }
+        if (uploaded % 102400 < len) {
+            Serial.printf(" [%d KB] ", uploaded / 1024);
+        }
+    } else {
+        if (Update.write(data, len) != len) {
             Update.printError(Serial);
         }
-        lastDot = 0;
-        Serial.println("OTA update started");
-    }
-    if (Update.write(data, len) != len) {
-            Update.printError(Serial);
-    }
-    // Print progress dots every 1%
-    if (total > 0) {
-        unsigned int dot = ((index + len) * 100) / total;
-        while (lastDot < dot) {
-            lastDot++;
-            Serial.print(".");
+        // Print progress dots every 1%
+        if (total > 0) {
+            unsigned int dot = ((index + len) * 100) / total;
+            if (dot != lastDot) {
+                Serial.print(".");
+                lastDot = dot;
+            }
         }
     }
     if (index + len == total) {
         Serial.println("");
         lastDot = 0; // reset for next OTA
-        bool ok = Update.end(true);
         AsyncWebServerResponse *resp = nullptr;
+            bool ok = false; // Declare ok only once
+        if (isGz && gzFile) {
+            gzFile.close();
+            // Decompress and flash
+            File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
+            if (inFile) {
+                GzUnpacker *GZUnpacker = new GzUnpacker();
+                totalBytesWritten = 0;
+                updateStarted = false;
+                GZUnpacker->setStreamWriter(gzWriteCallback);
+                GZUnpacker->setGzProgressCallback([](uint8_t progress) {
+                    if (webServerPtr) webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
+                });
+                    ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size()); // Use the same ok variable
+                delete GZUnpacker;
+                inFile.close();
+                LittleFS.remove("/ota_upload.bin.gz");
+            }
+        } else {
+            ok = Update.end(true);
+        }
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
             Serial.println("OTA update complete, rebooting");
@@ -283,7 +342,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
                 delay(100);
                 ESP.restart();
             });
-        }   
+        }
     }
 }
 

@@ -5,7 +5,6 @@
 #include "inc/wifi_html.inc"
 #include "inc/app_js.inc"
 #include "inc/style_css.inc"
-#include "inc/fflate_min_js.inc"
 #include "inc/config_html.inc"
 #include "inc/config_js.inc"
 
@@ -390,11 +389,7 @@ void WebServerManager::setupRoutes() {
         logRequest(request);
         request->send_P(200, "text/css", web_style_css, web_style_css_len);
     });
-    _server->on("/fflate.min.js", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
-        logRequest(request);
-        request->send_P(200, "application/javascript", web_fflate_min_js, web_fflate_min_js_len);
-    });
-    
+
     // State API
     _server->on("/api/state", HTTP_OPTIONS, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request);
