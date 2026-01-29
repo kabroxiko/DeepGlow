@@ -238,6 +238,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
     static bool isGz = false;
     static size_t uploaded = 0;
     if (index == 0) {
+        Serial.println("[HTTP] POST /ota");
         LittleFS.end();
         // Clean up any previous upload file to free space
         if (LittleFS.begin()) {
@@ -282,10 +283,10 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         }
     }
     if (index + len == total) {
-        debugPrintln("");
+        if (lastDot != 0) Serial.println(""); // Ensure LF after last dot
         lastDot = 0; // reset for next OTA
         AsyncWebServerResponse *resp = nullptr;
-            bool ok = false; // Declare ok only once
+        bool ok = false; // Declare ok only once
         if (isGz && gzFile) {
             gzFile.close();
             // Decompress and flash
@@ -298,7 +299,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
                 GZUnpacker->setGzProgressCallback([](uint8_t progress) {
                     if (webServerPtr) webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
                 });
-                    ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size()); // Use the same ok variable
+                ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size()); // Use the same ok variable
                 delete GZUnpacker;
                 inFile.close();
                 LittleFS.remove("/ota_upload.bin.gz");
@@ -308,11 +309,10 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         }
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
-            debugPrintln("OTA update complete, rebooting");
+            Serial.println("OTA update complete, rebooting");
         } else {
-            Update.printError(Serial);
-            resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
             // error, but no debug print
+            resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
         }
         for (size_t i = 0; i < 3; ++i) resp->addHeader("Access-Control-Allow-Origin", "*");
         request->send(resp);
