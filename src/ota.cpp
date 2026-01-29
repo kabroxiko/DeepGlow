@@ -59,13 +59,10 @@ static size_t totalBytesWritten = 0;
 static bool updateStarted = false;
 static bool gzWriteCallback(unsigned char* buff, size_t buffsize) {
     if (!updateStarted) {
-        Serial.println("[DEBUG] Starting update for decompressed data...");
         if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
-            Serial.println("[ERROR] Failed to begin update");
             return false;
         }
         updateStarted = true;
-        Serial.println("[DEBUG] Update started, writing decompressed data...");
     }
     size_t written = Update.write(buff, buffsize);
     if (written == buffsize) {
@@ -81,7 +78,6 @@ static bool gzWriteCallback(unsigned char* buff, size_t buffsize) {
         yield();
         return true;
     } else {
-        Serial.printf("[ERROR] Write error: only wrote %d of %d bytes\n", written, buffsize);
         return false;
     }
 }
@@ -97,7 +93,6 @@ String getLatestFirmwareUrl(String& latestVersion) {
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     int httpCode = http.GET();
     if (httpCode != HTTP_CODE_OK) {
-        Serial.printf("[OTA] Manifest download error: %d\n", httpCode);
         http.end();
         latestVersion = "";
         return "";
@@ -105,12 +100,8 @@ String getLatestFirmwareUrl(String& latestVersion) {
     String payload = http.getString();
     http.end();
     DynamicJsonDocument doc(2048); // Manifest is small
-    Serial.println("[OTA] Raw manifest.json:");
-    Serial.println(payload);
     DeserializationError err = deserializeJson(doc, payload);
     if (err) {
-        Serial.print("[OTA] Failed to parse manifest.json: ");
-        Serial.println(err.c_str());
         latestVersion = "";
         return "";
     }
@@ -122,14 +113,11 @@ String getLatestFirmwareUrl(String& latestVersion) {
             latestVersion = entry["version"].as<String>();
             String firmwareUrl = entry["url"].as<String>();
             if (firmwareUrl.length() == 0) {
-                Serial.println("[OTA] No url in manifest entry");
                 return "";
             }
-            Serial.printf("[OTA] Manifest firmware_url: %s\n", firmwareUrl.c_str());
             return firmwareUrl;
         }
     }
-    Serial.println("[OTA] No matching env entry in manifest");
     latestVersion = "";
     return "";
 }
@@ -140,7 +128,6 @@ bool performGzOtaUpdate(String& errorOut) {
     totalBytesWritten = 0;
     updateStarted = false;
 
-    Serial.printf("[OTA] Free heap at start: %u\n", ESP.getFreeHeap());
     if (webServerPtr) webServerPtr->broadcastOtaStatus("start", "OTA update started");
 
     String latestVersion;
@@ -164,7 +151,6 @@ bool performGzOtaUpdate(String& errorOut) {
     http.setUserAgent("ESP32-OTA-Updater");
 
     int httpCode = http.GET();
-    Serial.printf("[OTA] HTTP GET %s -> code %d\n", firmwareUrl.c_str(), httpCode);
     if (httpCode != HTTP_CODE_OK) {
         errorOut = String("HTTP error code: ") + httpCode;
         http.end();
@@ -174,7 +160,6 @@ bool performGzOtaUpdate(String& errorOut) {
     }
 
     int contentLength = http.getSize();
-    Serial.printf("[OTA] Content length: %d\n", contentLength);
     if (contentLength <= 0) {
         errorOut = "Invalid content length";
         http.end();
@@ -205,7 +190,6 @@ bool performGzOtaUpdate(String& errorOut) {
     delete GZUnpacker;
     http.end();
 
-    Serial.printf("[OTA] Free heap after decompress: %u\n", ESP.getFreeHeap());
 
     if (!success) {
         errorOut = "Decompression failed!";
@@ -231,7 +215,6 @@ bool performGzOtaUpdate(String& errorOut) {
     if (Update.end(true)) {
         if (Update.isFinished()) {
             otaInProgress = false;
-            Serial.printf("[OTA] Free heap after update: %u\n", ESP.getFreeHeap());
             if (webServerPtr) webServerPtr->broadcastOtaStatus("success", "OTA update successful");
             return true;
         } else {
@@ -242,7 +225,6 @@ bool performGzOtaUpdate(String& errorOut) {
         }
     } else {
         errorOut = String("Update error: ") + Update.getError();
-        Update.printError(Serial);
         otaInProgress = false;
         if (webServerPtr) webServerPtr->broadcastOtaStatus("error", errorOut);
         return false;
@@ -274,7 +256,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         #elif defined(ESP8266)
             if (!Update.begin(total)) {
         #endif
-                Update.printError(Serial);
+                // error, but no debug print
             }
             lastDot = 0;
         }
@@ -291,7 +273,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         }
     } else {
         if (Update.write(data, len) != len) {
-            Update.printError(Serial);
+            // error, but no debug print
         }
         // Print progress dots every 1%
         if (total > 0) {
@@ -333,7 +315,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         } else {
             Update.printError(Serial);
             resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
-            Serial.println("OTA update failed");
+            // error, but no debug print
         }
         for (size_t i = 0; i < 3; ++i) resp->addHeader("Access-Control-Allow-Origin", "*");
         request->send(resp);
