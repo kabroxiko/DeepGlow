@@ -69,7 +69,7 @@ static bool gzWriteCallback(unsigned char* buff, size_t buffsize) {
         totalBytesWritten += written;
         static uint8_t dotCount = 0;
         if (++dotCount >= 8) {
-            Serial.print(".");
+            debugPrint(".");
             dotCount = 0;
         }
         #ifdef ESP32
@@ -176,7 +176,7 @@ bool performGzOtaUpdate(String& errorOut) {
         if (webServerPtr) webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
         static uint8_t dotCount = 0;
         if (++dotCount >= 8) {
-            Serial.print(".");
+            debugPrint(".");
             dotCount = 0;
         }
         #ifdef ESP32
@@ -266,10 +266,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         uploaded += len;
         // Show a dot for every 64KB uploaded
         if (uploaded % 65536 < len) {
-            Serial.print(".");
-        }
-        if (uploaded % 102400 < len) {
-            Serial.printf(" [%d KB] ", uploaded / 1024);
+            debugPrint(".");
         }
     } else {
         if (Update.write(data, len) != len) {
@@ -279,13 +276,13 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         if (total > 0) {
             unsigned int dot = ((index + len) * 100) / total;
             if (dot != lastDot) {
-                Serial.print(".");
+                debugPrint(".");
                 lastDot = dot;
             }
         }
     }
     if (index + len == total) {
-        Serial.println("");
+        debugPrintln("");
         lastDot = 0; // reset for next OTA
         AsyncWebServerResponse *resp = nullptr;
             bool ok = false; // Declare ok only once
@@ -311,7 +308,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         }
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
-            Serial.println("OTA update complete, rebooting");
+            debugPrintln("OTA update complete, rebooting");
         } else {
             Update.printError(Serial);
             resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
@@ -330,22 +327,18 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
 
 #ifdef ESP32
 extern "C" void otaTask(void* parameter) {
-    Serial.println("[OTA Task] Started. Checking for update...");
     String error;
     bool ok = performGzOtaUpdate(error);
     if (ok) {
-        Serial.println("[OTA Task] OTA update successful, attempting restart...");
+        debugPrintln("[OTA Task] OTA update successful, attempting restart...");
         delay(1000);
-        Serial.println("[OTA Task] Calling ESP.restart()...");
         ESP.restart();
         delay(5000);
-        Serial.println("[OTA Task] ESP.restart() did not work, forcing crash.");
         *((volatile int*)0) = 0; // Force a crash/reboot
     } else {
-        Serial.print("[OTA Task] OTA update failed: ");
-        Serial.println(error);
+        debugPrint("[OTA Task] OTA update failed: ");
+        debugPrintln(error);
     }
-    Serial.println("[OTA Task] Exiting task.");
     vTaskDelete(NULL);
 }
 #endif

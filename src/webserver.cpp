@@ -194,7 +194,6 @@ void WebServerManager::setupRoutes() {
         debugPrintln("[OTA] /api/update called. Launching OTA FreeRTOS task.");
         static const char* firmwareUrl = "https://github.com/kabroxiko/DeepGlow/releases/download/v1.0.0/firmware_esp32d_debug_1.0.0.bin.gz";
     #if defined(ESP32)
-        Serial.printf("[OTA] Free heap before OTA: %u\n", ESP.getFreeHeap());
         xTaskCreatePinnedToCore(
             otaTask, "otaTask", 16384, (void*)firmwareUrl, 1, nullptr, 1);
     #endif
@@ -256,8 +255,7 @@ void WebServerManager::setupRoutes() {
         request->send(resp);
     });
     // OTA Update endpoint (POST /ota, direct binary upload)
-    _server->on("/ota", HTTP_POST,
-        [logRequest](AsyncWebServerRequest* request) {
+    _server->on("/ota", HTTP_POST, [logRequest](AsyncWebServerRequest* request) {
             logRequest(request);
             AsyncWebServerResponse *resp = nullptr;
             if (Update.hasError()) {
