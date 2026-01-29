@@ -49,7 +49,7 @@ jobs:
             .venv
             ~/.platformio/.cache
             ~/.platformio/lib
-          key: pio-venv-deps-${{ hashFiles('platformio.ini') }}
+          key: pio-venv-deps-${{ hashFiles('platformio.ini', 'VERSION') }}
 
   build:
     needs: deps
@@ -68,7 +68,10 @@ jobs:
             .venv
             ~/.platformio/.cache
             ~/.platformio/lib
-          key: pio-venv-deps-${{ hashFiles('platformio.ini') }}
+          key: pio-venv-deps-${{ hashFiles('platformio.ini', 'VERSION') }}
+      - name: Clean build output directory
+        run: |
+          rm -rf .pio/build/${{ matrix.env }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -103,6 +106,10 @@ jobs:
       - name: Rename .bin.gz files with env and version
         run: |
           VERSION=$(cat VERSION)
+          # Ensure version always has 'v' prefix
+          if [[ $VERSION != v* ]]; then
+            VERSION="v$VERSION"
+          fi
           for f in .pio/build/${{ matrix.env }}/*.bin.gz; do \
             BASE=$(basename "$f" .bin.gz); \
             mv "$f" ".pio/build/${{ matrix.env }}/${BASE}_${{ matrix.env }}_${VERSION}.bin.gz"; \
