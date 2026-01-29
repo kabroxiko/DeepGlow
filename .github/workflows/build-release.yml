@@ -61,6 +61,10 @@ jobs:
     outputs:
       envs: ${{ toJson(matrix.env) }}
     steps:
+      - name: Clean all build output directories (prevent stale artifacts)
+        run: |
+          rm -rf .pio/build
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -72,9 +76,6 @@ jobs:
             ~/.platformio/.cache
             ~/.platformio/lib
           key: pio-venv-deps-${{ hashFiles('platformio.ini', 'VERSION') }}
-      - name: Clean build output directory
-        run: |
-          rm -rf .pio/build/${{ matrix.env }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -140,12 +141,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: build-*
-          path: .
-
-      - name: Move all .bin.gz files to a single directory
-        run: |
-          mkdir -p firmware_bin_gz
-          find . -name '*.bin.gz' -exec mv {} firmware_bin_gz/ \;
+          path: .pio/build
 
       - name: List built_envs files
         run: find . -name 'built_envs_*.txt' -exec ls -l {} \; || echo 'No built_envs_*.txt found'
@@ -201,7 +197,7 @@ jobs:
       - name: Download all build artifacts
         uses: actions/download-artifact@v4
         with:
-          path: firmware
+          path: .pio/build
 
       - name: Download manifest.json
         uses: actions/download-artifact@v4
@@ -209,11 +205,19 @@ jobs:
           name: manifest-json
           path: .
 
+      - name: List files and modification times before release
+        run: |
+          echo "Listing firmware files before release:"
+          find .pio/build -type f -name '*.bin.gz' -exec ls -lh {} +
+          echo "Listing manifest.json before release:"
+          ls -lh manifest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            firmware/*/*.bin.gz
+            .pio/build/**/*.bin.gz
             manifest.json
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

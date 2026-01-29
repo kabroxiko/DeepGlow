@@ -5,7 +5,6 @@
 #include "inc/wifi_html.inc"
 #include "inc/app_js.inc"
 #include "inc/style_css.inc"
-#include "inc/fflate_min_js.inc"
 #include "inc/config_html.inc"
 #include "inc/config_js.inc"
 
@@ -193,12 +192,10 @@ void WebServerManager::setupRoutes() {
     _server->on("/api/update", HTTP_POST, [logRequest, this](AsyncWebServerRequest* request) {
         logRequest(request);
         debugPrintln("[OTA] /api/update called. Launching OTA FreeRTOS task.");
-        static const char* firmwareUrl = "https://github.com/kabroxiko/DeepGlow/releases/download/v1.0.0/firmware_esp32d_debug_1.0.0.bin.gz";
-    #if defined(ESP32)
-        Serial.printf("[OTA] Free heap before OTA: %u\n", ESP.getFreeHeap());
+#if defined(ESP32)
         xTaskCreatePinnedToCore(
-            otaTask, "otaTask", 16384, (void*)firmwareUrl, 1, nullptr, 1);
-    #endif
+            otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
+#endif
         AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
@@ -257,8 +254,7 @@ void WebServerManager::setupRoutes() {
         request->send(resp);
     });
     // OTA Update endpoint (POST /ota, direct binary upload)
-    _server->on("/ota", HTTP_POST,
-        [logRequest](AsyncWebServerRequest* request) {
+    _server->on("/ota", HTTP_POST, [logRequest](AsyncWebServerRequest* request) {
             logRequest(request);
             AsyncWebServerResponse *resp = nullptr;
             if (Update.hasError()) {
@@ -390,11 +386,7 @@ void WebServerManager::setupRoutes() {
         logRequest(request);
         request->send_P(200, "text/css", web_style_css, web_style_css_len);
     });
-    _server->on("/fflate.min.js", HTTP_GET, [logRequest](AsyncWebServerRequest* request) {
-        logRequest(request);
-        request->send_P(200, "application/javascript", web_fflate_min_js, web_fflate_min_js_len);
-    });
-    
+
     // State API
     _server->on("/api/state", HTTP_OPTIONS, [logRequest](AsyncWebServerRequest* request) {
         logRequest(request);

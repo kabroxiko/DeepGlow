@@ -682,30 +682,32 @@ if (gpsBtn && !gpsBtn._handlerSet) {
 
 const updateBtn = document.getElementById('updateButton');
 if (updateBtn && !updateBtn._handlerSet) {
+    const updateSpinner = document.getElementById('updateSpinner');
     updateBtn.onclick = async function () {
         updateBtn.disabled = true;
-        updateBtn.textContent = 'Checking...';
-        // Use toast for status
+        if (updateSpinner) updateSpinner.style.display = '';
+        updateBtn.childNodes[0].textContent = 'Checking... ';
         showToast('', 'info');
         try {
             // Call backend endpoint to check and install update
             const resp = await fetch(BASE_URL + '/api/update', { method: 'POST' });
             const result = await resp.json();
             if (result && result.success) {
-                updateBtn.textContent = 'Updating...';
+                updateBtn.childNodes[0].textContent = 'Updating... ';
                 showToast('Installing update... Device will reboot.', 'info');
+                // Spinner will be hidden by WebSocket OTA status handler
             } else {
-                updateBtn.textContent = 'Check for Updates';
+                updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 showToast(result && result.message ? result.message : 'No update found.', 'info');
+                if (updateSpinner) updateSpinner.style.display = 'none';
+                updateBtn.disabled = false;
             }
         } catch (e) {
-            updateBtn.textContent = 'Check for Updates';
+            updateBtn.childNodes[0].textContent = 'Check for Updates ';
             showToast('Update check failed!', 'error');
-        }
-        setTimeout(() => {
-            updateBtn.textContent = 'Check for Updates';
+            if (updateSpinner) updateSpinner.style.display = 'none';
             updateBtn.disabled = false;
-        }, 6000);
+        }
     };
     updateBtn._handlerSet = true;
 }
@@ -792,11 +794,19 @@ function addOtaStatusHandlerToWs(ws) {
         try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'ota_status') {
+                const updateBtn = document.getElementById('updateButton');
+                const updateSpinner = document.getElementById('updateSpinner');
                 if (msg.status === 'success') {
                     showToast('OTA update successful! Device will reboot.', 'success');
+                    if (updateSpinner) updateSpinner.style.display = 'none';
+                    if (updateBtn) updateBtn.disabled = false;
+                    if (updateBtn) updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 } else if (msg.status === 'error') {
                     const errMsg = msg.message || msg.error || 'Unknown error';
                     showToast('OTA update failed: ' + errMsg, 'error');
+                    if (updateSpinner) updateSpinner.style.display = 'none';
+                    if (updateBtn) updateBtn.disabled = false;
+                    if (updateBtn) updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 }
             }
         } catch (e) {
