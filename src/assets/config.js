@@ -682,30 +682,33 @@ if (gpsBtn && !gpsBtn._handlerSet) {
 
 const updateBtn = document.getElementById('updateButton');
 if (updateBtn && !updateBtn._handlerSet) {
+    const updateSpinner = document.getElementById('updateSpinner');
     updateBtn.onclick = async function () {
         updateBtn.disabled = true;
-        updateBtn.textContent = 'Checking...';
-        // Use toast for status
+        if (updateSpinner) updateSpinner.style.display = '';
+        updateBtn.childNodes[0].textContent = 'Checking... ';
         showToast('', 'info');
         try {
             // Call backend endpoint to check and install update
             const resp = await fetch(BASE_URL + '/api/update', { method: 'POST' });
             const result = await resp.json();
             if (result && result.success) {
-                updateBtn.textContent = 'Updating...';
+                updateBtn.childNodes[0].textContent = 'Updating... ';
                 showToast('Installing update... Device will reboot.', 'info');
             } else {
-                updateBtn.textContent = 'Check for Updates';
+                updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 showToast(result && result.message ? result.message : 'No update found.', 'info');
             }
         } catch (e) {
-            updateBtn.textContent = 'Check for Updates';
+            updateBtn.childNodes[0].textContent = 'Check for Updates ';
             showToast('Update check failed!', 'error');
         }
         setTimeout(() => {
-            updateBtn.textContent = 'Check for Updates';
+            updateBtn.childNodes[0].textContent = 'Check for Updates ';
             updateBtn.disabled = false;
+            if (updateSpinner) updateSpinner.style.display = 'none';
         }, 6000);
+        if (updateSpinner) setTimeout(() => { updateSpinner.style.display = 'none'; }, 6000);
     };
     updateBtn._handlerSet = true;
 }
