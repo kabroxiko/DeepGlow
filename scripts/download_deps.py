@@ -6,7 +6,7 @@ import os
 import sys
 import urllib.request
 
-ASSET_DIR = os.path.join(os.getcwd(), 'data')
+ASSET_DIR = os.path.join(os.getcwd(), 'src/assets')
 DEPENDENCIES = [
     {
         'name': 'fflate.min.js',
