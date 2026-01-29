@@ -241,29 +241,46 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         Serial.println("[HTTP] POST /ota");
         LittleFS.end();
         // Clean up any previous upload file to free space
-        if (LittleFS.begin()) {
-            LittleFS.remove("/ota_upload.bin.gz");
+        if (!LittleFS.begin()) {
+            auto resp = request->beginResponse(500, "application/json", "{\"error\":\"LittleFS mount failed\"}");
+            request->send(resp);
+            return;
         }
+        LittleFS.remove("/ota_upload.bin.gz");
         // Check gzip magic number
         isGz = (len >= 2 && data[0] == 0x1F && data[1] == 0x8B);
         uploaded = 0;
         if (isGz) {
-            if (LittleFS.begin()) {
-                gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
+            if (!LittleFS.begin()) {
+                auto resp = request->beginResponse(500, "application/json", "{\"error\":\"LittleFS mount failed\"}");
+                request->send(resp);
+                return;
+            }
+            gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
+            if (!gzFile) {
+                auto resp = request->beginResponse(500, "application/json", "{\"error\":\"Failed to open file for writing\"}");
+                request->send(resp);
+                return;
             }
         } else {
-        #if defined(ESP32)
+#if defined(ESP32)
             if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-        #elif defined(ESP8266)
+#elif defined(ESP8266)
             if (!Update.begin(total)) {
-        #endif
-                // error, but no debug print
+#endif
+                auto resp = request->beginResponse(500, "application/json", "{\"error\":\"Update.begin failed\"}");
+                request->send(resp);
+                return;
             }
             lastDot = 0;
         }
     }
     if (isGz) {
-        if (gzFile) gzFile.write(data, len);
+        if (!gzFile || gzFile.write(data, len) != len) {
+            auto resp = request->beginResponse(500, "application/json", "{\"error\":\"File write error\"}");
+            request->send(resp);
+            return;
+        }
         uploaded += len;
         // Show a dot for every 64KB uploaded
         if (uploaded % 65536 < len) {
@@ -271,7 +288,9 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         }
     } else {
         if (Update.write(data, len) != len) {
-            // error, but no debug print
+            auto resp = request->beginResponse(500, "application/json", "{\"error\":\"Update write error\"}");
+            request->send(resp);
+            return;
         }
         // Print progress dots every 1%
         if (total > 0) {
@@ -287,32 +306,54 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
         lastDot = 0; // reset for next OTA
         AsyncWebServerResponse *resp = nullptr;
         bool ok = false; // Declare ok only once
+        String errorMsg;
         if (isGz && gzFile) {
             gzFile.close();
             // Decompress and flash
             File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
-            if (inFile) {
-                GzUnpacker *GZUnpacker = new GzUnpacker();
-                totalBytesWritten = 0;
-                updateStarted = false;
-                GZUnpacker->setStreamWriter(gzWriteCallback);
-                GZUnpacker->setGzProgressCallback([](uint8_t progress) {
-                    if (webServerPtr) webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
-                });
-                ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size()); // Use the same ok variable
-                delete GZUnpacker;
-                inFile.close();
-                LittleFS.remove("/ota_upload.bin.gz");
+            if (!inFile) {
+                resp = request->beginResponse(500, "application/json", "{\"error\":\"Failed to open uploaded gz file\"}");
+                request->send(resp);
+                return;
+            }
+            GzUnpacker *GZUnpacker = new GzUnpacker();
+            totalBytesWritten = 0;
+            updateStarted = false;
+            GZUnpacker->setStreamWriter(gzWriteCallback);
+            GZUnpacker->setGzProgressCallback([](uint8_t progress) {
+                if (webServerPtr) webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
+            });
+            ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size());
+            delete GZUnpacker;
+            inFile.close();
+            LittleFS.remove("/ota_upload.bin.gz");
+            if (!ok) {
+                errorMsg = "Decompression or flash failed";
+            } else if (!updateStarted) {
+                errorMsg = "Update never started - no data written";
+                ok = false;
+            } else if (!Update.end(true)) {
+                errorMsg = String("Update error: ") + Update.getError();
+                ok = false;
+            } else if (!Update.isFinished()) {
+                errorMsg = "Update not finished properly";
+                ok = false;
             }
         } else {
             ok = Update.end(true);
+            if (!ok) {
+                errorMsg = String("Update error: ") + Update.getError();
+            } else if (!Update.isFinished()) {
+                errorMsg = "Update not finished properly";
+                ok = false;
+            }
         }
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
             Serial.println("OTA update complete, rebooting");
         } else {
-            // error, but no debug print
-            resp = request->beginResponse(500, "application/json", "{\"error\":\"OTA Update Failed\"}");
+            String errJson = String("{\"error\":\"") + errorMsg + "\"}";
+            resp = request->beginResponse(500, "application/json", errJson);
         }
         for (size_t i = 0; i < 3; ++i) resp->addHeader("Access-Control-Allow-Origin", "*");
         request->send(resp);
