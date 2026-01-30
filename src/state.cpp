@@ -199,15 +199,12 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 		snprintf(hex, sizeof(hex), "#%08X", color[i]);
 		state.params.colors.push_back(String(hex));
 	}
+	// Debug: print speed value to confirm it's 8-bit
+	printf("[DEBUG] setEffect: state.params.speed = %u\n", state.params.speed);
 	BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
 	extern std::vector<EffectRegistryEntry> effectRegistry;
 	if (effect < effectRegistry.size() && effectRegistry[effect].fn) {
-		// Update global effect speed if present in params
-		if (params.speed > 0) {
-			extern volatile uint8_t g_effectSpeed;
-			g_effectSpeed = (params.speed * 254) / 100 + 1;
-		}
 		effectRegistry[effect].fn();
 	}
 }

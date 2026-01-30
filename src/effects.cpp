@@ -180,11 +180,20 @@ void effect_moonlight() {
   uint8_t highR = 40, highG = 120, highB = 255, highW = 0;
 
   uint32_t now = millis();
-  // Map speed param (1-255) to a much slower, non-linear range
+  // Map speed param (1-255) to a practical, visible range
   uint8_t userSpeed = state.params.speed > 0 ? state.params.speed : 30;
-  // Exponential mapping: very slow at low values, fast at high values
-  // Make the effect much slower at low speed values
-  float speed = 0.000002f * powf(userSpeed, 2.0f) + 0.00001f;
+  // At speed=1: 1 cycle per 8s; at speed=255: 1 cycle per 1s
+  float minPeriod = 8000.0f; // ms for one cycle at slowest
+  float maxPeriod = 1000.0f; // ms for one cycle at fastest
+  float t = (userSpeed - 1) / 254.0f;
+  float period = minPeriod - t * (minPeriod - maxPeriod);
+  float speed = 1.0f / period; // cycles per ms
+  // Debug: print speed mapping
+  static uint8_t lastDebugSpeed = 0;
+  if (userSpeed != lastDebugSpeed) {
+    printf("[Moonlight Debug] speed param: %d, period: %g ms, speed: %g cycles/ms\n", userSpeed, period, speed);
+    lastDebugSpeed = userSpeed;
+  }
   float shimmerSpeed = 0.0015f;
   uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 128;
   float waveLen = 0.08f + 0.32f * (intensity / 255.0f); // how wide the caustic highlight is
@@ -220,6 +229,7 @@ void effect_lightning() {
     // Debug: print speed and delay info
     static uint8_t lastDebugSpeed = 0;
     static uint32_t lastDebugDelay = 0;
+    static uint8_t lastSpeed = 0;
   if (!g_effectBuffer) return;
   if (g_ledCount == 0) return;
 
@@ -257,6 +267,22 @@ void effect_lightning() {
     unpack_rgbw(c, flashR, flashG, flashB, flashW);
   }
 
+  // Recalculate delay immediately if speed changes
+  uint8_t userSpeed = state.params.speed > 0 ? state.params.speed : 1;
+  if (userSpeed != lastSpeed) {
+    // Clamp to [1,255]
+    if (userSpeed < 1) userSpeed = 1;
+    if (userSpeed > 255) userSpeed = 255;
+    uint32_t maxDelay = 60000; // 60s
+    uint32_t minDelay = 5000;  // 5s
+    float t = (userSpeed - 1) / 254.0f;
+    uint32_t baseDelay = (uint32_t)(maxDelay - t * (maxDelay - minDelay));
+    float jitter = 0.9f + 0.2f * randf();
+    nextDelay = (uint32_t)(baseDelay * jitter);
+    lastSpeed = userSpeed;
+    // Debug output
+    printf("[Lightning Debug] speed param: %d, mapped: %d, baseDelay: %lu ms, nextDelay: %lu ms\n", state.params.speed, userSpeed, (unsigned long)baseDelay, (unsigned long)nextDelay);
+  }
   // Flash logic
   if (!inBurst && now - lastFlash > nextDelay) {
     // Start a burst (lightning event)
@@ -275,28 +301,6 @@ void effect_lightning() {
     flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
     flashStart = (uint32_t)(randf() * g_ledCount);
     lastFlash = now;
-    // Map speed (1-255) to delay: 100% speed = 5s, 1% speed = 60s
-    // Convert percent (1-100) to 8-bit (1-255) if needed
-    uint8_t userSpeed = state.params.speed > 0 ? state.params.speed : 1;
-    // If speed is <= 100, treat as percent and scale to 8-bit
-    if (userSpeed <= 100) userSpeed = (uint8_t)(1 + (userSpeed - 1) * 254 / 99);
-    // Clamp to [1,255]
-    if (userSpeed < 1) userSpeed = 1;
-    if (userSpeed > 255) userSpeed = 255;
-    // Linear mapping: speed=1 → 60000ms, speed=255 → 5000ms
-    uint32_t maxDelay = 60000; // 60s
-    uint32_t minDelay = 5000;  // 5s
-    float t = (userSpeed - 1) / 254.0f; // t=0 for speed=1, t=1 for speed=255
-    uint32_t baseDelay = (uint32_t)(maxDelay - t * (maxDelay - minDelay));
-    // Add a moderate random jitter (+/- 10%)
-    float jitter = 0.9f + 0.2f * randf();
-    nextDelay = (uint32_t)(baseDelay * jitter);
-    // Debug output
-    if (userSpeed != lastDebugSpeed || baseDelay != lastDebugDelay) {
-      printf("[Lightning Debug] speed param: %d, mapped: %d, baseDelay: %lu ms, nextDelay: %lu ms\n", state.params.speed, userSpeed, (unsigned long)baseDelay, (unsigned long)nextDelay);
-      lastDebugSpeed = userSpeed;
-      lastDebugDelay = baseDelay;
-    }
   }
   if (inBurst) {
     if (now - flashTime > flashDuration) {

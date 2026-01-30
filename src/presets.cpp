@@ -61,7 +61,8 @@ bool loadPresets(std::vector<Preset>& presets) {
         p.enabled = presetObj["enabled"] | true;
         if (presetObj.containsKey("params")) {
             JsonObject paramsObj = presetObj["params"];
-            p.params.speed = paramsObj["speed"].isNull() ? 100 : (uint8_t)paramsObj["speed"];
+            // Convert speed from percent to 8-bit for internal use
+            p.params.speed = paramsObj["speed"].isNull() ? percentToHex(100) : percentToHex((uint8_t)paramsObj["speed"]);
             p.params.intensity = paramsObj["intensity"] | 128;
             p.params.colors.clear();
             if (paramsObj.containsKey("colors")) {
@@ -91,7 +92,8 @@ bool savePresets(const std::vector<Preset>& presets) {
         presetObj["effect"] = presets[i].effect;
         presetObj["enabled"] = presets[i].enabled;
         JsonObject paramsObj = presetObj.createNestedObject("params");
-        paramsObj["speed"] = presets[i].params.speed;
+        // Convert speed from 8-bit internal to percent for storage
+        paramsObj["speed"] = hexToPercent(presets[i].params.speed);
         paramsObj["intensity"] = presets[i].params.intensity;
         JsonArray colorsArr = paramsObj.createNestedArray("colors");
         for (const auto& c : presets[i].params.colors) {
