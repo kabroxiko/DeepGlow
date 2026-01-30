@@ -186,7 +186,8 @@ void effect_moonlight() {
   // Make the effect much slower at low speed values
   float speed = 0.000002f * powf(userSpeed, 2.0f) + 0.00001f;
   float shimmerSpeed = 0.0015f;
-  float waveLen = 0.18f + 0.08f * (state.params.intensity / 255.0f); // how wide the caustic highlight is
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 128;
+  float waveLen = 0.08f + 0.32f * (intensity / 255.0f); // how wide the caustic highlight is
 
   for (size_t i = 0; i < g_ledCount; ++i) {
     float pos = (float)i / g_ledCount;
@@ -216,6 +217,9 @@ REGISTER_EFFECT(3, "Moonlight", effect_moonlight)
 
 // Lightning effect: emulates a storm seen from underwater
 void effect_lightning() {
+    // Debug: print speed and delay info
+    static uint8_t lastDebugSpeed = 0;
+    static uint32_t lastDebugDelay = 0;
   if (!g_effectBuffer) return;
   if (g_ledCount == 0) return;
 
@@ -263,13 +267,36 @@ void effect_lightning() {
     burstFlashIdx = 0;
     flashTime = now;
     flashDuration = 30 + (uint32_t)(randf() * 60); // 30-90ms per flash
-    flashIntensity = 0.7f + 0.3f * randf();
+    uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
+    float minFlash = 0.1f + 0.7f * (intensity / 255.0f); // min intensity 0.1-0.8
+    float maxFlash = 0.5f + 0.5f * (intensity / 255.0f); // max intensity 0.5-1.0
+    flashIntensity = minFlash + (maxFlash - minFlash) * randf();
     // Pick a random set of LEDs for the flash
     flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
     flashStart = (uint32_t)(randf() * g_ledCount);
     lastFlash = now;
-    // Randomize the next delay (frequency) between bursts: 0.5s to 5s
-    nextDelay = 500 + (uint32_t)(randf() * 4500);
+    // Map speed (1-255) to delay: 100% speed = 5s, 1% speed = 60s
+    // Convert percent (1-100) to 8-bit (1-255) if needed
+    uint8_t userSpeed = state.params.speed > 0 ? state.params.speed : 1;
+    // If speed is <= 100, treat as percent and scale to 8-bit
+    if (userSpeed <= 100) userSpeed = (uint8_t)(1 + (userSpeed - 1) * 254 / 99);
+    // Clamp to [1,255]
+    if (userSpeed < 1) userSpeed = 1;
+    if (userSpeed > 255) userSpeed = 255;
+    // Linear mapping: speed=1 → 60000ms, speed=255 → 5000ms
+    uint32_t maxDelay = 60000; // 60s
+    uint32_t minDelay = 5000;  // 5s
+    float t = (userSpeed - 1) / 254.0f; // t=0 for speed=1, t=1 for speed=255
+    uint32_t baseDelay = (uint32_t)(maxDelay - t * (maxDelay - minDelay));
+    // Add a moderate random jitter (+/- 10%)
+    float jitter = 0.9f + 0.2f * randf();
+    nextDelay = (uint32_t)(baseDelay * jitter);
+    // Debug output
+    if (userSpeed != lastDebugSpeed || baseDelay != lastDebugDelay) {
+      printf("[Lightning Debug] speed param: %d, mapped: %d, baseDelay: %lu ms, nextDelay: %lu ms\n", state.params.speed, userSpeed, (unsigned long)baseDelay, (unsigned long)nextDelay);
+      lastDebugSpeed = userSpeed;
+      lastDebugDelay = baseDelay;
+    }
   }
   if (inBurst) {
     if (now - flashTime > flashDuration) {
@@ -278,7 +305,11 @@ void effect_lightning() {
       if (burstFlashIdx < burstFlashCount) {
         flashTime = now;
         flashDuration = 30 + (uint32_t)(randf() * 60); // 30-90ms
-        flashIntensity = 0.5f + 0.5f * randf();
+        // Use intensity for flash range in burst
+        uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
+        float minFlash = 0.1f + 0.7f * (intensity / 255.0f);
+        float maxFlash = 0.5f + 0.5f * (intensity / 255.0f);
+        flashIntensity = minFlash + (maxFlash - minFlash) * randf();
         flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
         flashStart = (uint32_t)(randf() * g_ledCount);
       } else {
