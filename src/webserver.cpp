@@ -192,11 +192,10 @@ void WebServerManager::setupRoutes() {
     _server->on("/api/update", HTTP_POST, [logRequest, this](AsyncWebServerRequest* request) {
         logRequest(request);
         debugPrintln("[OTA] /api/update called. Launching OTA FreeRTOS task.");
-        static const char* firmwareUrl = "https://github.com/kabroxiko/DeepGlow/releases/download/v1.0.0/firmware_esp32d_debug_1.0.0.bin.gz";
-    #if defined(ESP32)
+#if defined(ESP32)
         xTaskCreatePinnedToCore(
-            otaTask, "otaTask", 16384, (void*)firmwareUrl, 1, nullptr, 1);
-    #endif
+            otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
+#endif
         AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i) resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);

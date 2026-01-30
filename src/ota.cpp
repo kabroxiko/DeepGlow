@@ -371,6 +371,7 @@ extern "C" void otaTask(void* parameter) {
     String error;
     bool ok = performGzOtaUpdate(error);
     if (ok) {
+        debugPrintln("");
         debugPrintln("[OTA Task] OTA update successful, attempting restart...");
         delay(1000);
         ESP.restart();
