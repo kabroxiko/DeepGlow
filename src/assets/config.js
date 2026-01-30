@@ -524,10 +524,17 @@ function saveConfig() {
     // Transition Times: only include if changed
     if (transitionTimesChanged && window.config.transitionTimes) {
         const ttUpdate = {};
-        const powerOn = parseInt(document.getElementById('ttPowerOn').value) * 1000;
-        const schedule = parseInt(document.getElementById('ttSchedule').value) * 1000;
-        const manual = parseInt(document.getElementById('ttManual').value) * 1000;
-        const effect = parseInt(document.getElementById('ttEffect').value) * 1000;
+        function steppedTransitionMs(val) {
+            val = parseInt(val);
+            if (val <= 59) return val * 1000;
+            if (val <= 119) return (val - 59) * 60 * 1000;
+            if (val <= 127) return (val - 119) * 3600 * 1000;
+            return 28800 * 1000;
+        }
+        const powerOn = steppedTransitionMs(document.getElementById('ttPowerOn').value);
+        const schedule = steppedTransitionMs(document.getElementById('ttSchedule').value);
+        const manual = steppedTransitionMs(document.getElementById('ttManual').value);
+        const effect = steppedTransitionMs(document.getElementById('ttEffect').value);
         if (window.config.transitionTimes.powerOn !== powerOn) ttUpdate.powerOn = powerOn;
         if (window.config.transitionTimes.schedule !== schedule) ttUpdate.schedule = schedule;
         if (window.config.transitionTimes.manual !== manual) ttUpdate.manual = manual;
