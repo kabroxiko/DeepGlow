@@ -473,7 +473,12 @@ function setupEventListeners() {
             if (intensityValue) intensityValue.textContent = e.target.value + '%';
             clearTimeout(intensityTimeout);
             intensityTimeout = setTimeout(() => {
-                // ...existing code...
+                sendState({
+                    params: {
+                        ...currentState.params,
+                        intensity: parseInt(e.target.value)
+                    }
+                });
             }, 100);
         });
     }

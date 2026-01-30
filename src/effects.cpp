@@ -50,7 +50,10 @@ void effect_solid() {
   uint32_t c = color[0];
   uint8_t r, g, b, w;
   unpack_rgbw(c, r, g, b, w);
-  scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
+  // Intensity modifier: scale brightness by intensity percent
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
+  uint8_t mod_brightness = (uint16_t(state.brightness) * intensity) / 255;
+  scale_rgbw_brightness(r, g, b, w, mod_brightness, r, g, b, w);
   if (!g_effectBuffer) return;
   for (size_t i = 0; i < g_ledCount; ++i) {
     (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
@@ -77,8 +80,10 @@ void effect_sunrise() {
   // Timing and speed
   uint32_t now = millis();
   uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
-  // Map speed to blend speed
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
+  // Intensity modifier: scale blendSpeed
   uint8_t blendSpeed = 10 + ((speed - 1) * (128 - 10) / 99);
+  blendSpeed = 1 + ((blendSpeed - 1) * intensity) / 255;
   // Phase for palette shift
   uint32_t shift = (now * ((speed >> 3) + 1)) >> 8;
   for (size_t i = 0; i < g_ledCount; ++i) {
@@ -117,6 +122,7 @@ void effect_sunset() {
   // Calculate counter based on speed
   uint32_t now = millis();
   uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
   uint32_t counter = 0;
   if (speed != 0) {
     counter = now * ((speed >> 2) + 1);
@@ -125,8 +131,7 @@ void effect_sunset() {
 
   // Determine number of zones
   size_t maxZones = g_ledCount / 6;
-  size_t intensity = state.params.intensity > 0 ? state.params.intensity : 128;
-  size_t zones = (intensity * maxZones) >> 8;
+  size_t zones = 1 + ((intensity * maxZones) / 255);
   if (zones & 0x01) zones++;
   if (zones < 2) zones = 2;
   size_t zoneLen = g_ledCount / zones;
