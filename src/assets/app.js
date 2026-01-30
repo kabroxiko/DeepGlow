@@ -284,7 +284,7 @@ function updateState(state) {
         const intensitySlider = document.getElementById('intensitySlider');
         const intensityValue = document.getElementById('intensityValue');
         if (intensitySlider) intensitySlider.value = state.params.intensity;
-        if (intensityValue) intensityValue.textContent = state.params.intensity;
+        if (intensityValue) intensityValue.textContent = state.params.intensity + '%';
 
         // Dynamically create color pickers
         const colorPickersRow = document.getElementById('colorPickersRow');
@@ -466,20 +466,15 @@ function setupEventListeners() {
     }
     // Intensity slider
     const intensitySlider = document.getElementById('intensitySlider');
+    const intensityValue = document.getElementById('intensityValue');
     if (intensitySlider) {
         let intensityTimeout;
         intensitySlider.addEventListener('input', (e) => {
-            const intensityValue = document.getElementById('intensityValue');
-            if (intensityValue) intensityValue.textContent = e.target.value;
+            if (intensityValue) intensityValue.textContent = e.target.value + '%';
             clearTimeout(intensityTimeout);
             intensityTimeout = setTimeout(() => {
-                sendState({ 
-                    params: {
-                        ...currentState.params,
-                        intensity: parseInt(e.target.value)
-                    }
-                });
-            }, 300);
+                // ...existing code...
+            }, 100);
         });
     }
     // Color pickers

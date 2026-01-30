@@ -592,7 +592,7 @@ void WebServerManager::handleSetState(AsyncWebServerRequest* request, uint8_t* d
             updated = true;
         }
         if (paramsObj.containsKey("intensity") && !paramsObj["intensity"].isNull()) {
-            params.intensity = (uint8_t)paramsObj["intensity"];
+            params.intensity = percentToHex((uint8_t)paramsObj["intensity"]);
             updated = true;
         }
         if (paramsObj.containsKey("colors")) {
@@ -669,7 +669,7 @@ void WebServerManager::handleSetPreset(AsyncWebServerRequest* request, uint8_t* 
             if (doc.containsKey("params")) {
                 JsonObject paramsObj = doc["params"];
                 it->params.speed = paramsObj["speed"].isNull() ? percentToHex(100) : percentToHex((uint8_t)paramsObj["speed"]);
-                it->params.intensity = paramsObj["intensity"] | 128;
+                it->params.intensity = paramsObj["intensity"].isNull() ? percentToHex(50) : percentToHex((uint8_t)paramsObj["intensity"]);
                 it->params.colors.clear();
                 if (paramsObj.containsKey("colors")) {
                     JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
@@ -797,7 +797,7 @@ String WebServerManager::getStateJSON() {
         doc["preset"] = pendingTransition.preset;
         JsonObject paramsObj = doc.createNestedObject("params");
         paramsObj["speed"] = hexToPercent(pendingTransition.params.speed);
-        paramsObj["intensity"] = pendingTransition.params.intensity;
+        paramsObj["intensity"] = hexToPercent(pendingTransition.params.intensity);
         JsonArray colorsArr = paramsObj.createNestedArray("colors");
         for (const auto& c : pendingTransition.params.colors) {
             colorsArr.add(c);
@@ -808,7 +808,7 @@ String WebServerManager::getStateJSON() {
         doc["preset"] = state.preset;
         JsonObject paramsObj = doc.createNestedObject("params");
         paramsObj["speed"] = hexToPercent(state.params.speed);
-        paramsObj["intensity"] = state.params.intensity;
+        paramsObj["intensity"] = hexToPercent(state.params.intensity);
         JsonArray colorsArr = paramsObj.createNestedArray("colors");
         for (const auto& c : state.params.colors) {
             colorsArr.add(c);
@@ -839,7 +839,7 @@ String WebServerManager::getPresetsJSON() {
         presetObj["enabled"] = preset.enabled;
         JsonObject paramsObj = presetObj.createNestedObject("params");
         paramsObj["speed"] = preset.params.speed;
-        paramsObj["intensity"] = preset.params.intensity;
+        paramsObj["intensity"] = hexToPercent(preset.params.intensity);
         JsonArray colorsArr = paramsObj.createNestedArray("colors");
         if (preset.params.colors.size() > 0) {
             for (const auto& c : preset.params.colors) {
