@@ -210,6 +210,13 @@ jobs:
           name: manifest-json
           path: .
 
+      - name: List files and modification times before release
+        run: |
+          echo "Listing firmware files before release:"
+          find firmware -type f -exec ls -lh {} +
+          echo "Listing manifest.json before release:"
+          ls -lh manifest.json
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
