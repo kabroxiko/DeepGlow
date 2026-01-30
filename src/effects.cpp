@@ -24,10 +24,10 @@ static size_t g_ledCount = 0;
 typedef void (*EffectFrameGen)();
 
 // === Forward declarations ===
-void effect_solid_frame();
-void effect_blend_frame();
-void effect_flow_frame();
-void effect_chase_frame();
+void effect_solid();
+void effect_sunrise();
+void effect_sunset();
+void effect_moonlight();
 
 // === Registry ===
 std::vector<EffectRegistryEntry> effectRegistry;
@@ -45,7 +45,7 @@ static uint32_t color_blend(uint32_t color1, uint32_t color2, uint8_t blend) {
 }
 
 // === Frame generator functions ===
-void effect_solid_frame() {
+void effect_solid() {
   uint32_t c = color[0];
   uint8_t r, g, b, w;
   unpack_rgbw(c, r, g, b, w);
@@ -55,9 +55,9 @@ void effect_solid_frame() {
     (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
   }
 }
-REGISTER_EFFECT(0, "Solid", effect_solid_frame)
+REGISTER_EFFECT(0, "Solid", effect_solid)
 
-void effect_blend_frame() {
+void effect_sunrise() {
   if (!g_effectBuffer) return;
   size_t colorCount = state.params.colors.size();
   if (colorCount < 2) {
@@ -102,9 +102,9 @@ void effect_blend_frame() {
     (*g_effectBuffer)[i] = blendBuffer[i];
   }
 }
-REGISTER_EFFECT(1, "Blend", effect_blend_frame)
+REGISTER_EFFECT(1, "Sunrise", effect_sunrise)
 
-void effect_flow_frame() {
+void effect_sunset() {
   if (!g_effectBuffer) return;
   if (g_ledCount == 0) return;
   size_t colorCount = state.params.colors.size();
@@ -166,86 +166,52 @@ void effect_flow_frame() {
     }
   }
 }
-REGISTER_EFFECT(2, "Flow", effect_flow_frame)
+REGISTER_EFFECT(2, "Sunset", effect_sunset)
 
-void effect_chase_frame() {
+void effect_moonlight() {
   if (!g_effectBuffer) return;
   if (g_ledCount == 0) return;
-  // order: color[2]=background, color[1]=main, color[0]=trail
-  uint32_t bgColor = (color[2] != 0) ? color[2] : 0;
-  uint32_t mainColor = (color[1] != 0) ? color[1] : bgColor;
-  uint32_t trailColor = (color[0] != 0) ? color[0] : mainColor;
-  // Speed and phase
+
+  // Underwater moonlight: soft blue base, moving caustic highlight, gentle shimmer
+  // Base color: dim blue/cyan
+  uint8_t baseR = 10, baseG = 30, baseB = 60, baseW = 0;
+  // Highlight color: brighter blue/cyan
+  uint8_t highR = 40, highG = 120, highB = 255, highW = 0;
+
   uint32_t now = millis();
-  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
-  uint16_t counter = now * ((speed >> 2) + 1);
-  uint16_t a = (counter * g_ledCount) >> 16;
-  // Intensity controls chase size
-  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 128;
-  uint16_t chaseSize = 1 + ((intensity * g_ledCount) >> 10);
-  if (chaseSize >= g_ledCount / 2) chaseSize = g_ledCount / 2;
-  uint16_t b = a + chaseSize;
-  if (b >= g_ledCount) b -= g_ledCount;
-  uint16_t c = b + chaseSize;
-  if (c >= g_ledCount) c -= g_ledCount;
-  // (No special case: always fill background, then main, then trail, even if they overlap)
-  // Fill background
+  // Map speed param (1-255) to a much slower, non-linear range
+  uint8_t userSpeed = state.params.speed > 0 ? state.params.speed : 30;
+  // Exponential mapping: very slow at low values, fast at high values
+  // Make the effect much slower at low speed values
+  float speed = 0.000002f * powf(userSpeed, 2.0f) + 0.00001f;
+  float shimmerSpeed = 0.0015f;
+  float waveLen = 0.18f + 0.08f * (state.params.intensity / 255.0f); // how wide the caustic highlight is
+
   for (size_t i = 0; i < g_ledCount; ++i) {
-    uint8_t r, g, b, w;
-    unpack_rgbw(bgColor, r, g, b, w);
-    scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-    (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
-  }
-  // Fill main chase (a to b)
-  if (a != b) {
-    if (a < b) {
-      for (size_t i = a; i < b; ++i) {
-        uint8_t r, g, b, w;
-        unpack_rgbw(mainColor, r, g, b, w);
-        scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-        (*g_effectBuffer)[i % g_ledCount] = pack_rgbw(r, g, b, w);
-      }
-    } else {
-      for (size_t i = a; i < g_ledCount; ++i) {
-        uint8_t r, g, b, w;
-        unpack_rgbw(mainColor, r, g, b, w);
-        scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-        (*g_effectBuffer)[i % g_ledCount] = pack_rgbw(r, g, b, w);
-      }
-      for (size_t i = 0; i < b; ++i) {
-        uint8_t r, g, b, w;
-        unpack_rgbw(mainColor, r, g, b, w);
-        scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-        (*g_effectBuffer)[i % g_ledCount] = pack_rgbw(r, g, b, w);
-      }
+    float pos = (float)i / g_ledCount;
+    float phase = fmodf(now * speed, 1.0f); // ensure phase wraps smoothly
+    // Use a raised cosine (Hann window) for the caustic highlight
+    float dist = fabsf(pos - phase);
+    if (dist > 0.5f) dist = 1.0f - dist; // wrap around
+    float caustic = 0.0f;
+    if (dist < waveLen) {
+      float x = dist / waveLen;
+      caustic = 0.5f * (1.0f + cosf(3.14159f * x)); // smooth, no spikes
     }
-  }
-  // Fill trail (b to c), always, even if it overlaps main
-  if (b != c) {
-    if (b < c) {
-      for (size_t i = b; i < c; ++i) {
-        uint8_t r, g, b, w;
-        unpack_rgbw(trailColor, r, g, b, w);
-        scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-        (*g_effectBuffer)[i % g_ledCount] = pack_rgbw(r, g, b, w);
-      }
-    } else {
-      for (size_t i = b; i < g_ledCount; ++i) {
-        uint8_t r, g, b, w;
-        unpack_rgbw(trailColor, r, g, b, w);
-        scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-        (*g_effectBuffer)[i % g_ledCount] = pack_rgbw(r, g, b, w);
-      }
-      for (size_t i = 0; i < c; ++i) {
-        uint8_t r, g, b, w;
-        unpack_rgbw(trailColor, r, g, b, w);
-        scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
-        (*g_effectBuffer)[i % g_ledCount] = pack_rgbw(r, g, b, w);
-      }
-    }
+    // Gentle shimmer, even softer
+    float shimmer = 0.85f + 0.15f * sinf(now * shimmerSpeed + i * 0.7f);
+
+    // Blend base and highlight
+    float r = baseR * shimmer * (1.0f - caustic) + highR * shimmer * caustic;
+    float g = baseG * shimmer * (1.0f - caustic) + highG * shimmer * caustic;
+    float b = baseB * shimmer * (1.0f - caustic) + highB * shimmer * caustic;
+    float w = baseW * shimmer * (1.0f - caustic) + highW * shimmer * caustic;
+
+    scale_rgbw_brightness((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w, state.brightness, (uint8_t&)r, (uint8_t&)g, (uint8_t&)b, (uint8_t&)w);
+    (*g_effectBuffer)[i] = pack_rgbw((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w);
   }
 }
-REGISTER_EFFECT(3, "Chase", effect_chase_frame)
+REGISTER_EFFECT(3, "Moonlight", effect_moonlight)
 
 // === Core rendering function ===
 void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
