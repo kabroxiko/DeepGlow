@@ -229,5 +229,6 @@ jobs:
           files: |
             firmware/*/*.bin.gz
             manifest.json
+          overwrite_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
