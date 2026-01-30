@@ -695,20 +695,19 @@ if (updateBtn && !updateBtn._handlerSet) {
             if (result && result.success) {
                 updateBtn.childNodes[0].textContent = 'Updating... ';
                 showToast('Installing update... Device will reboot.', 'info');
+                // Spinner will be hidden by WebSocket OTA status handler
             } else {
                 updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 showToast(result && result.message ? result.message : 'No update found.', 'info');
+                if (updateSpinner) updateSpinner.style.display = 'none';
+                updateBtn.disabled = false;
             }
         } catch (e) {
             updateBtn.childNodes[0].textContent = 'Check for Updates ';
             showToast('Update check failed!', 'error');
-        }
-        setTimeout(() => {
-            updateBtn.childNodes[0].textContent = 'Check for Updates ';
-            updateBtn.disabled = false;
             if (updateSpinner) updateSpinner.style.display = 'none';
-        }, 6000);
-        if (updateSpinner) setTimeout(() => { updateSpinner.style.display = 'none'; }, 6000);
+            updateBtn.disabled = false;
+        }
     };
     updateBtn._handlerSet = true;
 }
@@ -795,11 +794,19 @@ function addOtaStatusHandlerToWs(ws) {
         try {
             const msg = JSON.parse(event.data);
             if (msg.type === 'ota_status') {
+                const updateBtn = document.getElementById('updateButton');
+                const updateSpinner = document.getElementById('updateSpinner');
                 if (msg.status === 'success') {
                     showToast('OTA update successful! Device will reboot.', 'success');
+                    if (updateSpinner) updateSpinner.style.display = 'none';
+                    if (updateBtn) updateBtn.disabled = false;
+                    if (updateBtn) updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 } else if (msg.status === 'error') {
                     const errMsg = msg.message || msg.error || 'Unknown error';
                     showToast('OTA update failed: ' + errMsg, 'error');
+                    if (updateSpinner) updateSpinner.style.display = 'none';
+                    if (updateBtn) updateBtn.disabled = false;
+                    if (updateBtn) updateBtn.childNodes[0].textContent = 'Check for Updates ';
                 }
             }
         } catch (e) {
