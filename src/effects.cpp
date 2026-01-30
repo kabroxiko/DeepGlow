@@ -28,6 +28,7 @@ void effect_solid();
 void effect_sunrise();
 void effect_sunset();
 void effect_moonlight();
+void effect_lightning();
 
 // === Registry ===
 std::vector<EffectRegistryEntry> effectRegistry;
@@ -212,6 +213,110 @@ void effect_moonlight() {
   }
 }
 REGISTER_EFFECT(3, "Moonlight", effect_moonlight)
+
+// Lightning effect: emulates a storm seen from underwater
+void effect_lightning() {
+  if (!g_effectBuffer) return;
+  if (g_ledCount == 0) return;
+
+  static uint32_t lastFlash = 0;
+  static bool inBurst = false;
+  static uint32_t burstStart = 0;
+  static uint32_t burstDuration = 0;
+  static uint32_t burstFlashCount = 0;
+  static uint32_t burstFlashIdx = 0;
+  static uint32_t flashStart = 0;
+  static uint32_t flashLen = 0;
+  static uint32_t flashTime = 0;
+  static uint32_t flashDuration = 0;
+  static float flashIntensity = 0.0f;
+  static uint32_t rngSeed = 123456789;
+  static uint32_t nextDelay = 2000;
+
+  // Simple LCG for pseudo-randomness
+  auto randf = [&]() {
+    rngSeed = (rngSeed * 1664525UL + 1013904223UL);
+    return (rngSeed & 0xFFFFFF) / float(0xFFFFFF);
+  };
+
+  uint32_t now = millis();
+  // Use preset colors: first is base, last is flash, middle (if present) is highlight
+  uint8_t baseR = 0, baseG = 0, baseB = 0, baseW = 0;
+  uint8_t flashR = 0, flashG = 0, flashB = 0, flashW = 0;
+  const auto& colors = state.params.colors;
+  if (colors.size() > 0) {
+    uint32_t c = (uint32_t)strtoul(colors[0].c_str() + (colors[0][0] == '#' ? 1 : 0), nullptr, 16);
+    unpack_rgbw(c, baseR, baseG, baseB, baseW);
+  }
+  if (colors.size() > 1) {
+    uint32_t c = (uint32_t)strtoul(colors[colors.size()-1].c_str() + (colors[colors.size()-1][0] == '#' ? 1 : 0), nullptr, 16);
+    unpack_rgbw(c, flashR, flashG, flashB, flashW);
+  }
+
+  // Flash logic
+  if (!inBurst && now - lastFlash > nextDelay) {
+    // Start a burst (lightning event)
+    inBurst = true;
+    burstStart = now;
+    burstDuration = 180 + (uint32_t)(randf() * 220); // 180-400ms burst
+    burstFlashCount = 2 + (uint32_t)(randf() * 4); // 2-5 flashes per burst
+    burstFlashIdx = 0;
+    flashTime = now;
+    flashDuration = 30 + (uint32_t)(randf() * 60); // 30-90ms per flash
+    flashIntensity = 0.7f + 0.3f * randf();
+    // Pick a random set of LEDs for the flash
+    flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
+    flashStart = (uint32_t)(randf() * g_ledCount);
+    lastFlash = now;
+    // Randomize the next delay (frequency) between bursts: 0.5s to 5s
+    nextDelay = 500 + (uint32_t)(randf() * 4500);
+  }
+  if (inBurst) {
+    if (now - flashTime > flashDuration) {
+      // Next flash in burst
+      burstFlashIdx++;
+      if (burstFlashIdx < burstFlashCount) {
+        flashTime = now;
+        flashDuration = 30 + (uint32_t)(randf() * 60); // 30-90ms
+        flashIntensity = 0.5f + 0.5f * randf();
+        flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
+        flashStart = (uint32_t)(randf() * g_ledCount);
+      } else {
+        inBurst = false;
+        flashIntensity = 0.0f;
+      }
+    }
+    // Optionally, fade out last flash at end of burst
+    if (burstFlashIdx == burstFlashCount - 1 && (now - flashTime > flashDuration / 2)) {
+      float t = 1.0f - float(now - flashTime) / float(flashDuration);
+      if (t < 0.2f) flashIntensity *= t / 0.2f;
+    }
+  } else {
+    flashIntensity = 0.0f;
+  }
+
+  // Gentle shimmer for underwater
+  float shimmerSpeed = 0.0015f;
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    float shimmer = 0.85f + 0.15f * sinf(now * shimmerSpeed + i * 0.7f);
+    // Lightning: randomly distributed flash LEDs
+    bool inFlashSet = false;
+    if (inBurst && flashIntensity > 0.0f) {
+      // Each flash, randomly select which LEDs are lit
+      // Use a hash of flashStart, flashLen, and i for deterministic randomness per flash
+      uint32_t hash = (uint32_t)(flashStart ^ (i * 2654435761UL) ^ (flashLen * 374761393UL));
+      inFlashSet = ((hash % g_ledCount) < flashLen);
+    }
+    float segIntensity = inFlashSet ? flashIntensity : 0.0f;
+    float r = baseR * shimmer * (1.0f - segIntensity) + flashR * segIntensity;
+    float g = baseG * shimmer * (1.0f - segIntensity) + flashG * segIntensity;
+    float b = baseB * shimmer * (1.0f - segIntensity) + flashB * segIntensity;
+    float w = baseW * shimmer * (1.0f - segIntensity) + flashW * segIntensity;
+    scale_rgbw_brightness((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w, state.brightness, (uint8_t&)r, (uint8_t&)g, (uint8_t&)b, (uint8_t&)w);
+    (*g_effectBuffer)[i] = pack_rgbw((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w);
+  }
+}
+REGISTER_EFFECT(4, "Lightning", effect_lightning)
 
 // === Core rendering function ===
 void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
