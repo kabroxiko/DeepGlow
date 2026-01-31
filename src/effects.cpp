@@ -399,13 +399,14 @@ void effect_ocean_wave() {
     float waveIntensity = (wave1 + wave2) / 2.0f;
     
     // Blend base and wave colors
-    float r = baseR * (1.0f - waveIntensity) + waveR * waveIntensity;
-    float g = baseG * (1.0f - waveIntensity) + waveG * waveIntensity;
-    float b = baseB * (1.0f - waveIntensity) + waveB * waveIntensity;
-    float w = baseW * (1.0f - waveIntensity) + waveW * waveIntensity;
+    float r_f = baseR * (1.0f - waveIntensity) + waveR * waveIntensity;
+    float g_f = baseG * (1.0f - waveIntensity) + waveG * waveIntensity;
+    float b_f = baseB * (1.0f - waveIntensity) + waveB * waveIntensity;
+    float w_f = baseW * (1.0f - waveIntensity) + waveW * waveIntensity;
     
-    scale_rgbw_brightness((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w, state.brightness, (uint8_t&)r, (uint8_t&)g, (uint8_t&)b, (uint8_t&)w);
-    (*g_effectBuffer)[i] = pack_rgbw((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w);
+    uint8_t r, g, b, w;
+    scale_rgbw_brightness((uint8_t)r_f, (uint8_t)g_f, (uint8_t)b_f, (uint8_t)w_f, state.brightness, r, g, b, w);
+    (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
   }
 }
 REGISTER_EFFECT(5, "Ocean Wave", effect_ocean_wave)
@@ -544,6 +545,10 @@ void effect_fire() {
   uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
   uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 150;
   
+  // Fire effect parameters
+  constexpr uint8_t COOLING_SCALE_FACTOR = 256; // Scale factor for cooling calculation
+  constexpr uint8_t HEAT_SCALE = 191;           // Scale heat (0-255) to color zones (0-191)
+  
   // Cooling: rate at which the fire cools down
   uint8_t cooling = 55 + (100 - speed) / 2;
   
@@ -552,7 +557,7 @@ void effect_fire() {
   
   // Step 1: Cool down every cell a little
   for (size_t i = 0; i < g_ledCount; ++i) {
-    uint8_t cooldown = (random8() * cooling) / 256 + 2;
+    uint8_t cooldown = (random8() * cooling) / COOLING_SCALE_FACTOR + 2;
     if (cooldown > heat[i]) {
       heat[i] = 0;
     } else {
@@ -575,7 +580,8 @@ void effect_fire() {
   
   // Step 4: Convert heat to LED colors
   for (size_t i = 0; i < g_ledCount; ++i) {
-    uint8_t t192 = (uint16_t)(heat[i] * 191) / 255;
+    // Map heat (0-255) to three color zones: black->red (0-63), red->yellow (64-127), yellow->white (128-191)
+    uint8_t t192 = (uint16_t)(heat[i] * HEAT_SCALE) / 255;
     uint8_t heatramp = t192 & 0x3F; // 0..63
     heatramp <<= 2; // scale to 0..252
     
