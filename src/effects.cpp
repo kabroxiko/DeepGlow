@@ -503,8 +503,11 @@ void effect_twinkle() {
     // Calculate twinkle intensity
     float twinkle = 0.5f + 0.5f * sinf(ledBrightness[i]);
     
-    // Only some LEDs should be active based on density
-    if (randf() > densityFactor * 0.3f) {
+    // Only some LEDs should be active based on density (deterministic per LED)
+    // Use a simple hash function based on LED index for consistent behavior
+    uint32_t hash = (i * 2654435761UL) ^ rngSeed;
+    float ledDensity = (hash & 0xFFFFFF) / float(0xFFFFFF);
+    if (ledDensity > densityFactor * 0.3f) {
       twinkle *= 0.1f; // Dim inactive LEDs
     }
     
@@ -549,7 +552,7 @@ void effect_fire() {
   
   // Step 1: Cool down every cell a little
   for (size_t i = 0; i < g_ledCount; ++i) {
-    uint8_t cooldown = (random8() * cooling) / g_ledCount + 2;
+    uint8_t cooldown = (random8() * cooling) / 256 + 2;
     if (cooldown > heat[i]) {
       heat[i] = 0;
     } else {
@@ -558,7 +561,7 @@ void effect_fire() {
   }
   
   // Step 2: Heat from each cell drifts up and diffuses
-  for (size_t k = g_ledCount - 1; k >= 2; k--) {
+  for (int k = (int)g_ledCount - 1; k >= 2; k--) {
     heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3;
   }
   
