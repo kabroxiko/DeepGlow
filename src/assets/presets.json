@@ -47,7 +47,7 @@
       "params": {
         "speed": 10,
         "intensity": 255,
-        "colors": ["#143C5C", "#FFFFFFFF"]
+        "colors": ["#143C5C05", "#FFFFFFFF"]
       }
     },
     {

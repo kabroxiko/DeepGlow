@@ -1,3 +1,24 @@
+// Convert #RRGGBBWW or #RRGGBB to a preview color, blending white channel
+function rgbwHexToPreview(hex) {
+    hex = hex.replace(/^#/, '');
+    let r = 0, g = 0, b = 0, w = 0;
+    if (hex.length === 8) {
+        r = parseInt(hex.slice(0,2),16);
+        g = parseInt(hex.slice(2,4),16);
+        b = parseInt(hex.slice(4,6),16);
+        w = parseInt(hex.slice(6,8),16);
+    } else if (hex.length === 6) {
+        r = parseInt(hex.slice(0,2),16);
+        g = parseInt(hex.slice(2,4),16);
+        b = parseInt(hex.slice(4,6),16);
+    }
+    // If only white, show white
+    if (w > 0 && r === 0 && g === 0 && b === 0) {
+        return `rgb(255,255,255)`;
+    }
+    const blend = c => Math.round(c + (255 - c) * (w / 255));
+    return `rgb(${blend(r)},${blend(g)},${blend(b)})`;
+}
 // Aquarium LED Controller - Web Interface JavaScript
 
 let ws = null;
@@ -299,11 +320,14 @@ function updateState(state) {
                     const input = document.createElement('input');
                     input.type = 'color';
                     input.className = 'color-input';
-                    input.value = color;
+                    input.value = color.length === 9 ? color.slice(0,7) : color; // Only #RRGGBB for input
                     input.id = `colorPicker${idx}`;
-                    input.addEventListener('change', (e) => {
+                    input.addEventListener('input', (e) => {
                         let colors = [...state.params.colors];
-                        colors[idx] = e.target.value;
+                        // Preserve W if present
+                        let orig = colors[idx] || '#000000';
+                        let w = (orig.length === 9) ? orig.slice(7,9) : '';
+                        colors[idx] = e.target.value + w;
                         sendState({
                             params: {
                                 ...state.params,
@@ -623,10 +647,21 @@ function displayPresets() {
             card.classList.add('active');
         }
         const effectName = effectNames[preset.effect] || `Effect #${preset.effect}`;
-        // Use only the colors array for preview
-        let colorA = (preset.params && Array.isArray(preset.params.colors) && preset.params.colors[0]) ? preset.params.colors[0] : '#000000';
-        let colorB = (preset.params && Array.isArray(preset.params.colors) && preset.params.colors[1]) ? preset.params.colors[1] : null;
-        let previewStyle = colorB ? `background: linear-gradient(135deg, ${colorA}, ${colorB})` : `background: ${colorA}`;
+        // Show a gradient of all preset colors (RGBW aware)
+        let previewColors = [];
+        if (preset.params && Array.isArray(preset.params.colors) && preset.params.colors.length > 0) {
+            previewColors = preset.params.colors.map(rgbwHexToPreview);
+        } else {
+            previewColors = ['#000000'];
+        }
+        let previewStyle = '';
+        if (previewColors.length === 1) {
+            previewStyle = `background: ${previewColors[0]}`;
+        } else {
+            // Evenly distribute color stops
+            let stops = previewColors.map((c, i) => `${c} ${(i/(previewColors.length-1))*100}%`).join(', ');
+            previewStyle = `background: linear-gradient(135deg, ${stops})`;
+        }
         card.innerHTML = `
             <div class="preset-name">${preset.name}</div>
             <div class="preset-info">Effect: ${effectName}</div>
