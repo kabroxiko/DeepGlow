@@ -223,6 +223,36 @@ void setUserColor(const uint32_t* newColor, size_t count) {
 	setEffect(state.effect, state.params);
 }
 
+// Helper to convert color hex strings to array
+static std::array<uint32_t, 8> getColorsFromParams(const std::vector<String>& colorsVec) {
+	std::array<uint32_t, 8> colors = {0};
+	for (size_t i = 0; i < colorsVec.size() && i < 8; ++i) {
+		const String& hex = colorsVec[i];
+		colors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+	}
+	return colors;
+}
+
+static void renderFrameToBus(const std::vector<uint32_t>& frame) {
+	for (size_t i = 0; i < frame.size(); ++i) {
+		uint32_t c = frame[i];
+		uint8_t r, g, b, w;
+		unpack_rgbw(c, r, g, b, w);
+		busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
+	}
+	busManager.show();
+}
+
+static void blendFrames(const std::vector<uint32_t>& prevFrame, const std::vector<uint32_t>& nextFrame, float blendFactor, std::vector<uint32_t>& blended) {
+	for (size_t i = 0; i < blended.size(); ++i) {
+		uint32_t prev = prevFrame[i];
+		uint32_t next = nextFrame[i];
+		uint8_t r, g, b, w;
+		blend_rgbw_brightness(prev, next, blendFactor, 255, r, g, b, w);
+		blended[i] = pack_rgbw(r, g, b, w);
+	}
+}
+
 void updateLEDs() {
 	BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
@@ -242,22 +272,15 @@ void updateLEDs() {
 		if (progress > 1.0f) progress = 1.0f;
 		progress = progress * progress * (3.0f - 2.0f * progress); // smoothstep
 
-		// Color phase fraction (should match transition engine)
 		float colorFrac = transition.getEffectTransitionFraction();
 		float colorProgress = (progress < colorFrac) ? (progress / colorFrac) : 1.0f;
 
-		// Determine if this is a brightness-only transition
 		bool brightnessOnly = (pendingTransition.effect == state.effect && pendingTransition.params.colors == state.params.colors);
 
 		std::vector<uint32_t> prevFrame(count, 0);
 		std::vector<uint32_t> nextFrame(count, 0);
 		if (brightnessOnly) {
-			// For brightness-only, render both frames with the same effect/colors, but different brightness
-			std::array<uint32_t, 8> colors = {0};
-			for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
-				const String& hex = pendingTransition.params.colors[i];
-				colors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
-			}
+			auto colors = getColorsFromParams(pendingTransition.params.colors);
 			size_t colorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
 			uint8_t prevBrightness = transition.getCurrentBrightness();
 			uint8_t nextBrightness = transition.getTargetBrightness();
@@ -265,91 +288,45 @@ void updateLEDs() {
 			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, colors, colorCount, nextBrightness);
 		} else {
 			if (state.prevEffect == 0) {
-				// Solid effect: use captured buffer for previous frame
 				prevFrame = transition.getPreviousFrame();
 			} else {
-				// Animated effect: re-render previous frame
-				std::array<uint32_t, 8> prevColors = {0};
-				for (size_t i = 0; i < state.prevParams.colors.size() && i < 8; ++i) {
-					const String& hex = state.prevParams.colors[i];
-					prevColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
-				}
+				auto prevColors = getColorsFromParams(state.prevParams.colors);
 				size_t prevColorCount = state.prevParams.colors.size() > 0 ? state.prevParams.colors.size() : 1;
 				uint8_t prevBrightness = transition.getCurrentBrightness();
 				renderEffectToBuffer(state.prevEffect, state.prevParams, prevFrame, count, prevColors, prevColorCount, prevBrightness);
 			}
-			// Always re-render next frame (target effect)
-			std::array<uint32_t, 8> nextColors = {0};
-			for (size_t i = 0; i < pendingTransition.params.colors.size() && i < 8; ++i) {
-				const String& hex = pendingTransition.params.colors[i];
-				nextColors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
-			}
+			auto nextColors = getColorsFromParams(pendingTransition.params.colors);
 			size_t nextColorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
 			uint8_t nextBrightness = transition.getTargetBrightness();
 			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, nextColors, nextColorCount, nextBrightness);
 		}
 
-		// Blend the two frames
 		std::vector<uint32_t> blended(count, 0);
-		for (size_t i = 0; i < count; ++i) {
-			uint32_t prev = prevFrame[i];
-			uint32_t next = nextFrame[i];
-			uint8_t r, g, b, w;
-			// Use colorProgress for color blending, progress for brightness
-			float blendFactor = colorProgress;
-			blend_rgbw_brightness(prev, next, blendFactor, 255, r, g, b, w);
-			blended[i] = pack_rgbw(r, g, b, w); // RRGGBBWW
-		}
-		bool allZero = true;
-		for (size_t i = 0; i < count; ++i) {
-			uint32_t c = blended[i];
-			if (c != 0) allZero = false;
-		}
-		for (size_t i = 0; i < count; ++i) {
-			uint32_t c = blended[i];
-			uint8_t r, g, b, w;
-			unpack_rgbw(c, r, g, b, w);
-			busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
-		}
-		busManager.show();
+		blendFrames(prevFrame, nextFrame, colorProgress, blended);
+		renderFrameToBus(blended);
 	} else {
-		// Only commit pendingTransition after transition completes
 		if (pendingCommit) {
 			state.effect = pendingTransition.effect;
 			state.params = pendingTransition.params;
 			state.preset = pendingTransition.preset;
-			// Restore brightness and color before rendering solid effect
 			state.brightness = transition.getTargetBrightness();
 			if (state.effect == 0 && state.params.colors.size() > 0) {
-				color[0] = parse_hex_rgbw(state.params.colors[0].c_str()); // Use parse_hex_rgbw for color[0] assignment
+				color[0] = parse_hex_rgbw(state.params.colors[0].c_str());
 			}
 			setEffect(state.effect, state.params);
 			pendingCommit = false;
 			transition.clearFrames();
 		}
-		// Only update state and show LEDs after transition completes
 		uint8_t currentBrightness = transition.getCurrentBrightness();
 		state.inTransition = false;
 		state.brightness = currentBrightness;
 
-		// --- ANIMATION: render effect every frame ---
 		std::vector<uint32_t> animFrame(count, 0);
-		std::array<uint32_t, 8> animColors = {0};
-		for (size_t i = 0; i < state.params.colors.size() && i < 8; ++i) {
-			const String& hex = state.params.colors[i];
-			animColors[i] = parse_hex_rgbw(hex.c_str()); // Use parse_hex_rgbw for animColors
-		}
+		auto animColors = getColorsFromParams(state.params.colors);
 		size_t animColorCount = state.params.colors.size() > 0 ? state.params.colors.size() : 1;
 		uint8_t animBrightness = currentBrightness;
 		renderEffectToBuffer(state.effect, state.params, animFrame, count, animColors, animColorCount, animBrightness);
-		for (size_t i = 0; i < count; ++i) {
-			uint32_t c = animFrame[i];
-			uint8_t r, g, b, w;
-			unpack_rgbw(c, r, g, b, w);
-			busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
-		}
-		busManager.show();
-		// Only set relay if power is on
+		renderFrameToBus(animFrame);
 		if (state.power) {
 			digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);
 		}
