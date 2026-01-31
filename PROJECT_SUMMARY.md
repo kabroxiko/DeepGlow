@@ -47,17 +47,19 @@ DeepGlow/
 - **Multi-layer safety**: API, preset, and effect-level protection
 - **Boot recovery**: Applies correct preset after power loss
 
-### 2. Six Custom Aquarium Effects ✅
+### 2. Nine Custom Aquarium Effects ✅
 
 | Effect | Description | Use Case |
 |--------|-------------|----------|
 | **Solid Color** | Static lighting | General illumination |
-| **Aquarium Ripple** | Water surface shimmer | Realistic water effects |
-| **Gentle Wave** | Smooth underwater waves | Calming ambiance |
-| **Sunrise Simulation** | Multi-phase dawn transition | Natural wake cycle |
-| **Coral Shimmer** | Subtle twinkling | Reef tank enhancement |
-| **Deep Ocean** | Dark blue pulsing | Deep water simulation |
-| **Moonlight** | Ultra-dim blue | Night observation |
+| **Sunrise** | Multi-phase dawn transition with palette blend | Natural wake cycle |
+| **Sunset** | Multi-zone color shifts with rolling patterns | Evening ambiance |
+| **Moonlight** | Soft blue with moving caustic highlights | Night observation |
+| **Lightning** | Storm effect with random flashes | Dramatic weather simulation |
+| **Ocean Wave** | Gentle rolling wave with water-like motion | Realistic water movement |
+| **Color Cycle** | Smooth RGB spectrum transitions | Colorful display |
+| **Twinkle** | Random LED twinkling like bioluminescence | Magical reef effect |
+| **Fire** | Flickering warm colors with heat diffusion | Warm dramatic effect |
 
 ### 3. Advanced Scheduling System ✅
 - **NTP time synchronization**: Accurate timekeeping via internet
@@ -165,14 +167,17 @@ Safety Layers:
 
 ## 🎨 Default Configuration
 
-### Presets (7 included)
-1. **Morning Sun** - Sunrise simulation, warm orange
-2. **Daylight** - Full brightness white
-3. **Afternoon Ripple** - Blue/cyan water effects
-4. **Evening Glow** - Warm orange/pink waves
-5. **Coral Reef** - Coral shimmer effect
-6. **Deep Ocean** - Dark blue pulsing
-7. **Moonlight** - Ultra-dim blue for night
+### Presets (10 included)
+1. **Off** - All LEDs off (black)
+2. **Sunrise** - Dawn simulation with warm orange gradient
+3. **Daylight** - Full brightness white
+4. **Sunset** - Dusk colors with purple and pink
+5. **Moonlight** - Dim blue with caustic highlights
+6. **Lightning Storm** - Underwater storm with flashes
+7. **Ocean Wave** - Blue rolling waves
+8. **Color Cycle** - Slow rainbow transitions
+9. **Bioluminescence** - Cyan twinkling effect
+10. **Volcanic Glow** - Warm flickering fire effect
 
 ### Safety Defaults
 - Max Brightness: **200/255** (78%)

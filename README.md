@@ -14,20 +14,35 @@ A complete standalone aquarium lighting controller system for ESP32/ESP8266 micr
 - **Smooth interpolation** - All changes use exponential easing
 - **Safety enforcement** - Multiple layers of protection at API, preset, and effect levels
 
-### Preset Effects (WS2812FX Native)
-All effects are now native WS2812FX effects, selected by their effect index. The default presets use the following WS2812FX effect indices:
+### Custom Aquarium Effects
+All effects are custom-designed aquarium effects optimized for fish safety and visual appeal:
 
-| Preset Name        | Effect Index | WS2812FX Effect Name      |
-|--------------------|--------------|--------------------------|
-| Morning Sun        | 15           | FADE                     |
-| Daylight           | 0            | STATIC                   |
-| Afternoon Ripple   | 12           | RAINBOW_CYCLE            |
-| Gentle Wave        | 3            | COLOR_WIPE               |
-| Coral Shimmer      | 21           | TWINKLE_FADE             |
-| Deep Ocean         | 37           | CHASE_BLUE               |
-| Moonlight          | 2            | BREATH                   |
+| Effect ID | Effect Name    | Description                                          | Parameters        |
+|-----------|----------------|------------------------------------------------------|-------------------|
+| 0         | Solid          | Static color display                                 | colors[0]         |
+| 1         | Sunrise        | Multi-phase dawn transition with smooth palette blend| speed, colors[]   |
+| 2         | Sunset         | Multi-zone color shifts with rolling patterns        | speed, colors[], reverse |
+| 3         | Moonlight      | Soft blue base with moving caustic highlights        | speed, intensity  |
+| 4         | Lightning      | Storm effect with random flashes                     | speed, intensity, colors[] |
+| 5         | Ocean Wave     | Gentle rolling wave with water-like motion           | speed, intensity, colors[] |
+| 6         | Color Cycle    | Smooth transitions through the RGB spectrum          | speed, intensity  |
+| 7         | Twinkle        | Random LED twinkling like bioluminescence            | speed, intensity, colors[] |
+| 8         | Fire           | Flickering warm colors using heat diffusion          | speed, intensity  |
 
-See the WS2812FX documentation for the full list of effect indices and names.
+### Default Presets
+
+| Preset ID | Name               | Effect       | Description                                |
+|-----------|--------------------|--------------|--------------------------------------------|
+| 0         | Off                | Solid        | All LEDs off (black)                       |
+| 1         | Sunrise            | Sunrise      | Dawn simulation with warm colors           |
+| 2         | Daylight           | Solid        | Full brightness white                      |
+| 3         | Sunset             | Sunset       | Dusk colors with purple and pink           |
+| 4         | Moonlight          | Moonlight    | Dim blue with caustic highlights           |
+| 5         | Lightning Storm    | Lightning    | Underwater storm effect                    |
+| 6         | Ocean Wave         | Ocean Wave   | Blue rolling waves                         |
+| 7         | Color Cycle        | Color Cycle  | Slow rainbow transitions                   |
+| 8         | Bioluminescence    | Twinkle      | Cyan twinkling effect                      |
+| 9         | Volcanic Glow      | Fire         | Warm flickering fire effect                |
 
 ### Advanced Scheduling
 - **NTP time synchronization** - Accurate timekeeping
