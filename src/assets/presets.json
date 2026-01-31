@@ -60,6 +60,48 @@
         "intensity": 255,
         "colors": ["#0A1832", "#FFFFFFFF"]
       }
+    },
+    {
+      "id": 6,
+      "name": "Ocean Wave",
+      "effect": 5,
+      "enabled": true,
+      "params": {
+        "speed": 40,
+        "intensity": 128,
+        "colors": ["#003C64", "#3296FF"]
+      }
+    },
+    {
+      "id": 7,
+      "name": "Color Cycle",
+      "effect": 6,
+      "enabled": true,
+      "params": {
+        "speed": 25,
+        "intensity": 200
+      }
+    },
+    {
+      "id": 8,
+      "name": "Bioluminescence",
+      "effect": 7,
+      "enabled": true,
+      "params": {
+        "speed": 50,
+        "intensity": 80,
+        "colors": ["#00C8FF"]
+      }
+    },
+    {
+      "id": 9,
+      "name": "Volcanic Glow",
+      "effect": 8,
+      "enabled": true,
+      "params": {
+        "speed": 45,
+        "intensity": 180
+      }
     }
   ]
 }

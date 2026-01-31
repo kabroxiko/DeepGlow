@@ -29,6 +29,10 @@ void effect_sunrise();
 void effect_sunset();
 void effect_moonlight();
 void effect_lightning();
+void effect_ocean_wave();
+void effect_color_cycle();
+void effect_twinkle();
+void effect_fire();
 
 // === Registry ===
 std::vector<EffectRegistryEntry> effectRegistry;
@@ -357,6 +361,244 @@ void effect_lightning() {
   }
 }
 REGISTER_EFFECT(4, "Lightning", effect_lightning)
+
+// Ocean Wave effect: Gentle rolling wave with water-like motion
+void effect_ocean_wave() {
+  if (!g_effectBuffer) return;
+  if (g_ledCount == 0) return;
+
+  uint32_t now = millis();
+  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 128;
+  
+  // Wave parameters
+  float waveSpeed = 0.0005f * (speed / 50.0f);
+  float waveLength = 0.2f + 0.3f * (intensity / 255.0f);
+  
+  // Get colors from params
+  const auto& colors = state.params.colors;
+  uint8_t baseR = 0, baseG = 60, baseB = 120, baseW = 0; // Default blue
+  uint8_t waveR = 50, waveG = 150, waveB = 255, waveW = 0; // Brighter blue
+  
+  if (colors.size() > 0) {
+    uint32_t c = (uint32_t)strtoul(colors[0].c_str() + (colors[0][0] == '#' ? 1 : 0), nullptr, 16);
+    unpack_rgbw(c, baseR, baseG, baseB, baseW);
+  }
+  if (colors.size() > 1) {
+    uint32_t c = (uint32_t)strtoul(colors[1].c_str() + (colors[1][0] == '#' ? 1 : 0), nullptr, 16);
+    unpack_rgbw(c, waveR, waveG, waveB, waveW);
+  }
+  
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    float pos = (float)i / g_ledCount;
+    float phase = fmodf(now * waveSpeed, 1.0f);
+    
+    // Create smooth rolling wave using sine
+    float wave1 = 0.5f + 0.5f * sinf(2.0f * 3.14159f * (pos - phase) / waveLength);
+    float wave2 = 0.5f + 0.5f * sinf(2.0f * 3.14159f * (pos - phase + 0.5f) / (waveLength * 1.5f));
+    float waveIntensity = (wave1 + wave2) / 2.0f;
+    
+    // Blend base and wave colors
+    float r = baseR * (1.0f - waveIntensity) + waveR * waveIntensity;
+    float g = baseG * (1.0f - waveIntensity) + waveG * waveIntensity;
+    float b = baseB * (1.0f - waveIntensity) + waveB * waveIntensity;
+    float w = baseW * (1.0f - waveIntensity) + waveW * waveIntensity;
+    
+    scale_rgbw_brightness((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w, state.brightness, (uint8_t&)r, (uint8_t&)g, (uint8_t&)b, (uint8_t&)w);
+    (*g_effectBuffer)[i] = pack_rgbw((uint8_t)r, (uint8_t)g, (uint8_t)b, (uint8_t)w);
+  }
+}
+REGISTER_EFFECT(5, "Ocean Wave", effect_ocean_wave)
+
+// Color Cycle effect: Smooth transitions through the color spectrum
+void effect_color_cycle() {
+  if (!g_effectBuffer) return;
+  if (g_ledCount == 0) return;
+
+  uint32_t now = millis();
+  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 200;
+  
+  // Speed mapping: slower cycles for aquarium
+  float cycleSpeed = 0.00005f * (speed / 50.0f);
+  float hue = fmodf(now * cycleSpeed, 1.0f);
+  
+  // Convert HSV to RGB
+  auto hsv_to_rgb = [](float h, float s, float v, uint8_t& r, uint8_t& g, uint8_t& b) {
+    float c = v * s;
+    float x = c * (1.0f - fabsf(fmodf(h * 6.0f, 2.0f) - 1.0f));
+    float m = v - c;
+    float r1, g1, b1;
+    
+    if (h < 0.166f) { r1 = c; g1 = x; b1 = 0; }
+    else if (h < 0.333f) { r1 = x; g1 = c; b1 = 0; }
+    else if (h < 0.5f) { r1 = 0; g1 = c; b1 = x; }
+    else if (h < 0.666f) { r1 = 0; g1 = x; b1 = c; }
+    else if (h < 0.833f) { r1 = x; g1 = 0; b1 = c; }
+    else { r1 = c; g1 = 0; b1 = x; }
+    
+    r = (uint8_t)((r1 + m) * 255.0f);
+    g = (uint8_t)((g1 + m) * 255.0f);
+    b = (uint8_t)((b1 + m) * 255.0f);
+  };
+  
+  uint8_t r, g, b, w = 0;
+  float saturation = intensity / 255.0f;
+  hsv_to_rgb(hue, saturation, 1.0f, r, g, b);
+  
+  scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
+  
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
+  }
+}
+REGISTER_EFFECT(6, "Color Cycle", effect_color_cycle)
+
+// Twinkle effect: Random LED twinkling like bioluminescence
+void effect_twinkle() {
+  if (!g_effectBuffer) return;
+  if (g_ledCount == 0) return;
+
+  static std::vector<float> ledBrightness;
+  static std::vector<float> ledSpeed;
+  static uint32_t rngSeed = 987654321;
+  
+  // Simple LCG for pseudo-randomness
+  auto randf = [&]() {
+    rngSeed = (rngSeed * 1664525UL + 1013904223UL);
+    return (rngSeed & 0xFFFFFF) / float(0xFFFFFF);
+  };
+  
+  // Initialize per-LED state
+  if (ledBrightness.size() != g_ledCount) {
+    ledBrightness.resize(g_ledCount);
+    ledSpeed.resize(g_ledCount);
+    for (size_t i = 0; i < g_ledCount; ++i) {
+      ledBrightness[i] = randf();
+      ledSpeed[i] = 0.001f + 0.004f * randf();
+    }
+  }
+  
+  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 100;
+  float speedMult = speed / 50.0f;
+  float densityFactor = intensity / 255.0f;
+  
+  // Get color from params
+  const auto& colors = state.params.colors;
+  uint8_t r = 0, g = 150, b = 255, w = 0; // Default cyan
+  if (colors.size() > 0) {
+    uint32_t c = (uint32_t)strtoul(colors[0].c_str() + (colors[0][0] == '#' ? 1 : 0), nullptr, 16);
+    unpack_rgbw(c, r, g, b, w);
+  }
+  
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    // Update brightness with sine wave
+    ledBrightness[i] += ledSpeed[i] * speedMult;
+    if (ledBrightness[i] > 6.28f) {
+      ledBrightness[i] = 0.0f;
+      ledSpeed[i] = 0.001f + 0.004f * randf();
+    }
+    
+    // Calculate twinkle intensity
+    float twinkle = 0.5f + 0.5f * sinf(ledBrightness[i]);
+    
+    // Only some LEDs should be active based on density
+    if (randf() > densityFactor * 0.3f) {
+      twinkle *= 0.1f; // Dim inactive LEDs
+    }
+    
+    uint8_t fr = (uint8_t)(r * twinkle);
+    uint8_t fg = (uint8_t)(g * twinkle);
+    uint8_t fb = (uint8_t)(b * twinkle);
+    uint8_t fw = (uint8_t)(w * twinkle);
+    
+    scale_rgbw_brightness(fr, fg, fb, fw, state.brightness, fr, fg, fb, fw);
+    (*g_effectBuffer)[i] = pack_rgbw(fr, fg, fb, fw);
+  }
+}
+REGISTER_EFFECT(7, "Twinkle", effect_twinkle)
+
+// Fire effect: Flickering warm colors for special displays
+void effect_fire() {
+  if (!g_effectBuffer) return;
+  if (g_ledCount == 0) return;
+
+  static std::vector<uint8_t> heat;
+  static uint32_t rngSeed = 456789123;
+  
+  // Simple random function
+  auto random8 = [&]() -> uint8_t {
+    rngSeed = (rngSeed * 1664525UL + 1013904223UL);
+    return (rngSeed >> 16) & 0xFF;
+  };
+  
+  // Initialize heat buffer
+  if (heat.size() != g_ledCount) {
+    heat.resize(g_ledCount, 0);
+  }
+  
+  uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
+  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 150;
+  
+  // Cooling: rate at which the fire cools down
+  uint8_t cooling = 55 + (100 - speed) / 2;
+  
+  // Sparking: rate of new sparks
+  uint8_t sparking = 100 + intensity / 2;
+  
+  // Step 1: Cool down every cell a little
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    uint8_t cooldown = (random8() * cooling) / g_ledCount + 2;
+    if (cooldown > heat[i]) {
+      heat[i] = 0;
+    } else {
+      heat[i] -= cooldown;
+    }
+  }
+  
+  // Step 2: Heat from each cell drifts up and diffuses
+  for (size_t k = g_ledCount - 1; k >= 2; k--) {
+    heat[k] = (heat[k - 1] + heat[k - 2] + heat[k - 2]) / 3;
+  }
+  
+  // Step 3: Randomly ignite new sparks near the bottom
+  if (random8() < sparking) {
+    size_t y = random8() % 7;
+    if (y < g_ledCount) {
+      heat[y] = heat[y] + 160 + random8() % 95;
+    }
+  }
+  
+  // Step 4: Convert heat to LED colors
+  for (size_t i = 0; i < g_ledCount; ++i) {
+    uint8_t t192 = (uint16_t)(heat[i] * 191) / 255;
+    uint8_t heatramp = t192 & 0x3F; // 0..63
+    heatramp <<= 2; // scale to 0..252
+    
+    uint8_t r, g, b, w = 0;
+    if (t192 > 0x80) {
+      // Hottest: white
+      r = 255;
+      g = 255;
+      b = heatramp;
+    } else if (t192 > 0x40) {
+      // Medium: orange to yellow
+      r = 255;
+      g = heatramp;
+      b = 0;
+    } else {
+      // Coolest: black to red
+      r = heatramp;
+      g = 0;
+      b = 0;
+    }
+    
+    scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
+    (*g_effectBuffer)[i] = pack_rgbw(r, g, b, w);
+  }
+}
+REGISTER_EFFECT(8, "Fire", effect_fire)
 
 // === Core rendering function ===
 void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness) {
