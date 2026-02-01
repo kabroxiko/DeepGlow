@@ -308,12 +308,7 @@ function createColorPickers(colors, params) {
             let w = (orig.length === 9) ? orig.slice(7,9) : '';
             newColors[idx] = e.target.value + w;
             swatch.style.background = rgbwHexToPreview(newColors[idx]);
-            sendState({
-                params: {
-                    ...params,
-                    colors: newColors
-                }
-            });
+            sendState({ params: { colors: newColors } });
             pendingColor = null;
         });
         // Also update swatch if W is changed elsewhere
@@ -512,43 +507,7 @@ function setupEventListeners() {
             sendState({ effect: parseInt(e.target.value) });
         });
     }
-    // Speed slider
-    const speedSlider = document.getElementById('speedSlider');
-    if (speedSlider) {
-        let speedTimeout;
-        speedSlider.addEventListener('input', (e) => {
-            const speedValue = document.getElementById('speedValue');
-            const percent = parseInt(e.target.value);
-            if (speedValue) speedValue.textContent = percent + '%';
-            clearTimeout(speedTimeout);
-            speedTimeout = setTimeout(() => {
-                sendState({ 
-                    params: {
-                        ...currentState.params,
-                        speed: percent
-                    }
-                });
-            }, 300);
-        });
-    }
-    // Intensity slider
-    const intensitySlider = document.getElementById('intensitySlider');
-    const intensityValue = document.getElementById('intensityValue');
-    if (intensitySlider) {
-        let intensityTimeout;
-        intensitySlider.addEventListener('input', (e) => {
-            if (intensityValue) intensityValue.textContent = e.target.value + '%';
-            clearTimeout(intensityTimeout);
-            intensityTimeout = setTimeout(() => {
-                sendState({
-                    params: {
-                        ...currentState.params,
-                        intensity: parseInt(e.target.value)
-                    }
-                });
-            }, 100);
-        });
-    }
+    // Speed and intensity slider event listeners are now handled exclusively by setupSlider below to avoid duplicate POSTs.
     // Unified slider setup
     function setupSlider({
         id,
@@ -637,12 +596,7 @@ function setupEventListeners() {
             return e => {
                 clearTimeout(speedTimeout);
                 speedTimeout = setTimeout(() => {
-                    sendState({
-                        params: {
-                            ...currentState.params,
-                            speed: parseInt(e.target.value)
-                        }
-                    });
+                    sendState({ params: { speed: parseInt(e.target.value) } });
                 }, 300);
             };
         })(),
@@ -663,12 +617,7 @@ function setupEventListeners() {
             return e => {
                 clearTimeout(intensityTimeout);
                 intensityTimeout = setTimeout(() => {
-                    sendState({
-                        params: {
-                            ...currentState.params,
-                            intensity: parseInt(e.target.value)
-                        }
-                    });
+                    sendState({ params: { intensity: parseInt(e.target.value) } });
                 }, 100);
             };
         })(),
