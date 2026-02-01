@@ -22,6 +22,9 @@ SystemState state;
 
 extern BusManager busManager;
 
+// Global pointer to the last output frame (for live bar)
+std::vector<uint32_t>* g_outputFramePtr = nullptr;
+
 // Global user-selected colors (fixed size)
 #include <array>
 std::array<uint32_t, 8> color = {0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000, 0x000000};
@@ -187,8 +190,7 @@ void setEffect(uint8_t effect, const EffectParams& params) {
 		snprintf(hex, sizeof(hex), "#%08X", color[i]);
 		state.params.colors.push_back(String(hex));
 	}
-	// Debug: print speed value to confirm it's 8-bit
-	printf("[DEBUG] setEffect: state.params.speed = %u\n", state.params.speed);
+	
 	BusNeoPixel* neo = busManager.getNeoPixelBus();
 	if (!neo || !neo->getStrip()) return;
 	extern std::vector<EffectRegistryEntry> effectRegistry;
@@ -299,10 +301,15 @@ void updateLEDs() {
 		state.inTransition = false;
 		state.brightness = 0;
 		digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
+		// Clear the global output frame
+		static std::vector<uint32_t> g_lastOutputFrame;
+		g_lastOutputFrame.clear();
 		return;
 	}
 	size_t count = busManager.getPixelCount();
 	static bool pendingCommit = false;
+	static std::vector<uint32_t> g_lastOutputFrame;
+	g_lastOutputFrame.resize(count, 0);
 	if (transition.isTransitioning()) {
 		pendingCommit = true;
 		float progress = float(millis() - transition.getStartTime()) / float(transition.getDuration());
@@ -311,7 +318,34 @@ void updateLEDs() {
 		float colorFrac = transition.getEffectTransitionFraction();
 		float colorProgress = (progress < colorFrac) ? (progress / colorFrac) : 1.0f;
 		bool brightnessOnly = (pendingTransition.effect == state.effect && pendingTransition.params.colors == state.params.colors);
-		renderTransitionFrame(count, colorProgress, brightnessOnly);
+		// --- renderTransitionFrame, but also capture the output frame ---
+		std::vector<uint32_t> prevFrame(count, 0);
+		std::vector<uint32_t> nextFrame(count, 0);
+		if (brightnessOnly) {
+			auto colors = getColorsFromParams(pendingTransition.params.colors);
+			size_t colorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
+			uint8_t prevBrightness = transition.getCurrentBrightness();
+			uint8_t nextBrightness = transition.getTargetBrightness();
+			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, prevFrame, count, colors, colorCount, prevBrightness);
+			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, colors, colorCount, nextBrightness);
+		} else {
+			if (state.prevEffect == 0) {
+				prevFrame = transition.getPreviousFrame();
+			} else {
+				auto prevColors = getColorsFromParams(state.prevParams.colors);
+				size_t prevColorCount = state.prevParams.colors.size() > 0 ? state.prevParams.colors.size() : 1;
+				uint8_t prevBrightness = transition.getCurrentBrightness();
+				renderEffectToBuffer(state.prevEffect, state.prevParams, prevFrame, count, prevColors, prevColorCount, prevBrightness);
+			}
+			auto nextColors = getColorsFromParams(pendingTransition.params.colors);
+			size_t nextColorCount = pendingTransition.params.colors.size() > 0 ? pendingTransition.params.colors.size() : 1;
+			uint8_t nextBrightness = transition.getTargetBrightness();
+			renderEffectToBuffer(pendingTransition.effect, pendingTransition.params, nextFrame, count, nextColors, nextColorCount, nextBrightness);
+		}
+		std::vector<uint32_t> blended(count, 0);
+		blendFrames(prevFrame, nextFrame, colorProgress, blended);
+		renderFrameToBus(blended);
+		g_lastOutputFrame = blended;
 	} else {
 		if (pendingCommit) {
 			commitPendingTransition();
@@ -320,9 +354,18 @@ void updateLEDs() {
 		uint8_t currentBrightness = transition.getCurrentBrightness();
 		state.inTransition = false;
 		state.brightness = currentBrightness;
-		renderAnimationFrame(count, currentBrightness);
+		std::vector<uint32_t> animFrame(count, 0);
+		auto animColors = getColorsFromParams(state.params.colors);
+		size_t animColorCount = state.params.colors.size() > 0 ? state.params.colors.size() : 1;
+		renderEffectToBuffer(state.effect, state.params, animFrame, count, animColors, animColorCount, currentBrightness);
+		renderFrameToBus(animFrame);
+		g_lastOutputFrame = animFrame;
 		if (state.power) {
 			digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);
 		}
 	}
+
+	// Expose the output frame for WebServerManager
+	extern std::vector<uint32_t>* g_outputFramePtr;
+	g_outputFramePtr = &g_lastOutputFrame;
 }

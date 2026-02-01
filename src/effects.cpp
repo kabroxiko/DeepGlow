@@ -17,7 +17,7 @@ extern BusManager busManager;
 extern Configuration config;
 
 volatile uint8_t g_effectSpeed = 1;
-static std::vector<uint32_t>* g_effectBuffer = nullptr;
+std::vector<uint32_t>* g_effectBuffer = nullptr;
 static size_t g_ledCount = 0;
 
 // === Typedefs ===
@@ -193,12 +193,6 @@ void effect_moonlight() {
   float t = (userSpeed - 1) / 254.0f;
   float period = minPeriod - t * (minPeriod - maxPeriod);
   float speed = 1.0f / period; // cycles per ms
-  // Debug: print speed mapping
-  static uint8_t lastDebugSpeed = 0;
-  if (userSpeed != lastDebugSpeed) {
-    printf("[Moonlight Debug] speed param: %d, period: %g ms, speed: %g cycles/ms\n", userSpeed, period, speed);
-    lastDebugSpeed = userSpeed;
-  }
   float shimmerSpeed = 0.0015f;
   uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 128;
   float waveLen = 0.08f + 0.32f * (intensity / 255.0f); // how wide the caustic highlight is
@@ -285,8 +279,6 @@ void effect_lightning() {
     float jitter = 0.9f + 0.2f * randf();
     nextDelay = (uint32_t)(baseDelay * jitter);
     lastSpeed = userSpeed;
-    // Debug output
-    printf("[Lightning Debug] speed param: %d, mapped: %d, baseDelay: %lu ms, nextDelay: %lu ms\n", state.params.speed, userSpeed, (unsigned long)baseDelay, (unsigned long)nextDelay);
   }
   // Flash logic
   if (!inBurst && now - lastFlash > nextDelay) {

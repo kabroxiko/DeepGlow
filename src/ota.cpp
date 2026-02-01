@@ -238,6 +238,7 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
     static bool isGz = false;
     static size_t uploaded = 0;
     if (index == 0) {
+        otaInProgress = true;
         Serial.println("[HTTP] POST /ota");
         LittleFS.end();
         // Clean up any previous upload file to free space
@@ -348,6 +349,8 @@ void handleOTAUpdate(AsyncWebServerRequest* request, unsigned char* data, unsign
                 ok = false;
             }
         }
+        // Always clear otaInProgress at the end
+        otaInProgress = false;
         if (ok) {
             resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
             Serial.println("OTA update complete, rebooting");

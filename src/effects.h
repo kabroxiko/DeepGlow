@@ -9,8 +9,12 @@
 #include <cstddef>
 #include "state.h"
 
-// Render the given effect and params into a buffer (does not update LEDs)
 void renderEffectToBuffer(uint8_t effectId, const EffectParams& params, std::vector<uint32_t>& buffer, size_t ledCount, const std::array<uint32_t, 8>& colors, size_t colorCount, uint8_t brightness);
+
+// Expose the current effect buffer for live preview (used by webserver)
+extern std::vector<uint32_t>* g_effectBuffer;
+// Expose the last output frame for live bar (set in updateLEDs)
+extern std::vector<uint32_t>* g_outputFramePtr;
 
 
 // All effect frame generators now take no parameters and use global buffer/ledCount

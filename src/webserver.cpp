@@ -7,7 +7,6 @@
 #include "inc/style_css.inc"
 #include "inc/config_html.inc"
 #include "inc/config_js.inc"
-
 #include <Ticker.h>
 #include <LittleFS.h>
 #include <WiFiClientSecure.h>
@@ -26,11 +25,19 @@
 #include "ota.h"
 #include "webserver.h"
 
+// Interval for live LED data broadcast (ms)
+#define LIVE_LED_BROADCAST_INTERVAL_MS 400
+
 // Stub implementations for OTA memory management hooks
 void pauseEffects() {}
 void pauseWebServer() {}
 void resumeEffects() {}
 void resumeWebServer() {}
+
+// Suppress live WebSocket messages during OTA
+extern volatile bool otaInProgress;
+static Ticker liveLedTicker;
+static bool liveLedTick = false;
 
 // Helper: CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
@@ -133,7 +140,6 @@ static String urlDecode(const String& input) {
     return decoded;
 }
 
-
 WebServerManager::WebServerManager(Configuration* config, Scheduler* scheduler) {
     _config = config;
     _scheduler = scheduler;
@@ -146,27 +152,79 @@ void WebServerManager::begin() {
     setupRoutes();
     buildEffectsCache();
     _server->begin();
+    // Start ticker for live LED broadcast
+    liveLedTicker.attach_ms(LIVE_LED_BROADCAST_INTERVAL_MS, []() { liveLedTick = true; });
 }
-
 void WebServerManager::update() {
     _ws->cleanupClients();
-    // No periodic broadcast; state is sent only on connection and on actual changes
+
+    // --- Periodic live LED data broadcast as binary blob ---
+    if (liveLedTick) {
+        liveLedTick = false;
+        if (otaInProgress) return;
+        uint16_t n = _config->led.count;
+        if (n > 0 && _ws->count() > 0) {
+            bool allReady = true;
+            for (auto& c : _ws->getClients()) {
+                if (c.queueIsFull()) {
+                    allReady = false;
+                    break;
+                }
+            }
+            if (allReady) {
+                extern std::vector<uint32_t>* g_outputFramePtr;
+                const std::vector<uint32_t>* src = (g_outputFramePtr && g_outputFramePtr->size() >= n) ? g_outputFramePtr : nullptr;
+                std::vector<uint8_t> buf(n * 4, 0);
+                if (src) {
+                    for (uint16_t i = 0; i < n; ++i) {
+                        uint32_t c = (i < src->size()) ? (*src)[i] : 0;
+                        uint8_t r = (c >> 24) & 0xFF;
+                        uint8_t g = (c >> 16) & 0xFF;
+                        uint8_t b = (c >> 8) & 0xFF;
+                        uint8_t w = c & 0xFF;
+                        buf[i*4+0] = r;
+                        buf[i*4+1] = g;
+                        buf[i*4+2] = b;
+                        buf[i*4+3] = w;
+                    }
+                }
+                _ws->binaryAll(buf.data(), buf.size());
+            } else {
+                static uint32_t lastSkipLog = 0;
+                uint32_t now = millis();
+                if (now - lastSkipLog > 1000) {
+                    lastSkipLog = now;
+                    debugPrintln("[WS] Skipped live frame: client queue full");
+                }
+            }
+        }
+    }
 }
 
 void WebServerManager::setupWebSocket() {
     _ws->onEvent([this](AsyncWebSocket* server, AsyncWebSocketClient* client, 
                      AwsEventType type, void* arg, uint8_t* data, size_t len) {
         if (type == WS_EVT_CONNECT) {
-            // Send current state immediately to the new client
+            client->setCloseClientOnQueueFull(false); // Drop messages if queue is full, don't disconnect
             client->text(getStateJSON());
-        } else if (type == WS_EVT_DISCONNECT) {
+        } else if (type == WS_EVT_DATA) {
+            // Handle heartbeat ping from client
+            auto* info = (AwsFrameInfo*)arg;
+            if (info && info->opcode == WS_TEXT && data && len > 0) {
+                String msg;
+                if (data && len > 0) {
+                    msg = String((const char*)data);
+                    if (msg.length() > len) msg.remove(len);
+                }
+                if (msg.indexOf("\"type\":\"ping\"") != -1) {
+                    // Optionally respond with pong or just ignore
+                    // client->text("{\"type\":\"pong\"}");
+                }
+            }
         }
     });
     _server->addHandler(_ws);
 }
-
-
-
 
 void WebServerManager::setupRoutes() {
 
