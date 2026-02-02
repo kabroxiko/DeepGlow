@@ -2,7 +2,6 @@
 #include "bus_manager.h"
 #include "colors.h"
 #include "debug.h"
-#include "display.h"
 #include "effects.h"
 #include "transition.h"
 #include "webserver.h"

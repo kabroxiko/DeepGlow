@@ -36,7 +36,8 @@
 #include <Arduino.h>
 
 #include "display.h"
-#include "version.h"
+#include "inc/version.inc"
+#include "inc/version_def.inc"
 
 // Global BusManager instance
 BusManager busManager;
@@ -107,7 +108,7 @@ void setup() {
   debugPrintln();
   debugPrintln("=================================");
   debugPrintln("  Aquarium LED Controller");
-  debugPrintln("  Version: %s", getFirmwareVersion());
+  debugPrintln("  Version: %s", FW_VERSION);
   debugPrintln("=================================");
 
   // List files in LittleFS for debugging

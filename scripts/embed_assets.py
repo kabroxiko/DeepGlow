@@ -3,6 +3,7 @@
 
 # PlatformIO pre-build script: embed assets as .inc files
 # Import("env")
+
 import os
 import subprocess
 import sys
@@ -10,54 +11,24 @@ import tempfile
 import re
 import configparser
 import argparse
+import logging
 
-# Skip script if PlatformIO target is erase, or clean
+
+# Setup logging
+logging.basicConfig(
+	level=logging.INFO,
+	format='[%(levelname)s] %(message)s'
+)
+
+# Only run for build or upload targets
 pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
-if any(x in pio_targets for x in ['erase', 'clean', 'buildfs', 'uploadfs']):
-    print('embed_assets.py: Skipping script for erase/clean target.')
-    sys.exit(0)
+if not any(x in pio_targets for x in ['build', 'upload']):
+	logging.info('embed_assets.py: Skipping script (not build/upload target).')
+	sys.exit(0)
 
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR = os.path.join(os.getcwd(), 'src/assets')
 OUT_DIR = os.path.join(os.getcwd(), 'src/inc')
-
-# Ensure output directory exists
-os.makedirs(OUT_DIR, exist_ok=True)
-
-
-# Only delete and regenerate .inc files for assets that have changed, unless force is True
-def asset_needs_update(src_path, inc_path, force=False):
-    if force:
-        return True
-    if not os.path.exists(inc_path):
-        return True
-    src_mtime = os.path.getmtime(src_path)
-    inc_mtime = os.path.getmtime(inc_path)
-    return src_mtime > inc_mtime
-
-
-# Ensure html-minifier-terser and terser are available once at the start
-def ensure_html_minifier():
-	try:
-		subprocess.run(['npx', 'html-minifier-terser', '--version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, input='')
-	except Exception:
-		print('html-minifier-terser not found. Installing...')
-		subprocess.check_call(['npm', 'install', 'html-minifier-terser@6.1.0'])
-		print('html-minifier-terser installed.')
-
-def ensure_terser():
-	try:
-		subprocess.run(['npx', 'terser', '--version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, input='')
-	except Exception:
-		print('terser not found. Installing...')
-		subprocess.check_call(['npm', 'install', 'terser@5.44.1'])
-		print('terser installed.')
-
-ensure_html_minifier()
-ensure_terser()
-
-
-# Add config.json as config_default.inc (no minification)
 ASSETS = [
 	('index.html', 'index_html.inc'),
 	('wifi.html', 'wifi_html.inc'),
@@ -69,6 +40,39 @@ ASSETS = [
 	('timezones.json', 'timezones_json.inc'),
 	('presets.json', 'presets_json.inc'),
 ]
+
+
+# Ensure output directory exists
+os.makedirs(OUT_DIR, exist_ok=True)
+
+
+# Only delete and regenerate .inc files for assets that have changed, unless force is True
+def asset_needs_update(src_path, inc_path, force=False):
+	if force:
+		return True
+	if not os.path.exists(inc_path):
+		return True
+	src_mtime = os.path.getmtime(src_path)
+	inc_mtime = os.path.getmtime(inc_path)
+	return src_mtime > inc_mtime
+
+
+# Ensure html-minifier-terser and terser are available once at the start
+def ensure_html_minifier():
+    try:
+        subprocess.run(['npx', 'html-minifier-terser', '--version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, input='')
+    except Exception:
+        logging.info('html-minifier-terser not found. Installing...')
+        subprocess.check_call(['npm', 'install', 'html-minifier-terser@6.1.0'])
+        logging.info('html-minifier-terser installed.')
+
+def ensure_terser():
+    try:
+        subprocess.run(['npx', 'terser', '--version'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, input='')
+    except Exception:
+        logging.info('terser not found. Installing...')
+        subprocess.check_call(['npm', 'install', 'terser@5.44.1'])
+        logging.info('terser installed.')
 
 
 def minify_asset(infile, ext, do_minify=True):
@@ -95,7 +99,7 @@ def minify_asset(infile, ext, do_minify=True):
 			os.remove(tmp_out_path)
 			return minified
 		except Exception as e:
-			print(f"ERROR: html-minifier-terser failed for {infile}: {e}", file=sys.stderr)
+			logging.error(f"html-minifier-terser failed for {infile}: {e}")
 			sys.exit(1)
 	def minify_with_terser(infile):
 		with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix='.js') as tmp_in:
@@ -113,7 +117,7 @@ def minify_asset(infile, ext, do_minify=True):
 			os.remove(tmp_out_path)
 			return minified
 		except Exception as e:
-			print(f"ERROR: Terser failed for {infile}: {e}", file=sys.stderr)
+			logging.error(f"Terser failed for {infile}: {e}")
 			sys.exit(1)
 	if do_minify:
 		if ext == '.js':
@@ -129,9 +133,9 @@ def to_inc(infile, outfile, do_minify=True):
 		outfile_path = os.path.join(OUT_DIR, outfile)
 		var_base = os.path.splitext(outfile)[0]  # e.g., index_html
 		var_name = f"web_{var_base}"
-		print(f'Embedding: {infile_path} -> {outfile_path} (var: {var_name})')
+		logging.info(f'Embedding: {infile_path} -> {outfile_path} (var: {var_name})')
 		if not os.path.exists(infile_path):
-			print(f'ERROR: Source file not found: {infile_path}', file=sys.stderr)
+			logging.error(f'Source file not found: {infile_path}')
 			return False
 		ext = os.path.splitext(infile)[1]
 		def minify_js_with_terser(infile):
@@ -151,7 +155,7 @@ def to_inc(infile, outfile, do_minify=True):
 				os.remove(tmp_out_path)
 				return minified
 			except Exception as e:
-				print(f"ERROR: Terser minification failed for {infile}: {e}", file=sys.stderr)
+				logging.error(f"Terser minification failed for {infile}: {e}")
 				sys.exit(1)
 		minified = minify_asset(infile_path, ext, do_minify)
 		with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix=ext) as tmp:
@@ -167,7 +171,7 @@ def to_inc(infile, outfile, do_minify=True):
 		array_decl_re = re.compile(r'^unsigned char\s+(\w+)\[\]\s*=\s*\{', re.MULTILINE)
 		match = array_decl_re.search(xxd_content)
 		if not match:
-			print(f'ERROR: Could not find array declaration in {outfile_path}', file=sys.stderr)
+			logging.error(f'Could not find array declaration in {outfile_path}')
 			return False
 		var_name = match.group(1)
 		# Extract array and length variable
@@ -176,7 +180,7 @@ def to_inc(infile, outfile, do_minify=True):
 		array_match = array_decl_re.search(xxd_content)
 		len_match = len_decl_re.search(xxd_content)
 		if not array_match or not len_match:
-			print(f'ERROR: Could not extract array or length in {outfile_path}', file=sys.stderr)
+			logging.error(f'Could not extract array or length in {outfile_path}')
 			return False
 		array_decl = array_match.group(1)
 		len_decl = len_match.group(1)
@@ -194,45 +198,48 @@ def to_inc(infile, outfile, do_minify=True):
 				out.write(branch_else)
 		os.remove(xxd_tmp_path)
 		os.remove(tmp_path)
-		print(f'Success: {outfile_path}')
+		logging.info(f'Success: {outfile_path}')
 		return True
 	except Exception as e:
-		print(f'ERROR: Failed to embed {infile_path}: {e}', file=sys.stderr)
+		logging.error(f'Failed to embed {infile_path}: {e}')
 		return False
 
 
-minify_opt = os.environ.get('PLATFORMIO_MINIFY')
-if minify_opt is None:
-	config = configparser.ConfigParser()
-	config.read(os.path.join(os.getcwd(), 'platformio.ini'))
-	minify_opt = config.get('common', 'minify', fallback='true')
-do_minify = minify_opt.lower() in ('1', 'true', 'yes', 'on')
+def main():
+	ensure_html_minifier()
+	ensure_terser()
+
+	minify_opt = os.environ.get('PLATFORMIO_MINIFY')
+	if minify_opt is None:
+		config = configparser.ConfigParser()
+		config.read(os.path.join(os.getcwd(), 'platformio.ini'))
+		minify_opt = config.get('common', 'minify', fallback='true')
+	do_minify = minify_opt.lower() in ('1', 'true', 'yes', 'on')
 
 
-
-
-# Add force parameter via environment variable or command line
-parser = argparse.ArgumentParser()
-parser.add_argument('--force', action='store_true', help='Force regeneration of all .inc files')
-args, unknown = parser.parse_known_args()
-force = args.force or os.environ.get('EMBED_ASSETS_FORCE', '0') in ('1', 'true', 'yes', 'on')
-
-all_ok = True
-for src, dst in ASSETS:
-	src_path = os.path.join(ASSET_DIR, src)
-	inc_path = os.path.join(OUT_DIR, dst)
-	if asset_needs_update(src_path, inc_path, force=force):
-		if os.path.exists(inc_path):
-			try:
-				os.remove(inc_path)
-			except Exception as e:
-				print(f'WARNING: Could not delete {inc_path}: {e}')
-		ok = to_inc(src, dst, do_minify)
-		all_ok = all_ok and ok
+	# Add force parameter via environment variable or command line
+	parser = argparse.ArgumentParser()
+	parser.add_argument('--force', action='store_true', help='Force regeneration of all .inc files')
+	args, unknown = parser.parse_known_args()
+	force = args.force or os.environ.get('EMBED_ASSETS_FORCE', '0') in ('1', 'true', 'yes', 'on')
+	all_ok = True
+	for src, dst in ASSETS:
+		src_path = os.path.join(ASSET_DIR, src)
+		inc_path = os.path.join(OUT_DIR, dst)
+		if asset_needs_update(src_path, inc_path, force=force):
+			if os.path.exists(inc_path):
+				try:
+					os.remove(inc_path)
+				except Exception as e:
+					logging.warning(f'Could not delete {inc_path}: {e}')
+			ok = to_inc(src, dst, do_minify)
+			all_ok = all_ok and ok
+		else:
+			logging.info(f'Skipping unchanged asset: {src}')
+	if all_ok:
+		logging.info('Web assets embedded as .inc files.')
 	else:
-		print(f'Skipping unchanged asset: {src}')
-if all_ok:
-	print('Web assets embedded as .inc files.')
-else:
-	print('Some assets failed to embed. See errors above.', file=sys.stderr)
-	sys.exit(1)
+		logging.error('Some assets failed to embed. See errors above.')
+		sys.exit(1)
+
+main()

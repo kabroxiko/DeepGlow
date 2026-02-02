@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 # PlatformIO SCons extra_script for User_Setup.h generation
+
 import os
+import sys
 import logging
+
+# Only run for build or upload targets
+pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
+if not any(x in pio_targets for x in ['build', 'upload']):
+    print('link_user_setup.py: Skipping script (not build/upload target).')
+    sys.exit(0)
+
+
 from SCons.Script import Import
 Import("env")
-logging.basicConfig(level=logging.INFO, format='[link_user_setup_scons] %(message)s')
+logging.basicConfig(level=logging.INFO, format='[link_user_setup] %(message)s')
+env_name = env["PIOENV"]
 
 USER_SETUP_TEMPLATE = """
 // TEST UNIQUE HEADER: DeepGlow PlatformIO overwrite check
@@ -70,28 +81,32 @@ def generate_user_setup_h(path, vals):
     )
     with open(path, 'w') as f:
         f.write(content)
-    logging.info(f"Overwrote {path} with template header")
 
-# SCons hook
 
-def pre_build_action(source, target, env):
-    project_root = env['PROJECT_DIR']
+def main():
+    project_root = os.getcwd()
     display_h_path = os.path.join(project_root, 'src', 'display.h')
-    vals = parse_display_h(display_h_path)
-    libdeps_dir = os.path.join(project_root, '.pio', 'libdeps')
-    with open(os.path.join(project_root, 'link_user_setup_scons.log'), 'a') as logf:
-        logf.write('link_user_setup_scons.py executed\n')
-    if not os.path.exists(libdeps_dir):
-        logging.info(f"libdeps directory not found: {libdeps_dir}")
-        return
-    for env_name in os.listdir(libdeps_dir):
-        tft_dir = os.path.join(libdeps_dir, env_name, 'TFT_eSPI')
-        if os.path.isdir(tft_dir):
-            user_setup_dst = os.path.join(tft_dir, 'User_Setup.h')
+    if not os.path.exists(display_h_path):
+        logging.error(f"display.h not found at {display_h_path}. User_Setup.h will not be generated!")
+    else:
+        vals = parse_display_h(display_h_path)
+        tft_dir = os.path.join(project_root, '.pio', 'libdeps', env_name, 'TFT_eSPI')
+        with open(os.path.join(project_root, 'link_user_setup.log'), 'a') as logf:
+            logf.write(f'link_user_setup.py executed for env: {env_name}\n')
+        if not os.path.isdir(tft_dir):
             try:
-                generate_user_setup_h(user_setup_dst, vals)
-                logging.info(f"Generated {user_setup_dst}")
+                os.makedirs(tft_dir, exist_ok=True)
+                logging.info(f"Created TFT_eSPI directory: {tft_dir}")
             except Exception as e:
-                logging.info(f"Failed to generate {user_setup_dst}: {e}")
+                logging.error(f"Failed to create TFT_eSPI directory {tft_dir}: {e}")
+                sys.exit(1)
+        user_setup_dst = os.path.join(tft_dir, 'User_Setup.h')
+        try:
+            # Always overwrite User_Setup.h to ensure it is up to date
+            generate_user_setup_h(user_setup_dst, vals)
+            logging.info(f"Generated {user_setup_dst}")
+        except Exception as e:
+            logging.error(f"Failed to generate {user_setup_dst}: {e}")
+            sys.exit(1)
 
-env.AddPreAction("buildprog", pre_build_action)
+main()

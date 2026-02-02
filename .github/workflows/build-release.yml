@@ -32,11 +32,6 @@ jobs:
           pip install --upgrade pip
           pip install platformio intelhex
 
-      - name: Update PlatformIO libraries
-        run: |
-          source .venv/bin/activate
-          pio pkg update
-
       - name: Install PlatformIO libraries (explicit)
         run: |
           source .venv/bin/activate
@@ -48,9 +43,10 @@ jobs:
         with:
           path: |
             .venv
+            .pio
             ~/.platformio/.cache
             ~/.platformio/lib
-          key: pio-venv-deps-${{ hashFiles('platformio.ini', 'VERSION') }}
+          key: pio-venv-deps
 
   build:
     needs: deps
@@ -61,10 +57,6 @@ jobs:
     outputs:
       envs: ${{ toJson(matrix.env) }}
     steps:
-      - name: Clean all build output directories (prevent stale artifacts)
-        run: |
-          rm -rf .pio/build
-
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -75,17 +67,12 @@ jobs:
             .venv
             ~/.platformio/.cache
             ~/.platformio/lib
-          key: pio-venv-deps-${{ hashFiles('platformio.ini', 'VERSION') }}
+          key: pio-venv-deps
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-
-      - name: Activate venv and ensure PlatformIO
-        run: |
-          source .venv/bin/activate
-          pip install --upgrade pip
 
       - name: Build firmware for ${{ matrix.env }} (with retry)
         run: |

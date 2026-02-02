@@ -24,7 +24,7 @@
 #include "presets.h"
 #include "state.h"
 #include "transition.h"
-#include "version.h"
+#include "inc/version.inc"
 #include "webserver.h"
 
 // Global externs for transition state
@@ -272,7 +272,7 @@ void WebServerManager::setupRoutes() {
                 logRequest(request);
                 AsyncWebServerResponse *resp = request->beginResponse(
                     200, "application/json",
-                    String("{\"version\":\"") + getFirmwareVersion() + "\"}");
+                    String("{\"version\":\"") + FW_VERSION + "\"}");
                 for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
                   resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
                 request->send(resp);
