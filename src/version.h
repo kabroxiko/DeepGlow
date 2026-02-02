@@ -1,3 +1,3 @@
 #pragma once
 
-const char* getFirmwareVersion();
+const char *getFirmwareVersion();

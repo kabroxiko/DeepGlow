@@ -6,6 +6,6 @@
 #endif
 #include <Arduino.h>
 
-void startCaptivePortal(const IPAddress& apIP);
+void startCaptivePortal(const IPAddress &apIP);
 void stopCaptivePortal();
 void handleCaptivePortalDns();

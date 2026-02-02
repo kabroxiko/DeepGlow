@@ -6,7 +6,6 @@
 import os
 import subprocess
 import sys
-import urllib.request
 import tempfile
 import re
 import configparser
@@ -15,8 +14,8 @@ import argparse
 # Skip script if PlatformIO target is erase, or clean
 pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
 if any(x in pio_targets for x in ['erase', 'clean', 'buildfs', 'uploadfs']):
-	print('embed_assets.py: Skipping script for erase/clean target.')
-	sys.exit(0)
+    print('embed_assets.py: Skipping script for erase/clean target.')
+    sys.exit(0)
 
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR = os.path.join(os.getcwd(), 'src/assets')
@@ -26,19 +25,15 @@ OUT_DIR = os.path.join(os.getcwd(), 'src/inc')
 os.makedirs(OUT_DIR, exist_ok=True)
 
 
-
 # Only delete and regenerate .inc files for assets that have changed, unless force is True
 def asset_needs_update(src_path, inc_path, force=False):
-	if force:
-		return True
-	if not os.path.exists(inc_path):
-		return True
-	src_mtime = os.path.getmtime(src_path)
-	inc_mtime = os.path.getmtime(inc_path)
-	return src_mtime > inc_mtime
-
-
-
+    if force:
+        return True
+    if not os.path.exists(inc_path):
+        return True
+    src_mtime = os.path.getmtime(src_path)
+    inc_mtime = os.path.getmtime(inc_path)
+    return src_mtime > inc_mtime
 
 
 # Ensure html-minifier-terser and terser are available once at the start

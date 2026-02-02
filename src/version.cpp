@@ -1,5 +1,3 @@
 #include "version.h"
 
-const char* getFirmwareVersion() {
-    return APP_VERSION;
-}
+const char *getFirmwareVersion() { return APP_VERSION; }
