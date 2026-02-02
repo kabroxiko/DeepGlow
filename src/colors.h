@@ -1,5 +1,11 @@
 #pragma once
 #include <cstdint>
+#include <cstring>
+#include <cmath>
+#include <cstdio>
+#include <array>
+#include <vector>
+#include <WString.h>
 
 // Packing/unpacking
 inline uint32_t pack_rgb(uint8_t r, uint8_t g, uint8_t b) {
@@ -37,6 +43,16 @@ inline uint32_t parse_hex_rgbw(const char* hexstr) {
   return pack_rgbw(r, g, b, w);
 }
 
+// Helper to convert color hex strings to array
+inline std::array<uint32_t, 8> parse_colors_vec(const std::vector<String>& colorsVec) {
+  std::array<uint32_t, 8> colors = {0};
+  for (size_t i = 0; i < colorsVec.size() && i < 8; ++i) {
+    const String& hex = colorsVec[i];
+    colors[i] = (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
+  }
+  return colors;
+}
+
 // Math
 inline void scale_rgbw_brightness(uint8_t in_r, uint8_t in_g, uint8_t in_b, uint8_t in_w, uint8_t brightness, uint8_t &out_r, uint8_t &out_g, uint8_t &out_b, uint8_t &out_w) {
   out_r = (uint8_t)ceilf((float)in_r * brightness / 255.0f);
@@ -44,6 +60,7 @@ inline void scale_rgbw_brightness(uint8_t in_r, uint8_t in_g, uint8_t in_b, uint
   out_b = (uint8_t)ceilf((float)in_b * brightness / 255.0f);
   out_w = (uint8_t)ceilf((float)in_w * brightness / 255.0f);
 }
+
 inline void blend_rgbw_brightness(uint32_t c0, uint32_t c1, float frac, uint8_t brightness, uint8_t& r, uint8_t& g, uint8_t& b, uint8_t& w) {
   r = (uint8_t)ceilf(((((c0 >> 24) & 0xFF) * (1.0f - frac) + ((c1 >> 24) & 0xFF) * frac) * brightness) / 255.0f);
   g = (uint8_t)ceilf(((((c0 >> 16) & 0xFF) * (1.0f - frac) + ((c1 >> 16) & 0xFF) * frac) * brightness) / 255.0f);

@@ -67,6 +67,8 @@ std::vector<Timer> lastTimers;
 // Track last scheduled preset applied by timer
 int8_t lastScheduledPreset = -1;
 
+extern TransitionEngine transition;
+
 // Function declarations
 void setupWiFi();
 void setupLEDs();
@@ -102,7 +104,6 @@ void setup() {
     digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
 
     // Initialize transition engine brightness to default
-    extern TransitionEngine transition;
     transition.forceCurrentBrightness(state.brightness);
 
     delay(1000);
@@ -126,7 +127,7 @@ void setup() {
     webServer.onPowerChange(setPower);
     webServer.onBrightnessChange(setBrightness);
     webServer.onEffectChange(setEffect);
-    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, transition.getTargetBrightness()); });
+    webServer.onPresetApply([](uint8_t presetId) { applyPreset(presetId, transition._targetState.brightness); });
     webServer.onConfigChange([]() {
         pinMode(config.led.relayPin, OUTPUT);
         digitalWrite(config.led.relayPin, state.power ? (config.led.relayActiveHigh ? HIGH : LOW) : (config.led.relayActiveHigh ? LOW : HIGH));
@@ -154,11 +155,9 @@ void setup() {
             lastConfiguration.led.colorOrder = config.led.colorOrder;
         }
         if (ledChanged) {
-            uint8_t prevBrightness = transition.getCurrentBrightness();
-            uint32_t prevColor1 = transition.getCurrentColor1();
-            uint32_t prevColor2 = transition.getCurrentColor2();
+            transition._previousState = transition._currentState;
             transition = TransitionEngine();
-            transition.startEffectAndBrightnessTransition(prevBrightness, prevColor1, prevColor2, 0);
+            transition.startTransition(transition._previousState, 0);
             updateLEDs();
             setEffect(state.effect, state.params);
             setBrightness(state.brightness);

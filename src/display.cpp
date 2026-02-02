@@ -2,6 +2,9 @@
 #include "config.h"
 #include "transition.h"
 
+extern TransitionEngine transition;
+
+// TFT display instance
 TFT_eSPI tft = TFT_eSPI(TFT_WIDTH, TFT_HEIGHT);
 
 void setup_display() {
@@ -51,8 +54,7 @@ void setup_display() {
 }
 
 void display_status(const char* preset, bool power, const char* ip) {
-    extern TransitionEngine transition;
-    uint8_t targetBrightness = transition.getTargetBrightness();
+    uint8_t targetBrightness = transition._targetState.brightness;
     tft.fillScreen(TFT_BLACK);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
     tft.setTextSize(1);

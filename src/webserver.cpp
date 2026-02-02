@@ -1,3 +1,4 @@
+// =================== INCLUDES & GLOBALS ===================
 #if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)
 #include <pgmspace.h>
 #endif
@@ -7,6 +8,7 @@
 #include "inc/style_css.inc"
 #include "inc/config_html.inc"
 #include "inc/config_js.inc"
+
 #include <Ticker.h>
 #include <LittleFS.h>
 #include <WiFiClientSecure.h>
@@ -25,21 +27,18 @@
 #include "ota.h"
 #include "webserver.h"
 
+// Global externs for transition state
+extern TransitionEngine transition;
+extern SystemState state;
+extern TransitionEngine::PendingTransitionState pendingTransition;
+
 // Interval for live LED data broadcast (ms)
 #define LIVE_LED_BROADCAST_INTERVAL_MS 400
 
-// Stub implementations for OTA memory management hooks
-void pauseEffects() {}
-void pauseWebServer() {}
-void resumeEffects() {}
-void resumeWebServer() {}
-
-// Suppress live WebSocket messages during OTA
-extern volatile bool otaInProgress;
 static Ticker liveLedTicker;
 static bool liveLedTick = false;
 
-// Helper: CORS headers for API responses
+// CORS headers for API responses
 static const char* CORS_HEADERS[][2] = {
     {"Access-Control-Allow-Origin", "*"},
     {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
@@ -47,15 +46,23 @@ static const char* CORS_HEADERS[][2] = {
 };
 static const size_t CORS_HEADER_COUNT = sizeof(CORS_HEADERS) / sizeof(CORS_HEADERS[0]);
 
-extern TransitionEngine transition;
-extern SystemState state;
-
-// Helper: URL decode for form fields (declaration)
-static String urlDecode(const String& input);
-
 // Cached effect list JSON
 static String cachedEffectsJson;
 static bool effectsCacheReady = false;
+
+// =================== STUBS & HELPERS ===================
+void pauseEffects() {}
+void pauseWebServer() {}
+void resumeEffects() {}
+void resumeWebServer() {}
+static String urlDecode(const String& input);
+static String extractJsonBody(AsyncWebServerRequest* request, uint8_t* data, size_t len);
+static String extractPostBody(AsyncWebServerRequest* request);
+template<typename TDoc>
+static bool parseJsonOrRespond(AsyncWebServerRequest* request, const String& jsonStr, TDoc& doc);
+void buildEffectsCache();
+
+// =================== WEBSERVERMANAGER METHODS ===================
 
 // --- OTA Status WebSocket Broadcast ---
 void WebServerManager::broadcastOtaStatus(const String& status, const String& message, int progress) {
@@ -111,7 +118,6 @@ void buildEffectsCache() {
     // Populate effects array from the effect registry (portable vector-based)
     StaticJsonDocument<4096> doc;
     JsonArray effects = doc.createNestedArray("effects");
-    extern std::vector<EffectRegistryEntry> effectRegistry;
     for (size_t i = 0; i < effectRegistry.size(); ++i) {
         JsonObject eff = effects.createNestedObject();
         eff["id"] = effectRegistry[i].id;
@@ -161,7 +167,6 @@ void WebServerManager::update() {
     // --- Periodic live LED data broadcast as binary blob ---
     if (liveLedTick) {
         liveLedTick = false;
-        if (otaInProgress) return;
         uint16_t n = _config->led.count;
         if (n > 0 && _ws->count() > 0) {
             bool allReady = true;
@@ -172,7 +177,6 @@ void WebServerManager::update() {
                 }
             }
             if (allReady) {
-                extern std::vector<uint32_t>* g_outputFramePtr;
                 const std::vector<uint32_t>* src = (g_outputFramePtr && g_outputFramePtr->size() >= n) ? g_outputFramePtr : nullptr;
                 std::vector<uint8_t> buf(n * 4, 0);
                 if (src) {
@@ -846,9 +850,6 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest* request, uint8_t* d
 
 String WebServerManager::getStateJSON() {
     StaticJsonDocument<512> doc;
-    extern TransitionEngine transition;
-    extern PendingTransitionState pendingTransition;
-    // Only use pendingTransition for fields that actually change during a transition
     if (state.inTransition) {
         doc["power"] = true;
         doc["effect"] = pendingTransition.effect;
@@ -873,7 +874,7 @@ String WebServerManager::getStateJSON() {
         }
     }
     // These fields are always reported from state/transition engine
-    doc["brightness"] = hexToPercent(transition.getTargetBrightness());
+    doc["brightness"] = hexToPercent(transition._targetState.brightness);
     doc["transitionTime"] = state.transitionTime;
     doc["time"] = _scheduler->isTimeValid() ? _scheduler->getCurrentTime() : "--:--";
     doc["sunrise"] = _scheduler->getSunriseTime();
@@ -957,9 +958,7 @@ bool WebServerManager::applyTransitionTimeLimit(uint32_t& transitionTime) {
 
 void WebServerManager::broadcastState() {
     // Sync config.state.brightness with transition engine before broadcasting
-    extern TransitionEngine transition;
-    // Store as percent for reporting
-    state.brightness = transition.getCurrentBrightness();
+    state.brightness = transition._currentState.brightness;
     String stateJSON = getStateJSON();
     _ws->textAll(stateJSON);
 }

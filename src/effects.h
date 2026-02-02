@@ -26,11 +26,6 @@ struct EffectRegistryEntry {
 };
 extern std::vector<EffectRegistryEntry> effectRegistry;
 
-struct PendingTransitionState {
-	uint8_t effect = 0;
-	EffectParams params;
-	uint8_t preset = 0;
-};
 
 // Centralized effect speed to delay mapping
 uint32_t getEffectDelayMs(const EffectParams& params);

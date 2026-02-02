@@ -12,7 +12,7 @@
 extern std::array<uint32_t, 8> color;
 extern SystemState state;
 extern EffectParams transitionPrevParams;
-extern PendingTransitionState pendingTransition;
+extern TransitionEngine::PendingTransitionState pendingTransition;
 extern BusManager busManager;
 extern Configuration config;
 
