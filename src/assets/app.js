@@ -84,28 +84,38 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   setupEventListeners();
 
-  // Only load effects, presets, and timers on the home page (index.html)
+  // Only load effects, presets, timers, and config on the home page (index.html)
   if (
     window.location.pathname.endsWith("index.html") ||
     window.location.pathname === "/" ||
     window.location.pathname === "/index.html"
   ) {
-    loadEffects().then(() => {
-      if (typeof loadPresets === "function") loadPresets();
-      if (typeof loadTimers === "function") loadTimers();
-    });
-    // Fetch and display version
-    fetch(BASE_URL + "/api/version")
+    // Fetch config first
+    fetch(BASE_URL + "/api/config")
       .then((r) => r.json())
-      .then((data) => {
-        if (data && data.version) {
-          const vEl = document.getElementById("versionString");
-          if (vEl) vEl.textContent = "Version: " + data.version;
-        }
+      .then((cfg) => {
+        window.config = cfg;
+        // Now load effects, presets, and timers
+        loadEffects().then(() => {
+          if (typeof loadPresets === "function") loadPresets();
+          if (typeof loadTimers === "function") loadTimers();
+        });
+        // Fetch and display version
+        fetch(BASE_URL + "/api/version")
+          .then((r) => r.json())
+          .then((data) => {
+            if (data && data.version) {
+              const vEl = document.getElementById("versionString");
+              if (vEl) vEl.textContent = "Version: " + data.version;
+            }
+          })
+          .catch(() => {
+            const vEl = document.getElementById("versionString");
+            if (vEl) vEl.textContent = "Version: (unavailable)";
+          });
       })
       .catch(() => {
-        const vEl = document.getElementById("versionString");
-        if (vEl) vEl.textContent = "Version: (unavailable)";
+        alert("Failed to load config from backend. Brightness graph and transitions may not work correctly.");
       });
   }
 
@@ -952,6 +962,59 @@ function applyPreset(presetId) {
 // Removed loadTimers (timers are part of config API)
 // Render a 24h brightness graph reflecting scheduled preset brightness
 function renderBrightnessGraph() {
+    // Plugin to draw colored rectangles for each hour as chart background
+    const hourlyBackgroundPlugin = {
+      id: 'hourlyBackground',
+      beforeDatasetsDraw: (chart) => {
+        const {ctx, chartArea, scales} = chart;
+        if (!chartArea) return;
+        const xAxis = scales.x;
+        const meta = chart.getDatasetMeta(0);
+        if (!meta || !meta.data) return;
+        for (let hour = 0; hour < 24; hour++) {
+          const x0 = xAxis.getPixelForValue(hour);
+          const x1 = xAxis.getPixelForValue(hour + 1);
+          // Find Y on the line at x0 and x1 (interpolate if needed)
+          let y0 = chartArea.bottom;
+          let y1 = chartArea.bottom;
+          for (let j = 0; j < meta.data.length - 1; j++) {
+            const p1 = meta.data[j];
+            const p2 = meta.data[j+1];
+            if (p1.x <= x0 && p2.x >= x0) {
+              const t = (x0 - p1.x) / (p2.x - p1.x);
+              y0 = p1.y + t * (p2.y - p1.y);
+              break;
+            }
+          }
+          for (let j = 0; j < meta.data.length - 1; j++) {
+            const p1 = meta.data[j];
+            const p2 = meta.data[j+1];
+            if (p1.x <= x1 && p2.x >= x1) {
+              const t = (x1 - p1.x) / (p2.x - p1.x);
+              y1 = p1.y + t * (p2.y - p1.y);
+              break;
+            }
+          }
+          ctx.save();
+          // Create a horizontal gradient between this hour and the next
+          const colorStart = bgColors[hour - 1] || 'rgba(0,116,217,0.08)';
+          const colorEnd = bgColors[hour] || bgColors[hour] || 'rgba(0,116,217,0.08)';
+          const grad = ctx.createLinearGradient(x0, 0, x1, 0);
+          grad.addColorStop(0, colorStart);
+          grad.addColorStop(1, colorEnd);
+          ctx.fillStyle = grad;
+          ctx.globalAlpha = 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x0, y0);
+          ctx.lineTo(x1, y1);
+          ctx.lineTo(x1, chartArea.bottom);
+          ctx.lineTo(x0, chartArea.bottom);
+          ctx.closePath();
+          ctx.fill();
+          ctx.restore();
+        }
+      }
+    };
   const ctx = document.getElementById("brightnessGraph");
   if (
     !ctx ||
@@ -961,13 +1024,9 @@ function renderBrightnessGraph() {
   )
     return;
 
-  // Prepare 24h data, 1 point per 10 minutes (144 points)
-  const pointsPerHour = 6;
-  const totalPoints = 24 * pointsPerHour;
-  const labels = [];
-  const data = new Array(totalPoints).fill(null);
 
-  // Build a list of timer events sorted by time
+  // --- NEW: Use only calculated shift points for graph ---
+  const minutesPerDay = 24 * 60;
   const events = timers
     .filter(
       (timer) =>
@@ -983,7 +1042,6 @@ function renderBrightnessGraph() {
     }))
     .sort((a, b) => a.time - b.time);
 
-  // If no events, clear chart
   if (events.length === 0) {
     if (window.brightnessChart) {
       window.brightnessChart.destroy();
@@ -992,34 +1050,119 @@ function renderBrightnessGraph() {
     return;
   }
 
-  // For each 10-min interval, determine active timer and its brightness, wrapping to previous day if needed
-  let currentEventIdx = 0;
-  for (let i = 0; i < totalPoints; i++) {
-    const minutes = i * 10;
-    // Advance to next event if time passed
-    while (
-      currentEventIdx < events.length - 1 &&
-      minutes >= events[currentEventIdx + 1].time
-    ) {
-      currentEventIdx++;
-    }
-    // If before the first event, use the last event's brightness (cycle from previous day)
-    let brightness;
-    if (minutes < events[0].time) {
-      brightness = events[events.length - 1].brightness;
-    } else {
-      brightness = events[currentEventIdx].brightness;
-    }
-    data[i] = brightness;
-    // Label every hour
-    labels.push(
-      i % pointsPerHour === 0
-        ? (i / pointsPerHour).toString().padStart(2, "0") + ":00"
-        : "",
-    );
+  let transitionDuration;
+  if (window.config && window.config.transitionTimes && typeof window.config.transitionTimes.schedule === "number") {
+    transitionDuration = window.config.transitionTimes.schedule / 60000;
+  } else {
+    alert("Missing config.transitionTimes.schedule! Brightness graph cannot show transitions correctly.");
+    return;
   }
 
-  // Calculate current time index using server time if available
+  // Build key points: event times, ramp ends, and explicit start/end of day
+  let n = events.length;
+  let points = [];
+  for (let i = 0; i < n; i++) {
+    let prevIdx = (i - 1 + n) % n;
+    let tCurr = events[i].time;
+    let tPrev = events[prevIdx].time;
+    let bCurr = events[i].brightness;
+    let bPrev = events[prevIdx].brightness;
+    // At event time: start ramp from bPrev to bCurr
+    points.push({
+      time: tCurr,
+      brightness: bPrev,
+    });
+    // At ramp end: reach bCurr
+    let rampEnd = (tCurr + transitionDuration) % minutesPerDay;
+    points.push({
+      time: rampEnd,
+      brightness: bCurr,
+    });
+  }
+  // --- Calculate correct brightness at 00:00 and 24:00 for wrap-around transition ---
+  let firstIdx = 0;
+  let firstEvent = events[firstIdx];
+  let lastEvent = events[(n - 1 + n) % n];
+  let t0 = firstEvent.time;
+  let t1 = lastEvent.time;
+  let prevIdx = (n - 2 + n) % n;
+  let bStart = events[prevIdx].brightness;
+  let bEnd = lastEvent.brightness;
+  let D = transitionDuration;
+  let midnightBrightness;
+  // Check if there is a ramp that crosses midnight (t1 + D > minutesPerDay)
+  let rampCrossesMidnight = (t1 + D > minutesPerDay);
+  if (rampCrossesMidnight && t1 !== t0) {
+    // 00:00 is inside the ramp from t1 to (t1 + D)
+    let rampStart = t1;
+    let rampEnd = (t1 + D);
+    let frac = (minutesPerDay - rampStart) / (rampEnd - rampStart);
+    midnightBrightness = bStart + (bEnd - bStart) * frac;
+    points.push({ time: 0, brightness: midnightBrightness });
+    points.push({ time: minutesPerDay, brightness: midnightBrightness });
+  } else {
+    // No ramp across midnight: flat extension
+    midnightBrightness = bEnd;
+    points.push({ time: 0, brightness: midnightBrightness });
+    points.push({ time: minutesPerDay, brightness: midnightBrightness });
+  }
+  // Sort points by time (wrap-around)
+  points.sort((a, b) => a.time - b.time);
+  // Remove duplicate time values (keep last occurrence)
+  let uniquePoints = [];
+  let seen = new Set();
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (!seen.has(points[i].time)) {
+      uniquePoints.unshift(points[i]);
+      seen.add(points[i].time);
+    }
+  }
+
+  // Build labels for every hour (00:00, 01:00, ..., 24:00)
+  const labels = [];
+  const data = [];
+  const bgColors = [];
+  for (let hour = 0; hour <= 24; hour++) {
+    labels.push(hour.toString().padStart(2, "0") + ":00");
+    let minute = hour * 60;
+    // Find the two points surrounding this minute
+    let prev = uniquePoints[0];
+    let next = uniquePoints[uniquePoints.length - 1];
+    for (let i = 0; i < uniquePoints.length; i++) {
+      if (uniquePoints[i].time <= minute) prev = uniquePoints[i];
+      if (uniquePoints[i].time > minute) {
+        next = uniquePoints[i];
+        break;
+      }
+    }
+    // Linear interpolate if between points, else use prev brightness
+    let val;
+    if (next.time !== prev.time && minute > prev.time && minute < next.time) {
+      let frac = (minute - prev.time) / (next.time - prev.time);
+      val = prev.brightness + (next.brightness - prev.brightness) * frac;
+    } else {
+      val = prev.brightness;
+    }
+    data.push(val);
+    // Find active timer for this hour (fallback to previous if missing)
+    let activeTimer = null;
+    for (let i = 0; i < timers.length; i++) {
+      let tMin = timers[i].hour * 60 + timers[i].minute;
+      if (tMin <= minute) activeTimer = timers[i];
+    }
+    if (!activeTimer) activeTimer = timers[0];
+    // Get primary color from preset, fallback to previous preset if missing
+    let preset = presets.find(p => p.id === activeTimer.presetId);
+    if (!preset && presets.length > 0) preset = presets[0];
+    let primaryColor = (preset && preset.params && preset.params.colors && preset.params.colors[0]) ? preset.params.colors[0] : null;
+    // Convert to preview color, fallback to blue if invalid
+    let previewColor = primaryColor ? rgbwHexToPreview(primaryColor) : "rgb(0,116,217)";
+    // If still black or invalid, use a visible fallback
+    if (!previewColor || previewColor === "rgb(0,0,0)") previewColor = "rgba(0,116,217,0.15)";
+    console.log(`[BGColor] Hour ${hour}: timer`, activeTimer, 'preset', preset, 'primaryColor', primaryColor, 'previewColor', previewColor);
+    bgColors.push(previewColor);
+  }
+
   let minutesNow = 0;
   if (
     currentState &&
@@ -1032,22 +1175,23 @@ function renderBrightnessGraph() {
     const now = new Date();
     minutesNow = now.getHours() * 60 + now.getMinutes();
   }
-  const currentIndex = Math.floor(minutesNow / 10);
+  // Use fractional hour for precise vertical line
+  const currentHour = minutesNow / 60;
 
   // Draw chart with vertical line for current time
   const annotationPlugin = {
     id: "currentTimeLine",
     afterDraw: (chart) => {
       if (
-        typeof currentIndex !== "number" ||
-        currentIndex < 0 ||
-        currentIndex >= totalPoints
+        typeof currentHour !== "number" ||
+        currentHour < 0 ||
+        currentHour > 24
       )
         return;
       const ctx = chart.ctx;
       const xAxis = chart.scales.x;
       const yAxis = chart.scales.y;
-      const x = xAxis.getPixelForValue(currentIndex);
+      const x = xAxis.getPixelForValue(currentHour);
       ctx.save();
       ctx.beginPath();
       ctx.moveTo(x, yAxis.top);
@@ -1076,11 +1220,11 @@ function renderBrightnessGraph() {
             label: "Brightness (%)",
             data: data,
             borderColor: "#0074D9",
-            backgroundColor: "rgba(0,116,217,0.1)",
+            backgroundColor: 'rgba(0,0,0,0)', // transparent, handled by plugin
             fill: true,
             pointRadius: 0,
             borderWidth: 2,
-            tension: 0.2,
+            tension: 0, // No curve, straight lines
           },
         ],
       },
@@ -1103,7 +1247,7 @@ function renderBrightnessGraph() {
           },
         },
       },
-      plugins: [annotationPlugin],
+      plugins: [hourlyBackgroundPlugin, annotationPlugin],
     });
   }
 }
