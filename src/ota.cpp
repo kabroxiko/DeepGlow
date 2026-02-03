@@ -115,62 +115,47 @@ String getLatestFirmwareUrl(String &latestVersion) {
 }
 
 // Perform OTA update from the latest GitHub release for this environment
-bool performGzOtaUpdate(String &errorOut) {
-  otaInProgress = true;
-  totalBytesWritten = 0;
-  updateStarted = false;
 
-  if (webServerPtr)
-    webServerPtr->broadcastOtaStatus("start", "OTA update started");
-
-  String latestVersion;
-  String firmwareUrl = getLatestFirmwareUrl(latestVersion);
-  if (firmwareUrl.isEmpty()) {
-    errorOut = "Could not determine latest firmware URL.";
-    otaInProgress = false;
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("error", errorOut);
-    return false;
+// Helper: Broadcast OTA status if webServerPtr is set
+static void broadcastOtaStatus(const String &status, const String &msg, int progress = -1) {
+  if (webServerPtr) {
+    if (progress >= 0)
+      webServerPtr->broadcastOtaStatus(status, msg, progress);
+    else
+      webServerPtr->broadcastOtaStatus(status, msg);
   }
+}
 
-  // TODO: Compare latestVersion to current version, skip if not newer
-
-  WiFiClientSecure client;
+// Helper: Download firmware and return HTTPClient and stream pointer
+static bool downloadFirmware(const String &firmwareUrl, HTTPClient &http, WiFiClientSecure &client, int &contentLength, String &errorOut) {
   client.setInsecure();
   client.setTimeout(30);
-
-  HTTPClient http;
   http.begin(client, firmwareUrl);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setUserAgent("ESP32-OTA-Updater");
-
   int httpCode = http.GET();
   if (httpCode != HTTP_CODE_OK) {
     errorOut = String("HTTP error code: ") + httpCode;
     http.end();
-    otaInProgress = false;
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("error", errorOut);
     return false;
   }
-
-  int contentLength = http.getSize();
+  contentLength = http.getSize();
   if (contentLength <= 0) {
     errorOut = "Invalid content length";
     http.end();
-    otaInProgress = false;
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("error", errorOut);
     return false;
   }
+  return true;
+}
 
-  WiFiClient *stream = http.getStreamPtr();
-
+// Helper: Decompress and update firmware
+static bool decompressAndUpdate(WiFiClient *stream, int contentLength, String &errorOut) {
   GzUnpacker *GZUnpacker = new GzUnpacker();
+  totalBytesWritten = 0;
+  updateStarted = false;
   GZUnpacker->setStreamWriter(gzWriteCallback);
   GZUnpacker->setGzProgressCallback([](uint8_t progress) {
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
+    broadcastOtaStatus("progress", "Decompressing", progress);
     static uint8_t dotCount = 0;
     if (++dotCount >= 8) {
       debugPrint(".");
@@ -181,12 +166,8 @@ bool performGzOtaUpdate(String &errorOut) {
 #endif
     yield();
   });
-
-  // Use direct gzStreamExpander call, let callbacks handle watchdog/yield
   bool success = GZUnpacker->gzStreamExpander(stream, contentLength);
   delete GZUnpacker;
-  http.end();
-
   if (!success) {
     errorOut = "Decompression failed!";
     if (updateStarted) {
@@ -196,113 +177,137 @@ bool performGzOtaUpdate(String &errorOut) {
       Update.end(false);
 #endif
     }
-    otaInProgress = false;
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("error", errorOut);
     return false;
   }
-
   if (!updateStarted) {
     errorOut = "Update never started - no data written";
-    otaInProgress = false;
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("error", errorOut);
     return false;
   }
+  return true;
+}
 
+// Helper: Finalize update and check result
+static bool finalizeUpdate(String &errorOut) {
   if (Update.end(true)) {
     if (Update.isFinished()) {
-      otaInProgress = false;
-      if (webServerPtr)
-        webServerPtr->broadcastOtaStatus("success", "OTA update successful");
       return true;
     } else {
       errorOut = "Update not finished properly";
-      otaInProgress = false;
-      if (webServerPtr)
-        webServerPtr->broadcastOtaStatus("error", errorOut);
       return false;
     }
   } else {
     errorOut = String("Update error: ") + Update.getError();
+    return false;
+  }
+}
+
+bool performGzOtaUpdate(String &errorOut) {
+  otaInProgress = true;
+  totalBytesWritten = 0;
+  updateStarted = false;
+
+  broadcastOtaStatus("start", "OTA update started");
+
+  String latestVersion;
+  String firmwareUrl = getLatestFirmwareUrl(latestVersion);
+  if (firmwareUrl.isEmpty()) {
+    errorOut = "Could not determine latest firmware URL.";
     otaInProgress = false;
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("error", errorOut);
+    broadcastOtaStatus("error", errorOut);
+    return false;
+  }
+
+  // TODO: Compare latestVersion to current version, skip if not newer
+
+  WiFiClientSecure client;
+  HTTPClient http;
+  int contentLength = 0;
+  if (!downloadFirmware(firmwareUrl, http, client, contentLength, errorOut)) {
+    otaInProgress = false;
+    broadcastOtaStatus("error", errorOut);
+    return false;
+  }
+
+  WiFiClient *stream = http.getStreamPtr();
+  bool ok = decompressAndUpdate(stream, contentLength, errorOut);
+  http.end();
+  if (!ok) {
+    otaInProgress = false;
+    broadcastOtaStatus("error", errorOut);
+    return false;
+  }
+
+  ok = finalizeUpdate(errorOut);
+  otaInProgress = false;
+  if (ok) {
+    broadcastOtaStatus("success", "OTA update successful");
+    return true;
+  } else {
+    broadcastOtaStatus("error", errorOut);
     return false;
   }
 }
 
 // OTA direct POST handler (moved from webserver.cpp)
-void handleOTAUpdate(AsyncWebServerRequest *request, unsigned char *data,
-                     unsigned int len, unsigned int index, unsigned int total) {
-  static unsigned int lastDot = 0;
-  static File gzFile;
-  static bool isGz = false;
-  static size_t uploaded = 0;
-  if (index == 0) {
-    otaInProgress = true;
-    Serial.println("[HTTP] POST /ota");
-    LittleFS.end();
-    // Clean up any previous upload file to free space
-    if (!LittleFS.begin()) {
-      auto resp = request->beginResponse(
-          500, "application/json", "{\"error\":\"LittleFS mount failed\"}");
-      request->send(resp);
-      return;
-    }
-    LittleFS.remove("/ota_upload.bin.gz");
-    // Check gzip magic number
-    isGz = (len >= 2 && data[0] == 0x1F && data[1] == 0x8B);
-    uploaded = 0;
-    if (isGz) {
-      if (!LittleFS.begin()) {
-        auto resp = request->beginResponse(
-            500, "application/json", "{\"error\":\"LittleFS mount failed\"}");
-        request->send(resp);
-        return;
-      }
-      gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
-      if (!gzFile) {
-        auto resp = request->beginResponse(
-            500, "application/json",
-            "{\"error\":\"Failed to open file for writing\"}");
-        request->send(resp);
-        return;
-      }
-    } else {
-#if defined(ESP32)
-      if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-#elif defined(ESP8266)
-      if (!Update.begin(total)) {
-#endif
-        auto resp = request->beginResponse(
-            500, "application/json", "{\"error\":\"Update.begin failed\"}");
-        request->send(resp);
-        return;
-      }
-      lastDot = 0;
-    }
+
+// Helper: Respond with error and return
+static void otaRespondError(AsyncWebServerRequest *request, const String &msg) {
+  auto resp = request->beginResponse(500, "application/json", String("{\"error\":\"") + msg + "\"}");
+  request->send(resp);
+}
+
+// Helper: Begin OTA upload (index==0)
+static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data, unsigned int len, unsigned int total, File &gzFile, bool &isGz, size_t &uploaded, unsigned int &lastDot) {
+  otaInProgress = true;
+  Serial.println("[HTTP] POST /ota");
+  LittleFS.end();
+  if (!LittleFS.begin()) {
+    otaRespondError(request, "LittleFS mount failed");
+    return false;
   }
+  LittleFS.remove("/ota_upload.bin.gz");
+  isGz = (len >= 2 && data[0] == 0x1F && data[1] == 0x8B);
+  uploaded = 0;
+  if (isGz) {
+    if (!LittleFS.begin()) {
+      otaRespondError(request, "LittleFS mount failed");
+      return false;
+    }
+    gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
+    if (!gzFile) {
+      otaRespondError(request, "Failed to open file for writing");
+      return false;
+    }
+  } else {
+#if defined(ESP32)
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+#elif defined(ESP8266)
+    if (!Update.begin(total)) {
+#endif
+      otaRespondError(request, "Update.begin failed");
+      return false;
+    }
+    lastDot = 0;
+  }
+  return true;
+}
+
+// Helper: Write OTA upload chunk
+static bool otaWriteChunk(AsyncWebServerRequest *request, unsigned char *data, unsigned int len, bool isGz, File &gzFile, size_t &uploaded, unsigned int total, unsigned int index, unsigned int &lastDot) {
   if (isGz) {
     if (!gzFile || gzFile.write(data, len) != len) {
-      auto resp = request->beginResponse(500, "application/json",
-                                         "{\"error\":\"File write error\"}");
-      request->send(resp);
-      return;
+      otaRespondError(request, "File write error");
+      return false;
     }
     uploaded += len;
-    // Show a dot for every 64KB uploaded
     if (uploaded % 65536 < len) {
       debugPrint(".");
     }
   } else {
     if (Update.write(data, len) != len) {
-      auto resp = request->beginResponse(500, "application/json",
-                                         "{\"error\":\"Update write error\"}");
-      request->send(resp);
-      return;
+      otaRespondError(request, "Update write error");
+      return false;
     }
-    // Print progress dots every 1%
     if (total > 0) {
       unsigned int dot = ((index + len) * 100) / total;
       if (dot != lastDot) {
@@ -311,78 +316,98 @@ void handleOTAUpdate(AsyncWebServerRequest *request, unsigned char *data,
       }
     }
   }
+  return true;
+}
+
+// Helper: Finalize OTA upload
+
+// Helper: Decompress and flash uploaded gz file, returns true on success, errorMsg set on failure
+static bool decompressAndFlashUploadedGz(File &inFile, String &errorMsg) {
+  GzUnpacker *GZUnpacker = new GzUnpacker();
+  totalBytesWritten = 0;
+  updateStarted = false;
+  GZUnpacker->setStreamWriter(gzWriteCallback);
+  GZUnpacker->setGzProgressCallback([](uint8_t progress) {
+    if (webServerPtr)
+      webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
+  });
+  bool ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size());
+  delete GZUnpacker;
+  if (!ok) {
+    errorMsg = "Decompression or flash failed";
+    return false;
+  } else if (!updateStarted) {
+    errorMsg = "Update never started - no data written";
+    return false;
+  } else if (!Update.end(true)) {
+    errorMsg = String("Update error: ") + Update.getError();
+    return false;
+  } else if (!Update.isFinished()) {
+    errorMsg = "Update not finished properly";
+    return false;
+  }
+  return true;
+}
+
+static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &gzFile, unsigned int &lastDot) {
+  if (lastDot != 0)
+    Serial.println("");
+  lastDot = 0;
+  AsyncWebServerResponse *resp = nullptr;
+  bool ok = false;
+  String errorMsg;
+  if (isGz && gzFile) {
+    gzFile.close();
+    File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
+    if (!inFile) {
+      otaRespondError(request, "Failed to open uploaded gz file");
+      return;
+    }
+    ok = decompressAndFlashUploadedGz(inFile, errorMsg);
+    inFile.close();
+    LittleFS.remove("/ota_upload.bin.gz");
+  } else {
+    ok = Update.end(true);
+    if (!ok) {
+      errorMsg = String("Update error: ") + Update.getError();
+    } else if (!Update.isFinished()) {
+      errorMsg = "Update not finished properly";
+      ok = false;
+    }
+  }
+  otaInProgress = false;
+  if (ok) {
+    resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
+    Serial.println("OTA update complete, rebooting");
+  } else {
+    String errJson = String("{\"error\":\"") + errorMsg + "\"}";
+    resp = request->beginResponse(500, "application/json", errJson);
+  }
+  for (size_t i = 0; i < 3; ++i)
+    resp->addHeader("Access-Control-Allow-Origin", "*");
+  request->send(resp);
+  if (ok) {
+    request->onDisconnect([]() {
+      delay(100);
+      ESP.restart();
+    });
+  }
+}
+
+void handleOTAUpdate(AsyncWebServerRequest *request, unsigned char *data,
+                     unsigned int len, unsigned int index, unsigned int total) {
+  static unsigned int lastDot = 0;
+  static File gzFile;
+  static bool isGz = false;
+  static size_t uploaded = 0;
+  if (index == 0) {
+    if (!otaBeginUpload(request, data, len, total, gzFile, isGz, uploaded, lastDot))
+      return;
+  }
+  if (!otaWriteChunk(request, data, len, isGz, gzFile, uploaded, total, index, lastDot))
+    return;
   if (index + len == total) {
-    if (lastDot != 0)
-      Serial.println(""); // Ensure LF after last dot
-    lastDot = 0;          // reset for next OTA
-    AsyncWebServerResponse *resp = nullptr;
-    bool ok = false; // Declare ok only once
-    String errorMsg;
-    if (isGz && gzFile) {
-      gzFile.close();
-      // Decompress and flash
-      File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
-      if (!inFile) {
-        resp = request->beginResponse(
-            500, "application/json",
-            "{\"error\":\"Failed to open uploaded gz file\"}");
-        request->send(resp);
-        return;
-      }
-      GzUnpacker *GZUnpacker = new GzUnpacker();
-      totalBytesWritten = 0;
-      updateStarted = false;
-      GZUnpacker->setStreamWriter(gzWriteCallback);
-      GZUnpacker->setGzProgressCallback([](uint8_t progress) {
-        if (webServerPtr)
-          webServerPtr->broadcastOtaStatus("progress", "Decompressing",
-                                           progress);
-      });
-      ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size());
-      delete GZUnpacker;
-      inFile.close();
-      LittleFS.remove("/ota_upload.bin.gz");
-      if (!ok) {
-        errorMsg = "Decompression or flash failed";
-      } else if (!updateStarted) {
-        errorMsg = "Update never started - no data written";
-        ok = false;
-      } else if (!Update.end(true)) {
-        errorMsg = String("Update error: ") + Update.getError();
-        ok = false;
-      } else if (!Update.isFinished()) {
-        errorMsg = "Update not finished properly";
-        ok = false;
-      }
-    } else {
-      ok = Update.end(true);
-      if (!ok) {
-        errorMsg = String("Update error: ") + Update.getError();
-      } else if (!Update.isFinished()) {
-        errorMsg = "Update not finished properly";
-        ok = false;
-      }
-    }
-    // Always clear otaInProgress at the end
-    otaInProgress = false;
-    if (ok) {
-      resp = request->beginResponse(
-          200, "application/json",
-          "{\"success\":true,\"message\":\"Rebooting\"}");
-      Serial.println("OTA update complete, rebooting");
-    } else {
-      String errJson = String("{\"error\":\"") + errorMsg + "\"}";
-      resp = request->beginResponse(500, "application/json", errJson);
-    }
-    for (size_t i = 0; i < 3; ++i)
-      resp->addHeader("Access-Control-Allow-Origin", "*");
-    request->send(resp);
-    if (ok) {
-      request->onDisconnect([]() {
-        delay(100);
-        ESP.restart();
-      });
-    }
+    otaFinalizeUpload(request, isGz, gzFile, lastDot);
   }
 }
 
