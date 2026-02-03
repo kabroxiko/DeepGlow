@@ -15,7 +15,7 @@ function rgbwHexToPreview(hex) {
     g = parseInt(hex.slice(2, 4), 16);
     b = parseInt(hex.slice(4, 6), 16);
   }
-  // If only white, show white
+  // If only white channel, always preview as pure white
   if (w > 0 && r === 0 && g === 0 && b === 0) {
     return `rgb(255,255,255)`;
   }
@@ -313,9 +313,12 @@ function initializeWebSocket() {
         let g1 = arr[i * 4 + 1];
         let b1 = arr[i * 4 + 2];
         let wch1 = arr[i * 4 + 3];
-        r1 = Math.min(255, r1 + wch1);
-        g1 = Math.min(255, g1 + wch1);
-        b1 = Math.min(255, b1 + wch1);
+        // If any white channel, force pure white
+        if (wch1 > 0) {
+          r1 = 255;
+          g1 = 255;
+          b1 = 255;
+        }
         let r2 = r1,
           g2 = g1,
           b2 = b1;
@@ -324,9 +327,11 @@ function initializeWebSocket() {
           g2 = arr[(i + 1) * 4 + 1];
           b2 = arr[(i + 1) * 4 + 2];
           let wch2 = arr[(i + 1) * 4 + 3];
-          r2 = Math.min(255, r2 + wch2);
-          g2 = Math.min(255, g2 + wch2);
-          b2 = Math.min(255, b2 + wch2);
+          if (wch2 > 0) {
+            r2 = 255;
+            g2 = 255;
+            b2 = 255;
+          }
         }
         // Create gradient between r1,g1,b1 and r2,g2,b2
         let x0 = i * ledWidth;
