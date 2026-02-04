@@ -8,6 +8,7 @@
 #include "inc/index_html.inc"
 #include "inc/style_css.inc"
 #include "inc/wifi_html.inc"
+#include "inc/index_js.inc"
 
 #include <LittleFS.h>
 #include <Ticker.h>
@@ -512,6 +513,13 @@ void WebServerManager::setupRoutes() {
                 logRequest(request);
                 request->send_P(200, "application/javascript", web_app_js,
                                 web_app_js_len);
+              });
+
+  _server->on("/index.js", HTTP_GET,
+              [logRequest](AsyncWebServerRequest *request) {
+                logRequest(request);
+                request->send_P(200, "application/javascript", web_index_js,
+                                web_index_js_len);
               });
   _server->on(
       "/config.html", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {

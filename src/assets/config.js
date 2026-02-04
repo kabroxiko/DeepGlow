@@ -884,6 +884,132 @@ if (uploadInput && !uploadInput._handlerSet) {
   uploadInput._handlerSet = true;
 }
 
+// OTA upload form handler
+const otaForm = document.getElementById("otaForm");
+if (otaForm) {
+  otaForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const otaFileInput = document.getElementById("otaFile");
+    const otaFile = otaFileInput ? otaFileInput.files[0] : null;
+    if (!otaFile) {
+      showToast("Please select a firmware file.");
+      return;
+    }
+    const otaProgressBar = document.getElementById("otaProgressBar");
+    const otaProgressFill = document.getElementById("otaProgressFill");
+    if (otaProgressBar && otaProgressFill) {
+      otaProgressBar.style.display = "";
+      otaProgressFill.style.width = "0%";
+    }
+    try {
+      let fileToSend = otaFile;
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", BASE_URL + "/ota", true);
+      xhr.setRequestHeader("Accept", "application/json");
+      xhr.upload.onprogress = function (e) {
+        if (e.lengthComputable && otaProgressFill) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          otaProgressFill.style.width = percent + "%";
+        }
+      };
+      xhr.onload = function () {
+        if (otaProgressBar && otaProgressFill) {
+          otaProgressFill.style.width = "100%";
+        }
+        if (xhr.status === 200) {
+          showToast("Firmware uploaded! Rebooting...", 4000);
+          setTimeout(function () {
+            location.reload();
+          }, 4500);
+        } else {
+          showToast(
+            "OTA failed: " + (xhr.responseText || xhr.statusText),
+            6000,
+          );
+        }
+      };
+      xhr.onerror = function () {
+        showToast("OTA upload error.", 6000);
+      };
+      // Send as raw binary, not FormData
+      xhr.send(fileToSend);
+    } catch (err) {
+      showToast("OTA error: " + err, 6000);
+    }
+  });
+}
+
+// OTA file input filename display and progress bar
+const otaFileInput = document.getElementById("otaFile");
+const otaFileName = document.getElementById("otaFileName");
+if (otaFileInput && otaFileName) {
+  otaFileInput.addEventListener("change", function () {
+    otaFileName.textContent =
+      this.files && this.files.length > 0
+        ? this.files[0].name
+        : "No file chosen";
+  });
+}
+
+function editTimer(timerIndex) {
+  const timer = timers[timerIndex];
+  if (!timer) return;
+
+  document.getElementById("timerName").value = timer.name;
+  document.getElementById("timerTime").value = new Date(timer.time)
+    .toISOString()
+    .substring(11, 16);
+  const days = timer.days || [];
+  ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].forEach((day, index) => {
+    const checkbox = document.getElementById(`day-${day}`);
+    if (checkbox) checkbox.checked = days.includes(day);
+  });
+
+  document.getElementById("saveTimerButton").onclick = () => {
+    const name = document.getElementById("timerName").value;
+    const time = new Date(
+      `1970-01-01T${document.getElementById("timerTime").value}:00Z`,
+    ).getTime();
+    const days = [];
+    ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].forEach((day) => {
+      const checkbox = document.getElementById(`day-${day}`);
+      if (checkbox && checkbox.checked) {
+        days.push(day);
+      }
+    });
+
+    saveTimer({ name, time, days });
+  };
+}
+
+function saveTimer(timer) {
+  fetch(BASE_URL + "/api/timer", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(timer),
+  })
+    .then(async (response) => {
+      const text = await response.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch {
+        return {};
+      }
+    })
+    .then((data) => {
+      if (data.success) {
+        console.log("Timer saved");
+        loadTimers();
+      } else {
+        console.error("Failed to save timer");
+      }
+    })
+    .catch((error) => console.error("Error saving timer:", error));
+}
+
 // --- WebSocket OTA Status & Toast ---
 function showToast(message, type = "info", duration = 4000) {
   let toast = document.getElementById("toast");

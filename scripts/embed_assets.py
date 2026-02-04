@@ -33,6 +33,7 @@ ASSETS = [
 	('index.html', 'index_html.inc'),
 	('wifi.html', 'wifi_html.inc'),
 	('app.js', 'app_js.inc'),
+	('index.js', 'index_js.inc'),
 	('style.css', 'style_css.inc'),
 	('config.html', 'config_html.inc'),
 	('config.js', 'config_js.inc'),
