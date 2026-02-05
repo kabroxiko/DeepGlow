@@ -1023,7 +1023,105 @@ document.addEventListener("DOMContentLoaded", () => {
     quickControls.style.display = "none";
   // Only connect WebSocket if not on config.html
   if (!window.location.pathname.endsWith("config.html")) {
-    initializeWebSocket();
+    window.initializeWebSocket({
+      handshake: { type: "state" },
+      onMessage: (data) => {
+        // Handle JSON state updates
+        updateState(data);
+      },
+      onBinary: (buffer) => {
+        // Live LED bar rendering logic (kept in index.js)
+        const canvas = document.getElementById("ledBarCanvas");
+        if (!canvas) return;
+        const container = document.getElementById("ledBarContainer");
+        let needResize = false;
+        let width = canvas.width;
+        if (container) {
+          const style = getComputedStyle(container);
+          const newWidth =
+            container.clientWidth -
+            parseFloat(style.paddingLeft) -
+            parseFloat(style.paddingRight);
+          if (canvas.width !== newWidth) {
+            canvas.width = newWidth;
+            needResize = true;
+            width = newWidth;
+          }
+        }
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+        // Buffer is [R,G,B,W,R,G,B,W,...] for each LED
+        // Reuse a single Uint8Array for performance
+        if (
+          !window._ledBarArr ||
+          window._ledBarArr.buffer.byteLength !== buffer.byteLength
+        ) {
+          window._ledBarArr = new Uint8Array(buffer);
+        } else {
+          window._ledBarArr.set(new Uint8Array(buffer));
+        }
+        const arr = window._ledBarArr;
+        const ledCount = Math.floor(arr.length / 4);
+        const w = canvas.width;
+        const h = canvas.height;
+        // Only clear if needed
+        if (needResize || ledCount === 0) ctx.clearRect(0, 0, w, h);
+        if (ledCount === 0) return;
+        const ledWidth = w / ledCount;
+        // Batch drawing with requestAnimationFrame for smoothness
+        if (window._ledBarDrawReq) cancelAnimationFrame(window._ledBarDrawReq);
+        window._ledBarDrawReq = requestAnimationFrame(() => {
+          ctx.clearRect(0, 0, w, h);
+          for (let i = 0; i < ledCount; ++i) {
+            let r1 = arr[i * 4];
+            let g1 = arr[i * 4 + 1];
+            let b1 = arr[i * 4 + 2];
+            let wch1 = arr[i * 4 + 3];
+            // If any white channel, force pure white
+            if (wch1 > 0) {
+              r1 = 255;
+              g1 = 255;
+              b1 = 255;
+            }
+            let r2 = r1,
+              g2 = g1,
+              b2 = b1;
+            if (i < ledCount - 1) {
+              r2 = arr[(i + 1) * 4];
+              g2 = arr[(i + 1) * 4 + 1];
+              b2 = arr[(i + 1) * 4 + 2];
+              let wch2 = arr[(i + 1) * 4 + 3];
+              if (wch2 > 0) {
+                r2 = 255;
+                g2 = 255;
+                b2 = 255;
+              }
+            }
+            // Create gradient between r1,g1,b1 and r2,g2,b2
+            let x0 = i * ledWidth;
+            let x1 = (i + 1) * ledWidth;
+            let grad = ctx.createLinearGradient(x0, 0, x1, 0);
+            grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
+            grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
+            ctx.fillStyle = grad;
+            ctx.fillRect(x0, 0, Math.ceil(ledWidth), h);
+          }
+          // Optional: draw border
+          ctx.strokeStyle = "#444";
+          ctx.lineWidth = 1;
+          ctx.strokeRect(0, 0, w, h);
+        });
+        // Responsive: redraw on resize
+        if (!window._ledBarResizeHandler) {
+          window._ledBarResizeHandler = () => {
+            if (window._lastLedBarBuffer)
+              arguments.callee(window._lastLedBarBuffer);
+          };
+          window.addEventListener("resize", window._ledBarResizeHandler);
+        }
+        window._lastLedBarBuffer = buffer;
+      }
+    });
   }
   setupEventListeners();
 

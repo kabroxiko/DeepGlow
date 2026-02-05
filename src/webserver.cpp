@@ -28,16 +28,29 @@
 #include "inc/version.inc"
 #include "webserver.h"
 
+
 // Global externs for transition state
 extern TransitionEngine transition;
 extern SystemState state;
 extern TransitionEngine::PendingTransitionState pendingTransition;
+
+#include <set>
+// Extern for OTA ACK handshake flag
+extern volatile bool otaAckReceived;
+// Track if we've received a message from each client (for ws handshake logic)
+#include <map>
+static std::map<uint32_t, bool> wsClientReceivedFirstMsg;
+// Track WebSocket client IDs subscribed to OTA status
+static std::set<uint32_t> otaSubscribedClients;
+// Track clients that will become OTA-subscribed on next connect
+static std::set<uint32_t> pendingOtaClients;
 
 // Interval for live LED data broadcast (ms)
 #define LIVE_LED_BROADCAST_INTERVAL_MS 400
 
 static Ticker liveLedTicker;
 static bool liveLedTick = false;
+extern volatile bool otaInProgress;
 
 // CORS headers for API responses
 static const char *CORS_HEADERS[][2] = {
@@ -79,8 +92,14 @@ void WebServerManager::broadcastOtaStatus(const String &status,
     doc["progress"] = progress;
   String json;
   serializeJson(doc, json);
-  if (_ws)
-    _ws->textAll(json);
+  if (_ws) {
+    // Only send to OTA-subscribed clients
+    for (auto &client : _ws->getClients()) {
+      if (otaSubscribedClients.count(client.id())) {
+        client.text(json);
+      }
+    }
+  }
 }
 
 // Helper: Extract JSON body from POST request (for upload handler)
@@ -180,46 +199,61 @@ void WebServerManager::update() {
   _ws->cleanupClients();
 
   // --- Periodic live LED data broadcast as binary blob ---
-  if (liveLedTick) {
-    liveLedTick = false;
-    uint16_t n = _config->led.count;
-    if (n > 0 && _ws->count() > 0) {
-      bool allReady = true;
-      for (auto &c : _ws->getClients()) {
-        if (c.queueIsFull()) {
-          allReady = false;
-          break;
-        }
-      }
-      if (allReady) {
-        const std::vector<uint32_t> *src =
-            (g_outputFramePtr && g_outputFramePtr->size() >= n)
-                ? g_outputFramePtr
-                : nullptr;
-        std::vector<uint8_t> buf(n * 4, 0);
-        if (src) {
-          for (uint16_t i = 0; i < n; ++i) {
-            uint32_t c = (i < src->size()) ? (*src)[i] : 0;
-            uint8_t r = (c >> 24) & 0xFF;
-            uint8_t g = (c >> 16) & 0xFF;
-            uint8_t b = (c >> 8) & 0xFF;
-            uint8_t w = c & 0xFF;
-            buf[i * 4 + 0] = r;
-            buf[i * 4 + 1] = g;
-            buf[i * 4 + 2] = b;
-            buf[i * 4 + 3] = w;
-          }
-        }
-        _ws->binaryAll(buf.data(), buf.size());
-      } else {
-        static uint32_t lastSkipLog = 0;
-        uint32_t now = millis();
-        if (now - lastSkipLog > 1000) {
-          lastSkipLog = now;
-          debugPrintln("[WS] Skipped live frame: client queue full");
-        }
-      }
+  if (!liveLedTick) return;
+  liveLedTick = false;
+
+  // Suppress live LED broadcast if OTA is in progress
+  if (otaInProgress) return;
+
+  uint16_t n = _config->led.count;
+  size_t wsCount = _ws->count();
+
+  // No clients or no LEDs, nothing to broadcast
+  if (wsCount == 0 || n == 0) return;
+
+  // If all clients are OTA-subscribed, skip live LED broadcast entirely
+  if (otaSubscribedClients.size() == wsCount) return;
+
+  // Only process clients that have completed handshake and are not OTA-subscribed
+  bool allReady = true;
+  for (auto &c : _ws->getClients()) {
+    if (!wsClientReceivedFirstMsg.count(c.id()) || !wsClientReceivedFirstMsg[c.id()]) {
+      continue; // Not handshaked, skip
     }
+    if (!otaSubscribedClients.count(c.id()) && c.queueIsFull()) {
+      allReady = false;
+      break;
+    }
+  }
+  if (!allReady) {
+    static uint32_t lastSkipLog = 0;
+    uint32_t now = millis();
+    if (now - lastSkipLog > 1000) {
+      lastSkipLog = now;
+      debugPrintln("[WS] Skipped live frame: client queue full");
+    }
+    return;
+  }
+  // Prepare LED frame buffer
+  const std::vector<uint32_t> *src =
+      (g_outputFramePtr && g_outputFramePtr->size() >= n)
+          ? g_outputFramePtr
+          : nullptr;
+  std::vector<uint8_t> buf(n * 4, 0);
+  if (src) {
+    for (uint16_t i = 0; i < n; ++i) {
+      uint32_t c = (i < src->size()) ? (*src)[i] : 0;
+      buf[i * 4 + 0] = (c >> 24) & 0xFF;
+      buf[i * 4 + 1] = (c >> 16) & 0xFF;
+      buf[i * 4 + 2] = (c >> 8) & 0xFF;
+      buf[i * 4 + 3] = c & 0xFF;
+    }
+  }
+  for (auto &c : _ws->getClients()) {
+    // Only send to clients that have handshaked and are not OTA-subscribed
+    if (!wsClientReceivedFirstMsg.count(c.id()) || !wsClientReceivedFirstMsg[c.id()]) continue;
+    if (otaSubscribedClients.count(c.id())) continue;
+    c.binary(buf.data(), buf.size());
   }
 }
 
@@ -227,22 +261,49 @@ void WebServerManager::setupWebSocket() {
   _ws->onEvent([this](AsyncWebSocket *server, AsyncWebSocketClient *client,
                       AwsEventType type, void *arg, uint8_t *data, size_t len) {
     if (type == WS_EVT_CONNECT) {
-      client->setCloseClientOnQueueFull(
-          false); // Drop messages if queue is full, don't disconnect
-      client->text(getStateJSON());
+      client->setCloseClientOnQueueFull(false);
+      // If pending OTA, move to real OTA set
+      if (pendingOtaClients.count(client->id())) {
+        otaSubscribedClients.insert(client->id());
+        pendingOtaClients.erase(client->id());
+      } else {
+        otaSubscribedClients.erase(client->id());
+      }
+      wsClientReceivedFirstMsg[client->id()] = false;
+    } else if (type == WS_EVT_DISCONNECT) {
+      // Remove from OTA set and tracking on disconnect
+      otaSubscribedClients.erase(client->id());
+      wsClientReceivedFirstMsg.erase(client->id());
     } else if (type == WS_EVT_DATA) {
-      // Handle heartbeat ping from client
+      // Handle client messages (ping, ota_client, ota_ack, etc)
       auto *info = (AwsFrameInfo *)arg;
       if (info && info->opcode == WS_TEXT && data && len > 0) {
+        #if defined(ESP8266)
         String msg;
-        if (data && len > 0) {
-          msg = String((const char *)data);
-          if (msg.length() > len)
-            msg.remove(len);
-        }
-        if (msg.indexOf("\"type\":\"ping\"") != -1) {
-          // Optionally respond with pong or just ignore
-          // client->text("{\"type\":\"pong\"}");
+        for (size_t i = 0; i < len; ++i) msg += (char)data[i];
+        #else
+        String msg((const char *)data, len);
+        #endif
+        if (!wsClientReceivedFirstMsg[client->id()]) {
+          // First message from client: handshake
+          if (msg.indexOf("\"type\":\"ota_client\"") != -1) {
+            otaSubscribedClients.insert(client->id());
+            // Do NOT send state
+          } else {
+            // Normal client: send state
+            client->text(getStateJSON());
+          }
+          wsClientReceivedFirstMsg[client->id()] = true;
+        } else {
+          // Subsequent messages
+          if (msg.indexOf("\"type\":\"ping\"") != -1) {
+            // Optionally respond with pong or just ignore
+          } else if (msg.indexOf("\"type\":\"ota_client\"") != -1) {
+            otaSubscribedClients.insert(client->id());
+          } else if (msg.indexOf("\"type\":\"ota_ack\"") != -1) {
+            // OTA ACK received from client
+            otaAckReceived = true;
+          }
         }
       }
     }
@@ -282,16 +343,19 @@ void WebServerManager::setupRoutes() {
   _server->on("/api/update", HTTP_POST,
               [logRequest, this](AsyncWebServerRequest *request) {
                 logRequest(request);
-                debugPrintln(
-                    "[OTA] /api/update called. Launching OTA FreeRTOS task.");
+                // Find the WebSocket client with the same IP as the HTTP request
+                IPAddress reqIp = request->client()->remoteIP();
+                for (auto &client : _ws->getClients()) {
+                  if (client.remoteIP() == reqIp) {
+                    pendingOtaClients.insert(client.id());
+                  }
+                }
 #if defined(ESP32)
-                xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1,
-                                        nullptr, 1);
+                xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
 #endif
                 AsyncWebServerResponse *resp = request->beginResponse(
                     200, "application/json",
-                    "{\"success\":true,\"message\":\"OTA update started in "
-                    "background. Device will update and reboot.\"}");
+                    "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
                 for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
                   resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
                 request->send(resp);
@@ -1148,7 +1212,13 @@ void WebServerManager::broadcastState() {
   // Sync config.state.brightness with transition engine before broadcasting
   state.brightness = transition._currentState.brightness;
   String stateJSON = getStateJSON();
-  _ws->textAll(stateJSON);
+  if (_ws) {
+    for (auto &client : _ws->getClients()) {
+      // If client is OTA-subscribed, skip sending state updates
+      if (otaSubscribedClients.count(client.id())) continue;
+      client.text(stateJSON);
+    }
+  }
 }
 
 void WebServerManager::onPowerChange(void (*callback)(bool)) {
@@ -1170,4 +1240,32 @@ void WebServerManager::onPresetApply(void (*callback)(uint8_t)) {
 
 void WebServerManager::onConfigChange(void (*callback)()) {
   _configCallback = callback;
+}
+// Call this when OTA finishes (success or error) to unsubscribe all OTA clients
+void WebServerManager::clearOtaSubscriptions() {
+  otaSubscribedClients.clear();
+}
+
+// Close all OTA WebSocket clients (disconnect them)
+void WebServerManager::closeOtaClients() {
+  if (_ws) {
+    for (auto &client : _ws->getClients()) {
+      if (otaSubscribedClients.count(client.id())) {
+        client.close();
+      }
+    }
+  }
+}
+
+// Return the number of currently connected OTA WebSocket clients
+int WebServerManager::otaClientsConnected() const {
+  int count = 0;
+  if (_ws) {
+    for (auto &client : _ws->getClients()) {
+      if (otaSubscribedClients.count(client.id())) {
+        ++count;
+      }
+    }
+  }
+  return count;
 }

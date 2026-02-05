@@ -75,9 +75,7 @@ void checkSchedule();
 void checkAndApplyScheduleAfterBoot();
 
 void setup() {
-#ifdef DEBUG_SERIAL
   Serial.begin(SERIAL_BAUD);
-#endif
   webServerPtr = &webServer;
   // Load configuration
   if (!config.load()) {

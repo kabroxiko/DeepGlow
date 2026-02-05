@@ -31,24 +31,8 @@ function handleSunTimesFromWs(event) {
   } catch (e) {}
 }
 
-// --- Attach sun times listener to ws as early as possible ---
-if (!window._sunTimesWsListenerAdded) {
-  window._sunTimesWsListenerAdded = true;
-  if (window.ws) {
-    window.ws.addEventListener("message", handleSunTimesFromWs);
-  }
-  Object.defineProperty(window, "ws", {
-    set(v) {
-      this._ws = v;
-      if (v) {
-        v.addEventListener("message", handleSunTimesFromWs);
-      }
-    },
-    get() {
-      return this._ws;
-    },
-  });
-}
+
+// Remove sun times WebSocket auto-attach logic (handled by main ws if needed)
 
 function showMainContainerWhenReady() {
   if (_loaded.timezones && _loaded.presets && _loaded.config) {
@@ -419,7 +403,11 @@ function loadPresetsAndConfig() {
 }
 
 // Only use loadPresetsAndConfig for DOMContentLoaded
-window.addEventListener("DOMContentLoaded", loadPresetsAndConfig);
+window.addEventListener("DOMContentLoaded", () => {
+  loadPresetsAndConfig();
+  // Remove automatic WebSocket connection
+  // addOtaStatusHandlerToWs(window.ws); // This line is removed
+});
 
 // Add Timer button handler
 window.addEventListener("DOMContentLoaded", function () {
@@ -785,38 +773,28 @@ if (gpsBtn && !gpsBtn._handlerSet) {
 }
 
 const updateBtn = document.getElementById("updateButton");
-if (updateBtn && !updateBtn._handlerSet) {
-  const updateSpinner = document.getElementById("updateSpinner");
+if (updateBtn && !updateBtn._wsHandlerSet) {
   updateBtn.onclick = async function () {
     updateBtn.disabled = true;
-    if (updateSpinner) updateSpinner.style.display = "";
-    updateBtn.childNodes[0].textContent = "Checking... ";
     showToast("", "info");
+    // Step 1: Call backend endpoint to start OTA
+    let otaStarted = false;
     try {
-      // Call backend endpoint to check and install update
       const resp = await fetch(BASE_URL + "/api/update", { method: "POST" });
       const result = await resp.json();
       if (result && result.success) {
-        updateBtn.childNodes[0].textContent = "Updating... ";
+        otaStarted = true;
         showToast("Installing update... Device will reboot.", "info");
-        // Spinner will be hidden by WebSocket OTA status handler
       } else {
-        updateBtn.childNodes[0].textContent = "Check for Updates ";
-        showToast(
-          result && result.message ? result.message : "No update found.",
-          "info",
-        );
-        if (updateSpinner) updateSpinner.style.display = "none";
+        showToast(result && result.message ? result.message : "No update found.", "info");
         updateBtn.disabled = false;
       }
     } catch (e) {
-      updateBtn.childNodes[0].textContent = "Check for Updates ";
       showToast("Update check failed!", "error");
-      if (updateSpinner) updateSpinner.style.display = "none";
       updateBtn.disabled = false;
     }
   };
-  updateBtn._handlerSet = true;
+  updateBtn._wsHandlerSet = true;
 }
 
 // --- Upload Config Handler ---
@@ -1028,27 +1006,48 @@ function showToast(message, type = "info", duration = 4000) {
 
 function addOtaStatusHandlerToWs(ws) {
   if (!ws) return;
+  let otaInProgress = false;
+  let otaTotal = 0;
+  const otaProgressBar = document.getElementById("otaProgressBar");
+  const otaProgressFill = document.getElementById("otaProgressFill");
   ws.addEventListener("message", (event) => {
-    console.debug("[WS] Message:", event.data);
     try {
       const msg = JSON.parse(event.data);
+      const updateBtn = document.getElementById("updateButton");
       if (msg.type === "ota_status") {
-        const updateBtn = document.getElementById("updateButton");
-        const updateSpinner = document.getElementById("updateSpinner");
+        otaInProgress = true;
+        // Disable the update button while OTA is in progress
+        if (updateBtn) updateBtn.disabled = true;
+        if (msg.total) otaTotal = msg.total;
+        if (msg.progress !== undefined && otaProgressBar && otaProgressFill) {
+          otaProgressBar.style.display = "block";
+          let percent = 0;
+          if (otaTotal > 0) {
+            percent = Math.round((msg.progress / otaTotal) * 100);
+          } else if (msg.progress > 0 && msg.progress <= 100) {
+            percent = msg.progress;
+          }
+          otaProgressFill.style.width = percent + "%";
+        }
         if (msg.status === "success") {
           showToast("OTA update successful! Device will reboot.", "success");
-          if (updateSpinner) updateSpinner.style.display = "none";
+          if (otaProgressBar) otaProgressBar.style.display = "none";
+          otaInProgress = false;
           if (updateBtn) updateBtn.disabled = false;
-          if (updateBtn)
-            updateBtn.childNodes[0].textContent = "Check for Updates ";
-        } else if (msg.status === "error") {
+          // --- OTA ACK handshake: send ack to backend ---
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: "ota_ack" }));
+          }
+        } else if (msg.status === "error" || msg.status === "failed") {
           const errMsg = msg.message || msg.error || "Unknown error";
           showToast("OTA update failed: " + errMsg, "error");
-          if (updateSpinner) updateSpinner.style.display = "none";
+          if (otaProgressBar) otaProgressBar.style.display = "none";
+          otaInProgress = false;
           if (updateBtn) updateBtn.disabled = false;
-          if (updateBtn)
-            updateBtn.childNodes[0].textContent = "Check for Updates ";
         }
+      } else if (!otaInProgress) {
+        // Ignore non-OTA messages during OTA, but allow normal processing otherwise
+        // (No-op: do not show state messages during OTA)
       }
     } catch (e) {
       // Not JSON, ignore
@@ -1056,26 +1055,20 @@ function addOtaStatusHandlerToWs(ws) {
   });
 }
 
-window.addEventListener("DOMContentLoaded", () => {
-  // Use global ws from app.js if available, otherwise create it
-  let ws = window.ws;
-  if (!ws) {
-    let wsUrl;
-    if (
-      location.protocol === "file:" ||
-      location.hostname === "localhost" ||
-      location.hostname === "127.0.0.1"
-    ) {
-      // Use BASE_URL from app.js
-      wsUrl = BASE_URL.replace(/^http/, "ws") + "/ws";
-    } else {
-      wsUrl =
-        (location.protocol === "https:" ? "wss://" : "ws://") +
-        location.host +
-        "/ws";
+// Connect to WebSocket at page load
+window.addEventListener("DOMContentLoaded", function () {
+  window.initializeWebSocket && window.initializeWebSocket({
+    handshake: { type: "ota_client" },
+    onMessage: (data) => {
+      // Only handle OTA status messages
+      if (data && data.type === "ota_status") {
+        // Simulate a message event for addOtaStatusHandlerToWs
+        addOtaStatusHandlerToWs({
+          addEventListener: (event, handler) => {
+            if (event === "message") handler({ data: JSON.stringify(data) });
+          }
+        });
+      }
     }
-    ws = new WebSocket(wsUrl);
-    window.ws = ws;
-  }
-  addOtaStatusHandlerToWs(ws);
+  });
 });

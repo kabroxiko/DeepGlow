@@ -14,6 +14,7 @@
 #include <ESP8266HTTPClient.h>
 #include <Updater.h>
 #endif
+#include "webserver.h"
 
 #include "config.h"
 #include "ota.h"
@@ -23,10 +24,16 @@
 
 #include <ESP32-targz.h>
 
+// Forward declaration for OTA status broadcast
+static void broadcastOtaStatus(const String &status, const String &msg, int progress);
+
+
 extern WebServerManager *webServerPtr; // Must be set to the global instance
 
 volatile bool otaInProgress = false;
 volatile bool otaRequested = false;
+// Global flag for OTA ACK handshake
+volatile bool otaAckReceived = false;
 
 void setupArduinoOTA(const char *hostname) {
 #ifdef ESP32
@@ -46,8 +53,10 @@ void handleArduinoOTA() {
 }
 
 // Write callback for decompressed data (main-loop safe)
+// Track last progress globally for finalization
 static size_t totalBytesWritten = 0;
 static bool updateStarted = false;
+static int otaContentLength = 0; // Add static variable for content length
 static bool gzWriteCallback(unsigned char *buff, size_t buffsize) {
   if (!updateStarted) {
     if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
@@ -58,6 +67,14 @@ static bool gzWriteCallback(unsigned char *buff, size_t buffsize) {
   size_t written = Update.write(buff, buffsize);
   if (written == buffsize) {
     totalBytesWritten += written;
+    // OTA progress: totalBytesWritten vs estimated decompressed size
+    size_t estimatedTotal = otaContentLength * 1.5;
+    int progress = 0;
+    if (estimatedTotal > 0) {
+      progress = (totalBytesWritten * 100) / estimatedTotal;
+      if (progress > 100) progress = 100;
+    }
+    broadcastOtaStatus("progress", String(totalBytesWritten), progress);
     static uint8_t dotCount = 0;
     if (++dotCount >= 8) {
       debugPrint(".");
@@ -117,7 +134,7 @@ String getLatestFirmwareUrl(String &latestVersion) {
 // Perform OTA update from the latest GitHub release for this environment
 
 // Helper: Broadcast OTA status if webServerPtr is set
-static void broadcastOtaStatus(const String &status, const String &msg, int progress = -1) {
+static void broadcastOtaStatus(const String &status, const String &msg, int progress) {
   if (webServerPtr) {
     if (progress >= 0)
       webServerPtr->broadcastOtaStatus(status, msg, progress);
@@ -153,19 +170,8 @@ static bool decompressAndUpdate(WiFiClient *stream, int contentLength, String &e
   GzUnpacker *GZUnpacker = new GzUnpacker();
   totalBytesWritten = 0;
   updateStarted = false;
+  otaContentLength = contentLength; // Set static variable for use in callback
   GZUnpacker->setStreamWriter(gzWriteCallback);
-  GZUnpacker->setGzProgressCallback([](uint8_t progress) {
-    broadcastOtaStatus("progress", "Decompressing", progress);
-    static uint8_t dotCount = 0;
-    if (++dotCount >= 8) {
-      debugPrint(".");
-      dotCount = 0;
-    }
-#ifdef ESP32
-    esp_task_wdt_reset();
-#endif
-    yield();
-  });
   bool success = GZUnpacker->gzStreamExpander(stream, contentLength);
   delete GZUnpacker;
   if (!success) {
@@ -187,8 +193,18 @@ static bool decompressAndUpdate(WiFiClient *stream, int contentLength, String &e
 }
 
 // Helper: Finalize update and check result
+
+
 static bool finalizeUpdate(String &errorOut) {
-  if (Update.end(true)) {
+  bool endResult = Update.end(true);
+  int errCode = Update.getError();
+  String errMsg;
+  #ifdef ESP32
+    errMsg = Update.errorString();
+  #else
+    errMsg = Update.getErrorString();
+  #endif
+  if (endResult) {
     if (Update.isFinished()) {
       return true;
     } else {
@@ -196,7 +212,20 @@ static bool finalizeUpdate(String &errorOut) {
       return false;
     }
   } else {
-    errorOut = String("Update error: ") + Update.getError();
+    // If error code is 0 (No Error), retry once
+    if (errCode == 0) {
+      endResult = Update.end(true);
+      errCode = Update.getError();
+      #ifdef ESP32
+        errMsg = Update.errorString();
+      #else
+        errMsg = Update.getErrorString();
+      #endif
+      if (endResult && Update.isFinished()) {
+        return true;
+      }
+    }
+    errorOut = String("Update error: ") + errCode + " (" + errMsg + ")";
     return false;
   }
 }
@@ -206,14 +235,14 @@ bool performGzOtaUpdate(String &errorOut) {
   totalBytesWritten = 0;
   updateStarted = false;
 
-  broadcastOtaStatus("start", "OTA update started");
+  broadcastOtaStatus("start", "OTA update started", -1);
 
   String latestVersion;
   String firmwareUrl = getLatestFirmwareUrl(latestVersion);
   if (firmwareUrl.isEmpty()) {
     errorOut = "Could not determine latest firmware URL.";
     otaInProgress = false;
-    broadcastOtaStatus("error", errorOut);
+    broadcastOtaStatus("error", errorOut, -1);
     return false;
   }
 
@@ -224,26 +253,24 @@ bool performGzOtaUpdate(String &errorOut) {
   int contentLength = 0;
   if (!downloadFirmware(firmwareUrl, http, client, contentLength, errorOut)) {
     otaInProgress = false;
-    broadcastOtaStatus("error", errorOut);
+    broadcastOtaStatus("error", errorOut, -1);
     return false;
   }
 
   WiFiClient *stream = http.getStreamPtr();
   bool ok = decompressAndUpdate(stream, contentLength, errorOut);
   http.end();
-  if (!ok) {
-    otaInProgress = false;
-    broadcastOtaStatus("error", errorOut);
-    return false;
-  }
-
   ok = finalizeUpdate(errorOut);
   otaInProgress = false;
   if (ok) {
-    broadcastOtaStatus("success", "OTA update successful");
+    // Always send a final 100% progress update before success
+    broadcastOtaStatus("progress", String(totalBytesWritten), 100);
+    broadcastOtaStatus("success", "OTA update successful", -1);
     return true;
   } else {
-    broadcastOtaStatus("error", errorOut);
+    // Always broadcast the real error message
+    String errMsg = errorOut.length() > 0 ? errorOut : "OTA failed: unknown error";
+    broadcastOtaStatus("error", errMsg, -1);
     return false;
   }
 }
@@ -259,7 +286,6 @@ static void otaRespondError(AsyncWebServerRequest *request, const String &msg) {
 // Helper: Begin OTA upload (index==0)
 static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data, unsigned int len, unsigned int total, File &gzFile, bool &isGz, size_t &uploaded, unsigned int &lastDot) {
   otaInProgress = true;
-  Serial.println("[HTTP] POST /ota");
   LittleFS.end();
   if (!LittleFS.begin()) {
     otaRespondError(request, "LittleFS mount failed");
@@ -340,7 +366,11 @@ static bool decompressAndFlashUploadedGz(File &inFile, String &errorMsg) {
     errorMsg = "Update never started - no data written";
     return false;
   } else if (!Update.end(true)) {
-    errorMsg = String("Update error: ") + Update.getError();
+    #ifdef ESP32
+    errorMsg = String("Update error: ") + Update.getError() + " (" + Update.errorString() + ")";
+    #else
+    errorMsg = String("Update error: ") + Update.getError() + " (" + Update.getErrorString() + ")";
+    #endif
     return false;
   } else if (!Update.isFinished()) {
     errorMsg = "Update not finished properly";
@@ -351,7 +381,7 @@ static bool decompressAndFlashUploadedGz(File &inFile, String &errorMsg) {
 
 static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &gzFile, unsigned int &lastDot) {
   if (lastDot != 0)
-    Serial.println("");
+    debugPrintln("");
   lastDot = 0;
   AsyncWebServerResponse *resp = nullptr;
   bool ok = false;
@@ -360,27 +390,41 @@ static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &g
     gzFile.close();
     File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
     if (!inFile) {
-      otaRespondError(request, "Failed to open uploaded gz file");
+      errorMsg = "Failed to open uploaded gz file";
+      broadcastOtaStatus("error", errorMsg, -1);
+      otaRespondError(request, errorMsg);
       return;
     }
     ok = decompressAndFlashUploadedGz(inFile, errorMsg);
     inFile.close();
     LittleFS.remove("/ota_upload.bin.gz");
+    if (!ok) {
+      broadcastOtaStatus("error", errorMsg, -1);
+    }
   } else {
     ok = Update.end(true);
     if (!ok) {
-      errorMsg = String("Update error: ") + Update.getError();
+      #ifdef ESP32
+      errorMsg = String("Update error: ") + Update.getError() + " (" + Update.errorString() + ")";
+      #else
+      errorMsg = String("Update error: ") + Update.getError() + " (" + Update.getErrorString() + ")";
+      #endif
+      broadcastOtaStatus("error", errorMsg, -1);
     } else if (!Update.isFinished()) {
       errorMsg = "Update not finished properly";
       ok = false;
+      broadcastOtaStatus("error", errorMsg, -1);
     }
   }
   otaInProgress = false;
   if (ok) {
+    // Always send a final 100% progress update before success
+    broadcastOtaStatus("progress", String(totalBytesWritten), 100);
+    broadcastOtaStatus("success", "OTA update successful", -1);
     resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
-    Serial.println("OTA update complete, rebooting");
   } else {
     String errJson = String("{\"error\":\"") + errorMsg + "\"}";
+    broadcastOtaStatus("error", errorMsg.length() > 0 ? errorMsg : "OTA failed: unknown error", -1);
     resp = request->beginResponse(500, "application/json", errJson);
   }
   for (size_t i = 0; i < 3; ++i)
@@ -416,15 +460,32 @@ extern "C" void otaTask(void *parameter) {
   String error;
   bool ok = performGzOtaUpdate(error);
   if (ok) {
-    debugPrintln("");
-    debugPrintln("[OTA Task] OTA update successful, attempting restart...");
-    delay(1000);
+    // Wait for OTA ACK from any OTA client, or timeout (max 3s)
+    otaAckReceived = false;
+    unsigned long waitStart = millis();
+    while (millis() - waitStart < 3000) {
+      if (otaAckReceived) break;
+      yield();
+      delay(10);
+    }
+    if (webServerPtr) {
+      webServerPtr->closeOtaClients();
+    }
+    // Wait for clients to disconnect or timeout (max 2s)
+    waitStart = millis();
+    while (millis() - waitStart < 2000) {
+      if (webServerPtr && webServerPtr->otaClientsConnected() == 0) break;
+      yield();
+      delay(10);
+    }
+    debugPrintln("[OTA Task] Rebooting now...");
     ESP.restart();
     delay(5000);
     *((volatile int *)0) = 0; // Force a crash/reboot
   } else {
     debugPrint("[OTA Task] OTA update failed: ");
     debugPrintln(error);
+    broadcastOtaStatus("error", error.length() > 0 ? error : "OTA failed: unknown error", -1);
   }
   vTaskDelete(NULL);
 }

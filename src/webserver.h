@@ -16,6 +16,12 @@
 
 class WebServerManager {
 public:
+  // Unsubscribe all OTA WebSocket clients (call after OTA finishes)
+  void clearOtaSubscriptions();
+  // Close all OTA WebSocket clients (disconnect them)
+  void closeOtaClients();
+  // Return the number of currently connected OTA WebSocket clients
+  int otaClientsConnected() const;
   WebServerManager(Configuration *config, Scheduler *scheduler);
 
   void begin();
