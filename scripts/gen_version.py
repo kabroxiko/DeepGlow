@@ -12,12 +12,6 @@ logging.basicConfig(
 	format='[%(levelname)s] %(message)s'
 )
 
-# Only run for build or upload targets
-pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
-if not any(x in pio_targets for x in ['build', 'upload']):
-    logging.info('gen_version.py: Skipping script (not build/upload target).')
-    sys.exit(0)
-
 def get_version():
     """Read version from VERSION file."""
     version_file = os.path.join(os.getcwd(), "VERSION")
@@ -60,6 +54,11 @@ def write_version_headers(version):
     logging.info(f"[gen_version] Generated inc/version.inc (extern) and inc/version_def.inc (def): FW_VERSION = {version_literal}")
 
 def main():
+    from SCons.Script import Import, ARGUMENTS
+    Import("env")
+    if env.IsCleanTarget():
+        logging.info('gen_version.py: Skipping script for clean target.')
+        return
     version = make_version_string()
     write_version_headers(version)
 

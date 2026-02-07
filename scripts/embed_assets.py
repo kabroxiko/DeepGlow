@@ -20,11 +20,6 @@ logging.basicConfig(
 	format='[%(levelname)s] %(message)s'
 )
 
-# Only run for build or upload targets
-pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
-if not any(x in pio_targets for x in ['build', 'upload']):
-	logging.info('embed_assets.py: Skipping script (not build/upload target).')
-	sys.exit(0)
 
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR = os.path.join(os.getcwd(), 'src/assets')
@@ -207,6 +202,12 @@ def to_inc(infile, outfile, do_minify=True):
 
 
 def main():
+	from SCons.Script import Import, ARGUMENTS
+	Import("env")
+	if env.IsCleanTarget():
+		logging.info('embed_assets.py: Skipping script for clean target.')
+		return
+
 	ensure_html_minifier()
 	ensure_terser()
 

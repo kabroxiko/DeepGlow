@@ -5,16 +5,13 @@ import os
 import sys
 import logging
 
-# Only run for build or upload targets
-pio_targets = os.environ.get('PIOENV', '') + ' ' + ' '.join(sys.argv)
-if not any(x in pio_targets for x in ['build', 'upload']):
-    print('link_user_setup.py: Skipping script (not build/upload target).')
-    sys.exit(0)
 
-
-from SCons.Script import Import
+logging.basicConfig(
+    level=logging.INFO,
+    format='[link_user_setup] %(message)s'
+)
+from SCons.Script import Import, ARGUMENTS
 Import("env")
-logging.basicConfig(level=logging.INFO, format='[link_user_setup] %(message)s')
 env_name = env["PIOENV"]
 
 USER_SETUP_TEMPLATE = """
@@ -83,7 +80,12 @@ def generate_user_setup_h(path, vals):
         f.write(content)
 
 
+
+# Only run for build or upload actions, not for clean or other targets
 def main():
+    if env.IsCleanTarget():
+        logging.info('link_user_setup.py: Skipping script for clean target.')
+        return
     project_root = os.getcwd()
     display_h_path = os.path.join(project_root, 'src', 'display.h')
     if not os.path.exists(display_h_path):
@@ -99,7 +101,7 @@ def main():
                 logging.info(f"Created TFT_eSPI directory: {tft_dir}")
             except Exception as e:
                 logging.error(f"Failed to create TFT_eSPI directory {tft_dir}: {e}")
-                sys.exit(1)
+                return
         user_setup_dst = os.path.join(tft_dir, 'User_Setup.h')
         try:
             # Always overwrite User_Setup.h to ensure it is up to date
@@ -107,6 +109,6 @@ def main():
             logging.info(f"Generated {user_setup_dst}")
         except Exception as e:
             logging.error(f"Failed to generate {user_setup_dst}: {e}")
-            sys.exit(1)
+            return
 
 main()
