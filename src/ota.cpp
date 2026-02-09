@@ -74,7 +74,11 @@ static bool gzWriteCallback(unsigned char *buff, size_t buffsize) {
       progress = (totalBytesWritten * 100) / estimatedTotal;
       if (progress > 100) progress = 100;
     }
-    broadcastOtaStatus("progress", String(totalBytesWritten), progress);
+    static int lastProgressPercent = -1;
+    if (progress != lastProgressPercent) {
+      broadcastOtaStatus("progress", String(totalBytesWritten), progress);
+      lastProgressPercent = progress;
+    }
     static uint8_t dotCount = 0;
     if (++dotCount >= 8) {
       debugPrint(".");
@@ -135,6 +139,12 @@ String getLatestFirmwareUrl(String &latestVersion) {
 
 // Helper: Broadcast OTA status if webServerPtr is set
 static void broadcastOtaStatus(const String &status, const String &msg, int progress) {
+  // Debug: Print all OTA status broadcasts
+  if (progress >= 0) {
+    debugPrintln("[OTA][broadcast] status=%s, msg=%s, progress=%d", status.c_str(), msg.c_str(), progress);
+  } else {
+    debugPrintln("[OTA][broadcast] status=%s, msg=%s", status.c_str(), msg.c_str());
+  }
   if (webServerPtr) {
     if (progress >= 0)
       webServerPtr->broadcastOtaStatus(status, msg, progress);
@@ -286,8 +296,10 @@ static void otaRespondError(AsyncWebServerRequest *request, const String &msg) {
 // Helper: Begin OTA upload (index==0)
 static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data, unsigned int len, unsigned int total, File &gzFile, bool &isGz, size_t &uploaded, unsigned int &lastDot) {
   otaInProgress = true;
+  debugPrintln("[OTA] Begin upload");
   LittleFS.end();
   if (!LittleFS.begin()) {
+    debugPrintln("[OTA] LittleFS mount failed");
     otaRespondError(request, "LittleFS mount failed");
     return false;
   }
@@ -295,12 +307,15 @@ static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data, 
   isGz = (len >= 2 && data[0] == 0x1F && data[1] == 0x8B);
   uploaded = 0;
   if (isGz) {
+    debugPrintln("[OTA] Detected gzipped upload");
     if (!LittleFS.begin()) {
+      debugPrintln("[OTA] LittleFS mount failed (gz)");
       otaRespondError(request, "LittleFS mount failed");
       return false;
     }
     gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
     if (!gzFile) {
+      debugPrintln("[OTA] Failed to open file for writing");
       otaRespondError(request, "Failed to open file for writing");
       return false;
     }
@@ -310,9 +325,11 @@ static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data, 
 #elif defined(ESP8266)
     if (!Update.begin(total)) {
 #endif
+      debugPrintln("[OTA] Update.begin failed");
       otaRespondError(request, "Update.begin failed");
       return false;
     }
+    debugPrintln("[OTA] Update.begin succeeded");
     lastDot = 0;
   }
   return true;
@@ -322,6 +339,7 @@ static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data, 
 static bool otaWriteChunk(AsyncWebServerRequest *request, unsigned char *data, unsigned int len, bool isGz, File &gzFile, size_t &uploaded, unsigned int total, unsigned int index, unsigned int &lastDot) {
   if (isGz) {
     if (!gzFile || gzFile.write(data, len) != len) {
+      debugPrintln("[OTA] File write error (gz)");
       otaRespondError(request, "File write error");
       return false;
     }
@@ -330,7 +348,10 @@ static bool otaWriteChunk(AsyncWebServerRequest *request, unsigned char *data, u
       debugPrint(".");
     }
   } else {
-    if (Update.write(data, len) != len) {
+    size_t written = Update.write(data, len);
+    if (written != len) {
+      debugPrintln("[OTA] Update.write error");
+      debugPrint("[OTA] Tried to write: "); debugPrint(len); debugPrint(", actually wrote: "); debugPrintln(written);
       otaRespondError(request, "Update write error");
       return false;
     }
@@ -386,11 +407,13 @@ static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &g
   AsyncWebServerResponse *resp = nullptr;
   bool ok = false;
   String errorMsg;
+  debugPrintln("[OTA] Finalizing upload");
   if (isGz && gzFile) {
     gzFile.close();
     File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
     if (!inFile) {
       errorMsg = "Failed to open uploaded gz file";
+      debugPrintln("[OTA] " + errorMsg);
       broadcastOtaStatus("error", errorMsg, -1);
       otaRespondError(request, errorMsg);
       return;
@@ -399,6 +422,7 @@ static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &g
     inFile.close();
     LittleFS.remove("/ota_upload.bin.gz");
     if (!ok) {
+      debugPrintln("[OTA] decompressAndFlashUploadedGz failed: " + errorMsg);
       broadcastOtaStatus("error", errorMsg, -1);
     }
   } else {
@@ -409,10 +433,12 @@ static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &g
       #else
       errorMsg = String("Update error: ") + Update.getError() + " (" + Update.getErrorString() + ")";
       #endif
+      debugPrintln("[OTA] " + errorMsg);
       broadcastOtaStatus("error", errorMsg, -1);
     } else if (!Update.isFinished()) {
       errorMsg = "Update not finished properly";
       ok = false;
+      debugPrintln("[OTA] " + errorMsg);
       broadcastOtaStatus("error", errorMsg, -1);
     }
   }
@@ -424,6 +450,7 @@ static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz, File &g
     resp = request->beginResponse(200, "application/json", "{\"success\":true,\"message\":\"Rebooting\"}");
   } else {
     String errJson = String("{\"error\":\"") + errorMsg + "\"}";
+    debugPrintln("[OTA] OTA failed: " + errorMsg);
     broadcastOtaStatus("error", errorMsg.length() > 0 ? errorMsg : "OTA failed: unknown error", -1);
     resp = request->beginResponse(500, "application/json", errJson);
   }

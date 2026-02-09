@@ -37,7 +37,7 @@ jobs:
           source .venv/bin/activate
           pio pkg install
 
-      - name: Cache Python venv and PlatformIO dependencies
+      - name: Cache Python venv, PlatformIO, and node_modules
         id: cache-deps
         uses: actions/cache@v4
         with:
@@ -46,7 +46,8 @@ jobs:
             .pio
             ~/.platformio/.cache
             ~/.platformio/lib
-          key: pio-venv-deps
+            src/preact/node_modules
+          key: cache-deps
 
   build:
     needs: deps
@@ -65,9 +66,19 @@ jobs:
         with:
           path: |
             .venv
+            .pio
             ~/.platformio/.cache
             ~/.platformio/lib
-          key: pio-venv-deps
+          key: cache-deps
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install npm dependencies
+        run: |
+          npm ci
 
       - name: Set up Python
         uses: actions/setup-python@v5

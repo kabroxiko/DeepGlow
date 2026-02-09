@@ -2,9 +2,9 @@
 #if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)
 #include <pgmspace.h>
 #endif
-#include "inc/app_js.inc"
+// #include "inc/app_js.inc" // migrated to SPA, now included in index_js.inc
 #include "inc/config_html.inc"
-#include "inc/config_js.inc"
+// #include "inc/config_js.inc" // migrated to SPA, now included in index_js.inc
 #include "inc/index_html.inc"
 #include "inc/style_css.inc"
 #include "inc/wifi_html.inc"
@@ -274,8 +274,9 @@ void WebServerManager::setupWebSocket() {
       // Remove from OTA set and tracking on disconnect
       otaSubscribedClients.erase(client->id());
       wsClientReceivedFirstMsg.erase(client->id());
+    } else if (type == WS_EVT_ERROR) {
+      debugPrintln(String("[WS] ERROR: client ") + client->id());
     } else if (type == WS_EVT_DATA) {
-      // Handle client messages (ping, ota_client, ota_ack, etc)
       auto *info = (AwsFrameInfo *)arg;
       if (info && info->opcode == WS_TEXT && data && len > 0) {
         #if defined(ESP8266)
@@ -288,9 +289,11 @@ void WebServerManager::setupWebSocket() {
           // First message from client: handshake
           if (msg.indexOf("\"type\":\"ota_client\"") != -1) {
             otaSubscribedClients.insert(client->id());
-            // Do NOT send state
+            // Send state for OTA client so SPA gets real-time info (clock, etc)
+            client->text(getStateJSON());
           } else {
             // Normal client: send state
+            otaSubscribedClients.erase(client->id());
             client->text(getStateJSON());
           }
           wsClientReceivedFirstMsg[client->id()] = true;
@@ -300,6 +303,9 @@ void WebServerManager::setupWebSocket() {
             // Optionally respond with pong or just ignore
           } else if (msg.indexOf("\"type\":\"ota_client\"") != -1) {
             otaSubscribedClients.insert(client->id());
+          } else if (msg.indexOf("\"type\":\"state\"") != -1) {
+            otaSubscribedClients.erase(client->id());
+            client->text(getStateJSON());
           } else if (msg.indexOf("\"type\":\"ota_ack\"") != -1) {
             // OTA ACK received from client
             otaAckReceived = true;
@@ -497,6 +503,15 @@ void WebServerManager::setupRoutes() {
               });
 
   // Serve web assets from filesystem image
+  // Serve static SPA assets
+  _server->on("/index.js", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+    logRequest(request);
+    request->send_P(200, "application/javascript", web_index_js, web_index_js_len);
+  });
+  _server->on("/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+    logRequest(request);
+    request->send_P(200, "text/css", web_style_css, web_style_css_len);
+  });
   _server->on("/", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
     logRequest(request);
     request->send_P(200, "text/html", web_index_html, web_index_html_len);
@@ -575,16 +590,20 @@ void WebServerManager::setupRoutes() {
   _server->on("/app.js", HTTP_GET,
               [logRequest](AsyncWebServerRequest *request) {
                 logRequest(request);
-                request->send_P(200, "application/javascript", web_app_js,
-                                web_app_js_len);
-              });
-
-  _server->on("/index.js", HTTP_GET,
-              [logRequest](AsyncWebServerRequest *request) {
-                logRequest(request);
                 request->send_P(200, "application/javascript", web_index_js,
                                 web_index_js_len);
               });
+
+  _server->on("/index.js", HTTP_GET,
+    [logRequest](AsyncWebServerRequest *request) {
+      logRequest(request);
+      request->send_P(200, "application/javascript", web_index_js, web_index_js_len);
+    });
+  _server->on("/index.js", HTTP_GET,
+    [logRequest](AsyncWebServerRequest *request) {
+      logRequest(request);
+      request->send_P(200, "application/javascript", web_index_js, web_index_js_len);
+    });
   _server->on(
       "/config.html", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
         logRequest(request);
@@ -593,14 +612,19 @@ void WebServerManager::setupRoutes() {
   _server->on("/config.js", HTTP_GET,
               [logRequest](AsyncWebServerRequest *request) {
                 logRequest(request);
-                request->send_P(200, "application/javascript", web_config_js,
-                                web_config_js_len);
+                request->send_P(200, "application/javascript", web_index_js,
+                                web_index_js_len);
               });
-  _server->on(
-      "/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
-        logRequest(request);
-        request->send_P(200, "text/css", web_style_css, web_style_css_len);
-      });
+  _server->on("/style.css", HTTP_GET,
+    [logRequest](AsyncWebServerRequest *request) {
+      logRequest(request);
+      request->send_P(200, "text/css", web_style_css, web_style_css_len);
+    });
+  _server->on("/style.css", HTTP_GET,
+    [logRequest](AsyncWebServerRequest *request) {
+      logRequest(request);
+      request->send_P(200, "text/css", web_style_css, web_style_css_len);
+    });
 
   // State API
   _server->on("/api/state", HTTP_OPTIONS,
@@ -755,20 +779,6 @@ void WebServerManager::setupRoutes() {
         }
       });
 
-  // Timers API
-  _server->on("/api/timers", HTTP_OPTIONS,
-              [logRequest](AsyncWebServerRequest *request) {
-                logRequest(request);
-                AsyncWebServerResponse *resp = request->beginResponse(204);
-                for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
-                  resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-                request->send(resp);
-              });
-  _server->on("/api/timers", HTTP_GET,
-              [this, logRequest](AsyncWebServerRequest *request) {
-                logRequest(request);
-                handleGetTimers(request);
-              });
 
   _server->on("/api/timer", HTTP_OPTIONS,
               [logRequest](AsyncWebServerRequest *request) {
@@ -1045,15 +1055,6 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest *request,
   }
 }
 
-void WebServerManager::handleGetTimers(AsyncWebServerRequest *request) {
-  {
-    AsyncWebServerResponse *resp =
-        request->beginResponse(200, "application/json", getTimersJSON());
-    for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
-      resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-    request->send(resp);
-  }
-}
 
 void WebServerManager::handleSetTimer(AsyncWebServerRequest *request,
                                       uint8_t *data, size_t len) {

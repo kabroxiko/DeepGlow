@@ -52,6 +52,8 @@ def write_version_headers(version):
     with open(def_file, "w") as f:
         f.write(f"const char* FW_VERSION = {version_literal};\n")
     logging.info(f"[gen_version] Generated inc/version.inc (extern) and inc/version_def.inc (def): FW_VERSION = {version_literal}")
+    # Optionally: log that assets are now in dist
+    logging.info("[gen_version] NOTE: Web assets are now built to ./dist via Preact/Vite.")
 
 def main():
     from SCons.Script import Import, ARGUMENTS
