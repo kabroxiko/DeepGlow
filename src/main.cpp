@@ -13,17 +13,12 @@
 
 #include <Arduino.h>
 #include <memory>
-#ifdef ESP8266
-#include <ESP8266WiFi.h>
-#else
-#include <WiFi.h>
-#endif
+#include "network.h"
 #include <LittleFS.h>
 #define FILESYSTEM LittleFS
 #include <type_traits>
 
 #include "bus_manager.h"
-#include "captive_portal.h"
 #include "config.h"
 #include "debug.h"
 #include "effects.h"
@@ -69,7 +64,7 @@ extern TransitionEngine transition;
 static bool apFallbackTriggered = false;
 
 // Function declarations
-void setupWiFi();
+// ...existing code...
 void setupLEDs();
 void addBusToManager();
 void checkSchedule();
@@ -117,7 +112,7 @@ void setup() {
   setup_display();
 
   // Connect to WiFi
-  setupWiFi();
+  networkSetup(config);
   delay(500);
 
   // Setup web server callbacks
@@ -185,7 +180,7 @@ void setup() {
   debugPrintln();
   debugPrintln("System ready!");
   debugPrint("IP Address: ");
-  debugPrintln(WiFi.localIP());
+  debugPrintln(getCurrentIpString(config));
   debugPrintln("=================================");
 
   transition.forceCurrentBrightness(state.brightness);
@@ -215,37 +210,7 @@ void loop() {
       lastCheckedMinute = currentMinute;
     }
   }
-  // --- WiFi reconnect logic ---
-  static uint32_t lastWiFiCheck = 0;
-  static int wifiReconnectAttempts = 0;
-  const int wifiReconnectInterval = 10000; // 10 seconds
-  const int maxWiFiReconnectAttempts = 5;
-  if (WiFi.getMode() != WIFI_AP && config.network.ssid.length() > 0) {
-    if (WiFi.status() != WL_CONNECTED) {
-      uint32_t now = millis();
-      if (now - lastWiFiCheck > wifiReconnectInterval) {
-        debugPrintln("[WiFi] Lost connection, attempting reconnect...");
-        WiFi.disconnect();
-        delay(100);
-        WiFi.begin(config.network.ssid.c_str(),
-                   config.network.password.c_str());
-        wifiReconnectAttempts++;
-        lastWiFiCheck = now;
-        if (wifiReconnectAttempts >= maxWiFiReconnectAttempts) {
-          debugPrintln(
-              "[WiFi] Too many failed reconnects, switching to AP mode");
-          apFallbackTriggered = true;
-          WiFi.mode(WIFI_AP);
-          WiFi.softAP(config.network.hostname.c_str(),
-                      config.network.apPassword.c_str());
-          startCaptivePortal(WiFi.softAPIP());
-          wifiReconnectAttempts = 0;
-        }
-      }
-    } else {
-      wifiReconnectAttempts = 0;
-    }
-  }
+  networkLoop(config);
   static uint32_t lastFrame = 0;
   uint32_t now = millis();
   if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
@@ -260,8 +225,7 @@ void loop() {
     if (state.preset < config.getPresetCount()) {
       presetName = config.presets[state.preset].name;
     }
-    String ipStr = (WiFi.getMode() == WIFI_AP) ? WiFi.softAPIP().toString()
-                                               : WiFi.localIP().toString();
+    String ipStr = getCurrentIpString(config);
     if (presetName != lastPreset || state.power != lastPower ||
         state.brightness != lastBrightness || ipStr != lastIp) {
       display_status(presetName.c_str(), state.power, ipStr.c_str());
@@ -271,96 +235,6 @@ void loop() {
       lastIp = ipStr;
     }
   }
-  if (WiFi.getMode() == WIFI_AP) {
-    handleCaptivePortalDns();
-  }
-}
-
-void setupWiFi() {
-  debugPrintln("[WiFi] setupWiFi() called");
-  debugPrint("Connecting to WiFi");
-// Set hostname
-#ifdef ESP8266
-  WiFi.hostname(config.network.hostname);
-#else
-  WiFi.setHostname(config.network.hostname.c_str());
-#endif
-  // Connect to WiFi
-  if (config.network.ssid.length() > 0 && !apFallbackTriggered) {
-    debugPrintln("");
-    debugPrintln("[WiFi] Calling WiFi.begin");
-    const unsigned long wifiTimeout = 10000; // 10 seconds max for all attempts
-    unsigned long wifiStart = millis();
-    bool wrongPassword = false;
-    WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
-    int attempts = 0;
-    while (WiFi.status() != WL_CONNECTED && !apFallbackTriggered && (millis() - wifiStart < wifiTimeout)) {
-      delay(500);
-      debugPrint(".");
-#ifdef ESP8266
-      debugPrint(", error WL_WRONG_PASSWORD = ");
-      debugPrintln(String(WL_WRONG_PASSWORD).c_str());
-      if (WiFi.status() == WL_WRONG_PASSWORD) {
-        debugPrintln("\n[WiFi] Wrong password detected, switching to AP mode");
-        wrongPassword = true;
-        break;
-      }
-#else
-      debugPrint(", error WL_CONNECT_FAILED = ");
-      debugPrint(String(WL_CONNECT_FAILED).c_str());
-#if defined(ARDUINO_ARCH_ESP32)
-      debugPrint(", esp_err_t = ");
-      debugPrintln(String(WiFi.status()).c_str());
-#endif
-      if (WiFi.status() == WL_CONNECT_FAILED) {
-        debugPrintln("\n[WiFi] Connection failed, switching to AP mode");
-        wrongPassword = true;
-        break;
-      }
-#endif
-      attempts++;
-    }
-    debugPrintln("");
-    debugPrintln("[WiFi] Connection attempt done");
-    if (WiFi.status() == WL_CONNECTED) {
-      debugPrintln("");
-      debugPrintln("[WiFi] Connected!");
-      debugPrint("Connected! IP: ");
-      debugPrintln(WiFi.localIP());
-      stopCaptivePortal();
-      return;
-    }
-    if (apFallbackTriggered || wrongPassword || (millis() - wifiStart >= wifiTimeout)) {
-      debugPrintln("\n[WiFi] Fallback to AP mode after failed attempts or timeout");
-      apFallbackTriggered = true;
-    }
-  }
-#ifndef ESP8266
-  // For ESP32: fallback if not connected, regardless of status code
-  if (WiFi.status() != WL_CONNECTED) {
-    debugPrintln("");
-    debugPrintln("[WiFi] Not connected after attempts, switching to AP mode");
-    apFallbackTriggered = true;
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(config.network.hostname.c_str(),
-                config.network.apPassword.c_str());
-    debugPrint("AP IP: ");
-    debugPrintln(WiFi.softAPIP());
-    startCaptivePortal(WiFi.softAPIP());
-    return;
-  }
-#endif
-  // If wrong password or connection failed, start AP mode (ESP8266 or fallback)
-  debugPrintln("");
-  debugPrintln("[WiFi] Starting Access Point mode");
-  apFallbackTriggered = true;
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(config.network.hostname.c_str(),
-              config.network.apPassword.c_str());
-  debugPrint("AP IP: ");
-  debugPrintln(WiFi.softAPIP());
-  // Start captive portal DNS
-  startCaptivePortal(WiFi.softAPIP());
 }
 
 void setupLEDs() {
