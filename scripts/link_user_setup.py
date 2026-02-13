@@ -4,14 +4,15 @@
 import os
 import sys
 import logging
+from SCons.Script import DefaultEnvironment
 
+env = DefaultEnvironment()
 
 logging.basicConfig(
     level=logging.INFO,
     format='[link_user_setup] %(message)s'
 )
-from SCons.Script import Import, ARGUMENTS
-Import("env")
+
 env_name = env["PIOENV"]
 
 USER_SETUP_TEMPLATE = """
@@ -84,7 +85,6 @@ def generate_user_setup_h(path, vals):
 # Only run for build or upload actions, not for clean or other targets
 def main():
     if env.IsCleanTarget():
-        logging.info('link_user_setup.py: Skipping script for clean target.')
         return
     project_root = os.getcwd()
     display_h_path = os.path.join(project_root, 'src', 'display.h')

@@ -12,7 +12,9 @@ import re
 import configparser
 import argparse
 import logging
+from SCons.Script import DefaultEnvironment
 
+env = DefaultEnvironment()
 
 # Setup logging
 logging.basicConfig(
@@ -137,10 +139,7 @@ def to_inc(infile, outfile, do_minify=True):
 
 
 def main():
-	from SCons.Script import Import, ARGUMENTS
-	Import("env")
 	if env.IsCleanTarget():
-		logging.info('embed_assets.py: Skipping script for clean target.')
 		return
 
 

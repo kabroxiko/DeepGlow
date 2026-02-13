@@ -5,6 +5,9 @@ import sys
 import subprocess
 import logging
 from datetime import datetime
+from SCons.Script import DefaultEnvironment
+
+env = DefaultEnvironment()
 
 # Setup logging
 logging.basicConfig(
@@ -56,10 +59,7 @@ def write_version_headers(version):
     logging.info("[gen_version] NOTE: Web assets are now built to ./dist via Preact/Vite.")
 
 def main():
-    from SCons.Script import Import, ARGUMENTS
-    Import("env")
     if env.IsCleanTarget():
-        logging.info('gen_version.py: Skipping script for clean target.')
         return
     version = make_version_string()
     write_version_headers(version)

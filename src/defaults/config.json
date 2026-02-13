@@ -18,7 +18,7 @@
     "minTransitionTime": 5000
   },
   "time": {
-    "ntpServer": "pool.ntp.org",
+    "ntpServer": "pool.ntp.org",  
     "timezone": "Etc/UTC",
     "latitude": 0.0,
     "longitude": 0.0,
