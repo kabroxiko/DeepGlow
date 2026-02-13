@@ -349,6 +349,12 @@ export function Graph({ state, timers, presets, config }) {
       renderChart();
     }
 
+    // Add window focus event to update red timeline
+    function handleWindowFocus() {
+      renderChart();
+    }
+    window.addEventListener("focus", handleWindowFocus);
+
     // Resize chart on window resize to fix tall/short bug
     function handleResize() {
       if (
@@ -363,6 +369,7 @@ export function Graph({ state, timers, presets, config }) {
     // Cleanup on unmount
     return () => {
       window.removeEventListener("resize", handleResize);
+      window.removeEventListener("focus", handleWindowFocus);
       if (
         brightnessGraphRef.current &&
         brightnessGraphRef.current._chartInstance
@@ -377,11 +384,13 @@ export function Graph({ state, timers, presets, config }) {
     <canvas
       ref={brightnessGraphRef}
       id="brightnessGraph"
+      tabIndex={0}
       style={{
         width: "100%",
         maxWidth: "100%",
         height: "220px",
         marginTop: "16px",
+        outline: "none",
       }}
     ></canvas>
   );
