@@ -1,6 +1,5 @@
 // Config page as Preact component
-import { h } from "preact";
-import { useEffect, useState, useRef } from "preact/hooks";
+import { useState, useRef } from "preact/hooks";
 
 import { getBaseUrl } from "./baseUrl.js";
 import { WiFiSettings } from "./Settings/WiFiSettings.jsx";
@@ -17,12 +16,10 @@ export function Config({
   config,
   timezones,
   sunTimes,
-  toast,
   showToast,
   loaded,
   setTab,
   presets,
-  liveClock,
   setConfig,
   otaProgress,
 }) {
@@ -54,7 +51,7 @@ export function Config({
             <span class="status-indicator" id="statusIndicator">
               ●
             </span>
-            <span id="currentTime">{liveClock}</span>
+            <span id="currentTime"></span>
             <a
               href="#"
               className="back-to-main-link"

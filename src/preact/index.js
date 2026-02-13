@@ -1,7 +1,6 @@
 // Preact entry point for SPA routing
 import { h, render } from "preact";
 import { App } from "./App.jsx";
-import { Config } from "./Config.jsx";
 import { WifiSetup } from "./WifiSetup.jsx";
 
 function getPage() {

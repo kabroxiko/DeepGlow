@@ -52,10 +52,7 @@ void effect_solid() {
   uint32_t c = color[0];
   uint8_t r, g, b, w;
   unpack_rgbw(c, r, g, b, w);
-  // Intensity modifier: scale brightness by intensity percent
-  uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
-  uint8_t mod_brightness = (uint16_t(state.brightness) * intensity) / 255;
-  scale_rgbw_brightness(r, g, b, w, mod_brightness, r, g, b, w);
+  scale_rgbw_brightness(r, g, b, w, state.brightness, r, g, b, w);
   if (!g_effectBuffer)
     return;
   for (size_t i = 0; i < g_ledCount; ++i) {

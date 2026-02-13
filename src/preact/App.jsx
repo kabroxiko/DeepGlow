@@ -10,48 +10,6 @@ export function App() {
   const [otaProgress, setOtaProgress] = useState(-1); // -1: hidden, 0-100: progress
   // Home state (move up so it's available for all hooks)
   const [state, setState] = useState({});
-  // Ticking clock synced to firmware time (state.time)
-  const [liveClock, setLiveClock] = useState(() => {
-    // Start with local time if nothing else
-    const now = new Date();
-    return now.toLocaleTimeString([], { hour12: false });
-  });
-  const lastSyncRef = useRef({ date: new Date(), fwTime: null });
-  // When state.time changes, sync the clock
-  useEffect(() => {
-    if (state.time && /^\d{2}:\d{2}:\d{2}$/.test(state.time)) {
-      // Parse state.time as HH:MM:SS
-      const [h, m, s] = state.time.split(":").map(Number);
-      const now = new Date();
-      const syncDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        h,
-        m,
-        s,
-      );
-      lastSyncRef.current = { date: now, fwTime: syncDate };
-      setLiveClock(syncDate.toLocaleTimeString([], { hour12: false }));
-    }
-  }, [state.time]);
-  // Tick every second, adding to last synced firmware time
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const { date, fwTime } = lastSyncRef.current;
-      if (fwTime) {
-        const now = new Date();
-        const elapsed = Math.floor((now - date) / 1000);
-        const tickDate = new Date(fwTime.getTime() + elapsed * 1000);
-        setLiveClock(tickDate.toLocaleTimeString([], { hour12: false }));
-      } else {
-        // Fallback: tick local time
-        const now = new Date();
-        setLiveClock(now.toLocaleTimeString([], { hour12: false }));
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
   // Toast state
   const [toast, setToast] = useToast();
 
@@ -144,51 +102,20 @@ export function App() {
         }
       },
       onBinary: (buffer) => {
-        const canvas = ledBarRef.current;
-        if (!canvas) return;
-        const arr = new Uint8Array(buffer);
-        const ledCount = Math.floor(arr.length / 4);
-        const w = canvas.width;
-        const h = canvas.height;
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, w, h);
-        if (ledCount === 0) return;
-        const ledWidth = w / ledCount;
-        for (let i = 0; i < ledCount; ++i) {
-          let r1 = arr[i * 4];
-          let g1 = arr[i * 4 + 1];
-          let b1 = arr[i * 4 + 2];
-          let wch1 = arr[i * 4 + 3];
-          if (wch1 > 0) {
-            r1 = 255;
-            g1 = 255;
-            b1 = 255;
-          }
-          let r2 = r1,
-            g2 = g1,
-            b2 = b1;
-          if (i < ledCount - 1) {
-            r2 = arr[(i + 1) * 4];
-            g2 = arr[(i + 1) * 4 + 1];
-            b2 = arr[(i + 1) * 4 + 2];
-            let wch2 = arr[(i + 1) * 4 + 3];
-            if (wch2 > 0) {
-              r2 = 255;
-              g2 = 255;
-              b2 = 255;
-            }
-          }
-          let x0 = i * ledWidth;
-          let x1 = (i + 1) * ledWidth;
-          let grad = ctx.createLinearGradient(x0, 0, x1, 0);
-          grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
-          grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
-          ctx.fillStyle = grad;
-          ctx.fillRect(x0, 0, Math.ceil(ledWidth), h);
+        if (ledBarRef.current && typeof ledBarRef.current.updateBuffer === 'function') {
+          ledBarRef.current.updateBuffer(buffer);
         }
-        ctx.strokeStyle = "#444";
-        ctx.lineWidth = 1;
-        ctx.strokeRect(0, 0, w, h);
+      },
+      onOpen: () => {
+        setWsReady(true);
+        setWsError(null);
+      },
+      onError: (err) => {
+        setWsError(err);
+        setWsReady(false);
+      },
+      onClose: () => {
+        setWsReady(false);
       },
     });
     return () => {
@@ -323,6 +250,7 @@ export function App() {
     setToast((t) => ({ ...t, message: _displayMessage, type: _displayType }));
   }
 
+
   return (
     <div>
       <Toast
@@ -340,27 +268,21 @@ export function App() {
           effects={effects}
           activePreset={activePreset}
           ledBarRef={ledBarRef}
-          sunTimes={sunTimes}
-          toast={toast}
-          showToast={showToast}
           sendState={sendState}
           applyPreset={applyPreset}
           ScheduleTable={ScheduleTable}
           setTab={setTab}
           config={config}
-          liveClock={liveClock}
         />
       ) : (
         <Config
           config={config}
           timezones={timezones}
           sunTimes={sunTimes}
-          toast={toast}
           showToast={showToast}
           loaded={loaded}
           setTab={setTab}
           presets={presets || []}
-          liveClock={liveClock}
           setConfig={setConfig}
           otaProgress={otaProgress}
         />

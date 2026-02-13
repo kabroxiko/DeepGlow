@@ -1,6 +1,5 @@
 // WiFi setup page as Preact component (initial stub)
 
-import { h } from "preact";
 import { useRef, useState } from "preact/hooks";
 
 export function WifiSetup() {

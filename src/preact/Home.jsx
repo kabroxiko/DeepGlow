@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from "preact/hooks";
-// Utility functions and WebSocket logic
 import { Graph } from "./Graph.jsx";
 import { Controls } from "./Controls.jsx";
 import { PresetsCard } from "./PresetsCard.jsx";
-
+import { LedBar } from "./LedBar.jsx";
+import { LiveClock } from "./LiveClock.jsx";
 export function Home({
   wsError,
   wsReady,
@@ -13,16 +12,11 @@ export function Home({
   effects,
   activePreset,
   ledBarRef,
-  sunTimes,
-  toast,
-  showToast,
   sendState,
   applyPreset,
-  PresetGrid,
   ScheduleTable,
   setTab,
   config,
-  liveClock,
 }) {
   return (
     <>
@@ -32,22 +26,7 @@ export function Home({
           <div className="toast toast-warn">Connecting to device...</div>
         )}
         {/* Floating LED Bar */}
-        <div id="ledBarContainer" className="led-bar-floating">
-          <canvas
-            ref={ledBarRef}
-            id="ledBarCanvas"
-            width={1200}
-            height={32}
-            style={{
-              background: "#222",
-              borderRadius: "8px",
-              flex: 1,
-              width: "100%",
-              height: "32px",
-              display: "block",
-            }}
-          ></canvas>
-        </div>
+        <LedBar ref={ledBarRef} />
         {/* Header */}
         <header className="header">
           <h1>🐠 Aquarium Control</h1>
@@ -55,7 +34,7 @@ export function Home({
             <span className="status-indicator" id="statusIndicator">
               ●
             </span>
-            <span id="currentTime">{liveClock}</span>
+            <LiveClock />
             <a
               href="#"
               className="status-config-link"
