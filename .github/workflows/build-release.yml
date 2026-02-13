@@ -1,6 +1,10 @@
 ---
 name: Build and Release
 
+permissions:
+  contents: write  # required for creating releases and uploading artifacts
+  actions: read    # required for using actions/checkout, actions/cache, etc.
+
 on:
   push:
     tags:
