@@ -29,8 +29,6 @@ ASSET_DIR_SRC = os.path.join(os.getcwd(), 'src/defaults')
 OUT_DIR = os.path.join(os.getcwd(), 'src/inc')
 ASSETS = [
 	(ASSET_DIR_DIST, 'index.html', 'index_html.inc'),
-	(ASSET_DIR_DIST, 'index.html', 'config_html.inc'),
-	(ASSET_DIR_DIST, 'index.html', 'wifi_html.inc'),
 	(ASSET_DIR_DIST, 'index.js', 'index_js.inc'),
 	(ASSET_DIR_DIST, 'style.css', 'style_css.inc'),
 	(ASSET_DIR_SRC, 'config.json', 'config_default.inc'),
@@ -71,25 +69,6 @@ def to_inc(infile, outfile, do_minify=True):
 			logging.error(f'Source file not found: {infile_path}')
 			return False
 		ext = os.path.splitext(infile_path)[1]
-		def minify_js_with_terser(infile):
-			with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix='.js') as tmp_in:
-				with open(infile, 'r', encoding='utf-8') as f:
-					tmp_in.write(f.read())
-				tmp_in.flush()
-				tmp_in_path = tmp_in.name
-			tmp_out_path = tmp_in_path + '.min'
-			try:
-				subprocess.run([
-					'npx', 'terser', tmp_in_path, '-o', tmp_out_path, '--compress', '--mangle'
-				], check=True)
-				with open(tmp_out_path, 'r', encoding='utf-8') as f:
-					minified = f.read()
-				os.remove(tmp_in_path)
-				os.remove(tmp_out_path)
-				return minified
-			except Exception as e:
-				logging.error(f"Terser minification failed for {infile}: {e}")
-				sys.exit(1)
 		minified = minify_asset(infile_path, ext, do_minify)
 		with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix=ext) as tmp:
 			tmp.write(minified)

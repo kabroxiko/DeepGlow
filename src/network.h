@@ -21,6 +21,8 @@ void networkSetup(Configuration& config);
 
 // Main loop handler for network/captive portal
 void networkLoop(Configuration& config);
+// Processes captive portal DNS in AP or AP+STA mode
+void processCaptivePortalDNS();
 
 // Get current IP as string (AP or STA)
 String getCurrentIpString(const Configuration& config);
@@ -28,8 +30,10 @@ String getCurrentIpString(const Configuration& config);
 // Setup web server WiFi/captive portal handlers
 void setupWiFiHandlers(AsyncWebServer* server, Configuration* config);
 
+
 // Captive portal DNS control
 void startCaptivePortal(const IPAddress &apIP);
 void stopCaptivePortal();
+void handleCaptivePortalDns();
 
 #endif // NETWORK_H

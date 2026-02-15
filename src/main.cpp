@@ -64,7 +64,6 @@ extern TransitionEngine transition;
 static bool apFallbackTriggered = false;
 
 // Function declarations
-// ...existing code...
 void setupLEDs();
 void addBusToManager();
 void checkSchedule();
@@ -167,14 +166,31 @@ void setup() {
   scheduler.begin();
   setupArduinoOTA(config.network.hostname.c_str());
 
-  debugPrintln("Waiting for time sync...");
-  for (int i = 0; i < 30; i++) {
-    scheduler.update();
-    if (scheduler.isTimeValid()) {
-      debugPrintln("Time synchronized!");
-      break;
+  // Only wait for time sync if connected to WiFi (STA mode)
+  if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
+    debugPrintln("Waiting for time sync...");
+    for (int i = 0; i < 30; i++) {
+      scheduler.update();
+      if (scheduler.isTimeValid()) {
+        debugPrintln("Time synchronized!");
+        break;
+      }
+      delay(1000);
     }
-    delay(1000);
+  } else {
+    debugPrintln("Skipping time sync (AP mode)");
+    // Scan for WiFi networks and print SSIDs in AP mode for captive portal
+    debugPrintln("Scanning for WiFi networks...");
+    int n = WiFi.scanNetworks();
+    if (n == 0) {
+      debugPrintln("No networks found");
+    } else {
+      debugPrintln("Networks found:");
+      for (int i = 0; i < n; ++i) {
+        debugPrint("  ");
+        debugPrintln(WiFi.SSID(i));
+      }
+    }
   }
 
   debugPrintln();
@@ -196,13 +212,10 @@ void loop() {
     // Show debug dots handled in OTA progress callback
     return;
   }
-  checkAndApplyScheduleAfterBoot();
-  handleArduinoOTA();
-  scheduler.update();
-  webServer.update();
-  transition.update();
-  // Only check schedule on a new round minute
-  {
+  // Only run schedule logic if time is valid
+  if (scheduler.isTimeValid()) {
+    checkAndApplyScheduleAfterBoot();
+    // Only check schedule on a new round minute
     static int lastCheckedMinute = -1;
     int currentMinute = scheduler.getCurrentMinute();
     if (currentMinute != lastCheckedMinute) {
@@ -210,6 +223,10 @@ void loop() {
       lastCheckedMinute = currentMinute;
     }
   }
+  handleArduinoOTA();
+  scheduler.update();
+  webServer.update();
+  transition.update();
   networkLoop(config);
   static uint32_t lastFrame = 0;
   uint32_t now = millis();

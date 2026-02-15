@@ -6,7 +6,57 @@ export function WifiSetup() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [ssidList, setSsidList] = useState([]);
+  const [scanning, setScanning] = useState(false);
+  const [selectedSsid, setSelectedSsid] = useState("");
+  const [manualSsid, setManualSsid] = useState("");
+  const [showManual, setShowManual] = useState(false);
   const formRef = useRef(null);
+  const handleScan = () => {
+    setScanning(true);
+    setError(null);
+    const pollScan = () => {
+      fetch("/wifi/scan")
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data)) {
+            // Legacy: backend returns array directly
+            setSsidList({ ssids: data });
+            setScanning(false);
+          } else if (data?.status === "scanning") {
+            // Still scanning, poll again
+            setTimeout(pollScan, 1000);
+          } else if (Array.isArray(data.ssids)) {
+            setSsidList(data);
+            setScanning(false);
+          } else {
+            setError("No networks found");
+            setScanning(false);
+          }
+        })
+        .catch((e) => {
+          setError("Failed to scan networks");
+          setScanning(false);
+        });
+    };
+    pollScan();
+  };
+
+  const handleSsidChange = (e) => {
+    const value = e.target.value;
+    setSelectedSsid(value);
+    if (value === "__other__") {
+      setShowManual(true);
+      setManualSsid("");
+    } else {
+      setShowManual(false);
+      setManualSsid("");
+    }
+  };
+
+  const handleManualSsidChange = (e) => {
+    setManualSsid(e.target.value);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -15,7 +65,8 @@ export function WifiSetup() {
     setLoading(true);
     const form = formRef.current;
     const data = new URLSearchParams();
-    data.append("ssid", form.ssid.value);
+    const ssidToSend = showManual ? manualSsid : selectedSsid;
+    data.append("ssid", ssidToSend);
     data.append("password", form.password.value);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", form.action, true);
@@ -81,15 +132,51 @@ export function WifiSetup() {
           onSubmit={handleSubmit}
         >
           <label htmlFor="ssid">WiFi SSID</label>
-          <input
-            className="text-input"
-            name="ssid"
-            id="ssid"
-            type="text"
-            required
-            autoComplete="on"
-            autoFocus
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <select
+              className="text-input"
+              name="ssid-select"
+              id="ssid-select"
+              value={selectedSsid}
+              onChange={handleSsidChange}
+              required={!showManual}
+              style={{ flex: 1 }}
+            >
+              <option value="" disabled>
+                {scanning ? "Scanning..." : "Select network"}
+              </option>
+              {(Array.isArray(ssidList.ssids) ? ssidList.ssids : ssidList).map((ssid) => (
+                <option value={ssid} key={ssid}>
+                  {ssid}
+                </option>
+              ))}
+              <option value="__other__">Other...</option>
+            </select>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ minWidth: 90 }}
+              onClick={handleScan}
+              disabled={scanning}
+            >
+              {scanning ? "Scanning..." : "Scan Networks"}
+            </button>
+          </div>
+          {showManual && (
+            <input
+              className="text-input"
+              name="ssid"
+              id="ssid"
+              type="text"
+              required
+              autoComplete="on"
+              autoFocus
+              placeholder="Enter SSID manually"
+              value={manualSsid}
+              onInput={handleManualSsidChange}
+              style={{ marginTop: 8 }}
+            />
+          )}
           <label htmlFor="password">WiFi Password</label>
           <input
             className="text-input"

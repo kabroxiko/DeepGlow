@@ -2,10 +2,9 @@
 #if defined(ESP8266) || defined(ARDUINO_ARCH_AVR)
 #include <pgmspace.h>
 #endif
-// #include "inc/app_js.inc" // migrated to SPA, now included in index_js.inc
-#include "inc/config_html.inc"
-// #include "inc/config_js.inc" // migrated to SPA, now included in index_js.inc
 #include "inc/index_html.inc"
+// #include "inc/app_js.inc" // migrated to SPA, now included in index_js.inc
+// #include "inc/config_js.inc" // migrated to SPA, now included in index_js.inc
 #include "inc/style_css.inc"
 #include "network.h"
 #include "inc/index_js.inc"
@@ -521,8 +520,92 @@ void WebServerManager::setupRoutes() {
         logRequest(request);
         request->send_P(200, "text/html", web_index_html, web_index_html_len);
       });
-  // Register WiFi handlers
-  setupWiFiHandlers(_server, _config);
+  // Register WiFi endpoints directly
+  // WiFi scan endpoint (returns SSID list as JSON, triggers scan)
+  _server->on("/wifi/scan", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+    logRequest(request);
+    int scanStatus = WiFi.scanComplete();
+    debugPrintln(String("[WiFiScan] scanComplete status: ") + scanStatus);
+    if (scanStatus == -2) { // No scan started
+      debugPrintln("[WiFiScan] Starting async scan");
+      WiFi.scanNetworks(true);
+      request->send(200, "application/json", "{\"status\":\"scanning\"}");
+    } else if (scanStatus == -1) { // Scan ongoing
+      debugPrintln("[WiFiScan] Scan in progress");
+      request->send(200, "application/json", "{\"status\":\"scanning\"}");
+    } else if (scanStatus >= 0) { // Scan complete
+      debugPrintln(String("[WiFiScan] Scan complete, networks found: ") + scanStatus);
+      String json = "[";
+      for (int i = 0; i < scanStatus; ++i) {
+        if (i > 0) json += ",";
+        json += "\"" + WiFi.SSID(i) + "\"";
+      }
+      json += "]";
+      WiFi.scanDelete();
+      request->send(200, "application/json", json);
+    } else {
+      debugPrintln("[WiFiScan] Unknown scan status");
+      request->send(500, "application/json", "{\"error\":\"scan error\"}");
+    }
+  });
+  // POST handler for /wifi
+  _server->on("/wifi", HTTP_POST,
+    [this, logRequest](AsyncWebServerRequest *request) {
+      logRequest(request);
+      if (request->hasParam("ssid", true)) {
+        String ssid = urlDecode(request->getParam("ssid", true)->value());
+        String password = request->hasParam("password", true)
+          ? urlDecode(request->getParam("password", true)->value())
+          : "";
+        if (ssid.length() > 0) {
+          _config->network.ssid = ssid;
+          _config->network.password = password;
+          _config->save();
+          String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
+          request->send(200, "text/html", html);
+          delay(1000);
+          ESP.restart();
+          return;
+        }
+        request->send_P(200, "text/html", web_index_html, web_index_html_len);
+      }
+    },
+    nullptr,
+    [this, logRequest](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t, size_t) {
+      logRequest(request);
+      String body;
+      for (size_t i = 0; i < len; ++i)
+        body += (char)data[i];
+      String ssid, password;
+      int ssidIdx = body.indexOf("ssid=");
+      int passIdx = body.indexOf("password=");
+      if (ssidIdx != -1) {
+        int amp = body.indexOf('&', ssidIdx);
+        ssid = urlDecode(body.substring(ssidIdx + 5, amp == -1 ? body.length() : amp));
+      }
+      if (passIdx != -1) {
+        int amp = body.indexOf('&', passIdx);
+        password = urlDecode(body.substring(passIdx + 9, amp == -1 ? body.length() : amp));
+      }
+      if (ssid.length() > 0) {
+        _config->network.ssid = ssid;
+        _config->network.password = password;
+        _config->save();
+        String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
+        request->send(200, "text/html", html);
+        delay(1000);
+        ESP.restart();
+        return;
+      }
+      request->send_P(200, "text/html", web_index_html, web_index_html_len);
+    }
+  );
+
+  // GET handler for /wifi
+  _server->on("/wifi", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+    logRequest(request);
+    request->send_P(200, "text/html", web_index_html, web_index_html_len);
+  });
   _server->on("/app.js", HTTP_GET,
               [logRequest](AsyncWebServerRequest *request) {
                 logRequest(request);
@@ -543,7 +626,7 @@ void WebServerManager::setupRoutes() {
   _server->on(
       "/config.html", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
         logRequest(request);
-        request->send_P(200, "text/html", web_config_html, web_config_html_len);
+        request->send_P(200, "text/html", web_index_html, web_index_html_len);
       });
   _server->on("/config.js", HTTP_GET,
               [logRequest](AsyncWebServerRequest *request) {

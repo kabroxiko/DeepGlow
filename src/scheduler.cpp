@@ -55,7 +55,26 @@ Scheduler::Scheduler(Configuration *config) {
 
 void Scheduler::begin() {
   _timeClient->begin();
-  updateNTP();
+#if defined(ESP8266)
+  bool staConnected = (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) ||
+                      (WiFi.getMode() == WIFI_AP_STA && WiFi.isConnected());
+#else
+  bool staConnected = (WiFi.getMode() == WIFI_MODE_STA && WiFi.isConnected()) ||
+                      (WiFi.getMode() == WIFI_MODE_APSTA && WiFi.isConnected());
+#endif
+  debugPrint("[Scheduler::begin] WiFi mode: ");
+#if defined(ESP8266)
+  debugPrintln(WiFi.getMode());
+#else
+  debugPrintln((int)WiFi.getMode());
+#endif
+  debugPrint("[Scheduler::begin] WiFi connected: ");
+  debugPrintln(WiFi.isConnected());
+  if (staConnected) {
+    updateNTP();
+  } else {
+    debugPrintln("[Scheduler::begin] Not connected as STA, skipping initial NTP update.");
+  }
 }
 
 int Scheduler::getCurrentTimeInMinutes() {
@@ -63,13 +82,15 @@ int Scheduler::getCurrentTimeInMinutes() {
 }
 
 void Scheduler::update() {
-// Completely disable NTP logic in AP mode (no time sync attempts)
+  // Only allow NTP logic if STA is connected
 #if defined(ESP8266)
-  bool apMode = (WiFi.getMode() == WIFI_AP);
+  bool staConnected = (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) ||
+                      (WiFi.getMode() == WIFI_AP_STA && WiFi.isConnected());
 #else
-  bool apMode = (WiFi.getMode() == WIFI_MODE_AP);
+  bool staConnected = (WiFi.getMode() == WIFI_MODE_STA && WiFi.isConnected()) ||
+                      (WiFi.getMode() == WIFI_MODE_APSTA && WiFi.isConnected());
 #endif
-  if (!apMode) {
+  if (staConnected) {
     uint32_t interval =
         isTimeValid() ? NTP_UPDATE_INTERVAL : NTP_RETRY_INTERVAL;
     if (millis() - _lastNTPUpdate > interval) {
@@ -99,18 +120,19 @@ void Scheduler::updateNTP() {
       return;
     }
   }
-// Disable NTP update if in AP mode (no internet)
+  // Disable NTP update if not connected as STA (no internet)
+  bool staConnected = false;
 #if defined(ESP8266)
-  if (WiFi.getMode() == WIFI_AP) {
-    debugPrintln("In AP mode, skipping NTP update.");
-    return;
-  }
+  staConnected = (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) ||
+                 (WiFi.getMode() == WIFI_AP_STA && WiFi.isConnected());
 #else
-  if (WiFi.getMode() == WIFI_MODE_AP) {
-    debugPrintln("In AP mode, skipping NTP update.");
+  staConnected = (WiFi.getMode() == WIFI_MODE_STA && WiFi.isConnected()) ||
+                 (WiFi.getMode() == WIFI_MODE_APSTA && WiFi.isConnected());
+#endif
+  if (!staConnected) {
+    debugPrintln("Not connected as STA, skipping NTP update.");
     return;
   }
-#endif
   _timeClient->forceUpdate();
   _lastNTPUpdate = millis();
   debugPrintln("NTP time updated");

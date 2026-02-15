@@ -1,5 +1,4 @@
 #include "network.h"
-#include "inc/wifi_html.inc"
 #include "debug.h"
 #include "config.h"
 #if defined(ESP8266)
@@ -20,6 +19,16 @@ void networkSetup(Configuration& config) {
 #else
     WiFi.setHostname(config.network.hostname.c_str());
 #endif
+    if (config.network.ssid.length() == 0) {
+        debugPrintln("[WiFi] No SSID configured, starting AP mode immediately");
+        apFallbackTriggered = true;
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
+        debugPrint("AP IP: ");
+        debugPrintln(WiFi.softAPIP());
+        startCaptivePortal(WiFi.softAPIP());
+        return;
+    }
     if (config.network.ssid.length() > 0 && !apFallbackTriggered) {
         debugPrintln("");
         debugPrintln("[WiFi] Calling WiFi.begin");
@@ -74,7 +83,7 @@ void networkSetup(Configuration& config) {
         debugPrintln("");
         debugPrintln("[WiFi] Not connected after attempts, switching to AP mode");
         apFallbackTriggered = true;
-        WiFi.mode(WIFI_AP);
+        WiFi.mode(WIFI_AP_STA);
         WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
         debugPrint("AP IP: ");
         debugPrintln(WiFi.softAPIP());
@@ -85,7 +94,7 @@ void networkSetup(Configuration& config) {
     debugPrintln("");
     debugPrintln("[WiFi] Starting Access Point mode");
     apFallbackTriggered = true;
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
     debugPrint("AP IP: ");
     debugPrintln(WiFi.softAPIP());
@@ -95,7 +104,12 @@ void networkSetup(Configuration& config) {
 
 // Returns the current IP as a string (AP or STA mode)
 String getCurrentIpString(const Configuration& config) {
-    if (WiFi.getMode() == WIFI_AP) {
+#ifdef ESP8266
+    uint8_t mode = WiFi.getMode();
+#else    
+    wifi_mode_t mode = WiFi.getMode();
+#endif    
+    if (mode == WIFI_AP || mode == WIFI_AP_STA) {
         return WiFi.softAPIP().toString();
     } else {
         return WiFi.localIP().toString();
@@ -104,12 +118,47 @@ String getCurrentIpString(const Configuration& config) {
 
 // Handles WiFi reconnect and captive portal DNS (call in main loop)
 void networkLoop(Configuration& config) {
-    // Reconnect logic if needed (if you have a reconnect timer, move it here)
-    // Captive portal DNS loop (if using DNSServer)
-    #ifdef USE_DNSSERVER
-    if (dnsServer) dnsServer->processNextRequest();
-    #endif
-    // Add any periodic WiFi/captive portal logic here
+    // WiFi reconnect logic: if not in AP mode and not connected, try to reconnect every 10 seconds
+    static uint32_t lastWiFiCheck = 0;
+    static int wifiReconnectAttempts = 0;
+    const int wifiReconnectInterval = 10000;
+    const int maxWiFiReconnectAttempts = 5;
+#ifdef ESP8266
+    uint8_t mode = WiFi.getMode();
+#else    
+    wifi_mode_t mode = WiFi.getMode();
+#endif    
+    if (mode != WIFI_AP && mode != WIFI_AP_STA && config.network.ssid.length() > 0) {
+        if (WiFi.status() != WL_CONNECTED) {
+            uint32_t now = millis();
+            if (now - lastWiFiCheck > wifiReconnectInterval) {
+                debugPrintln("[WiFi] Lost connection, attempting reconnect (networkLoop)...");
+                WiFi.disconnect();
+                delay(100);
+                WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
+                wifiReconnectAttempts++;
+                lastWiFiCheck = now;
+                if (wifiReconnectAttempts >= maxWiFiReconnectAttempts) {
+                    debugPrintln("[WiFi] Too many failed reconnects, switching to AP mode (networkLoop)");
+                    apFallbackTriggered = true;
+                    WiFi.mode(WIFI_AP_STA);
+                    WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
+                    startCaptivePortal(WiFi.softAPIP());
+                    wifiReconnectAttempts = 0;
+                }
+            }
+        } else {
+            wifiReconnectAttempts = 0;
+        }
+    }
+#ifdef ESP8266
+    uint8_t modeNow = WiFi.getMode();
+#else
+    wifi_mode_t modeNow = WiFi.getMode();
+#endif
+    if (modeNow == WIFI_AP || modeNow == WIFI_AP_STA) {
+        handleCaptivePortalDns();
+    }
 }
 
 
@@ -195,7 +244,7 @@ void setupWiFi(Configuration& config) {
         debugPrintln("");
         debugPrintln("[WiFi] Not connected after attempts, switching to AP mode");
         apFallbackTriggered = true;
-        WiFi.mode(WIFI_AP);
+        WiFi.mode(WIFI_AP_STA);
         WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
         debugPrint("AP IP: ");
         debugPrintln(WiFi.softAPIP());
@@ -206,7 +255,7 @@ void setupWiFi(Configuration& config) {
     debugPrintln("");
     debugPrintln("[WiFi] Starting Access Point mode");
     apFallbackTriggered = true;
-    WiFi.mode(WIFI_AP);
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
     debugPrint("AP IP: ");
     debugPrintln(WiFi.softAPIP());
@@ -231,7 +280,7 @@ void handleWiFiReconnect(Configuration& config) {
                 if (wifiReconnectAttempts >= maxWiFiReconnectAttempts) {
                     debugPrintln("[WiFi] Too many failed reconnects, switching to AP mode");
                     apFallbackTriggered = true;
-                    WiFi.mode(WIFI_AP);
+                    WiFi.mode(WIFI_AP_STA);
                     WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());
                     startCaptivePortal(WiFi.softAPIP());
                     wifiReconnectAttempts = 0;
@@ -241,64 +290,6 @@ void handleWiFiReconnect(Configuration& config) {
             wifiReconnectAttempts = 0;
         }
     }
-}
-
-void setupWiFiHandlers(AsyncWebServer* server, Configuration* config) {
-    // POST handler for /wifi
-    server->on("/wifi", HTTP_POST,
-        [config](AsyncWebServerRequest *request) {
-            if (request->hasParam("ssid", true)) {
-                String ssid = urlDecode(request->getParam("ssid", true)->value());
-                String password = request->hasParam("password", true)
-                    ? urlDecode(request->getParam("password", true)->value())
-                    : "";
-                if (ssid.length() > 0) {
-                    config->network.ssid = ssid;
-                    config->network.password = password;
-                    config->save();
-                    String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
-                    request->send(200, "text/html", html);
-                    delay(1000);
-                    ESP.restart();
-                    return;
-                }
-                request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
-            }
-        },
-        nullptr,
-        [config](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t, size_t) {
-            String body;
-            for (size_t i = 0; i < len; ++i)
-                body += (char)data[i];
-            String ssid, password;
-            int ssidIdx = body.indexOf("ssid=");
-            int passIdx = body.indexOf("password=");
-            if (ssidIdx != -1) {
-                int amp = body.indexOf('&', ssidIdx);
-                ssid = urlDecode(body.substring(ssidIdx + 5, amp == -1 ? body.length() : amp));
-            }
-            if (passIdx != -1) {
-                int amp = body.indexOf('&', passIdx);
-                password = urlDecode(body.substring(passIdx + 9, amp == -1 ? body.length() : amp));
-            }
-            if (ssid.length() > 0) {
-                config->network.ssid = ssid;
-                config->network.password = password;
-                config->save();
-                String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
-                request->send(200, "text/html", html);
-                delay(1000);
-                ESP.restart();
-                return;
-            }
-            request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
-        }
-    );
-
-    // GET handler for /wifi
-    server->on("/wifi", HTTP_GET, [](AsyncWebServerRequest *request) {
-        request->send_P(200, "text/html", web_wifi_html, web_wifi_html_len);
-    });
 }
 
 void startCaptivePortal(const IPAddress &apIP) {
