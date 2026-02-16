@@ -18,6 +18,7 @@ export function Config({
   timezones,
   sunTimes,
   showToast,
+  hideToast,
   loaded,
   setTab,
   presets,
@@ -143,7 +144,7 @@ export function Config({
               setTimeout(() => {
                 a.remove();
                 URL.revokeObjectURL(url);
-                showToast("Config downloaded!", "success");
+                showToast("Config downloaded!", { type: "success" });
               }, 100);
             }}
           >
@@ -174,13 +175,12 @@ export function Config({
                   body: JSON.stringify(json),
                 });
                 if (!response.ok) throw new Error("Upload failed");
-                showToast("Config uploaded!", "success");
+                showToast("Config uploaded!", { type: "success" });
                 setTimeout(() => globalThis.location.reload(), 1200);
               } catch (err) {
-                showToast(
-                  "Error uploading config: " + (err.message || err),
-                  "error",
-                );
+                showToast("Error uploading config: " + (err.message || err), {
+                  type: "error",
+                });
               }
               e.target.value = "";
             }}
@@ -212,14 +212,14 @@ export function Config({
                   body: JSON.stringify(toSave),
                 });
                 if (!resp.ok) throw new Error("Save failed");
-                showToast("Configuration saved!", "success");
+                showToast("Configuration saved!", { type: "success" });
                 // Update local config state with sorted timers so UI reflects the change
                 if (sortedTimers) {
                   setConfig((prev) => ({ ...prev, timers: sortedTimers }));
                 }
                 resetModifiedConfig();
               } catch (err) {
-                showToast("Error saving config: " + err, "error");
+                showToast("Error saving config: " + err, { type: "error" });
               }
             }}
           >
@@ -261,6 +261,7 @@ export function Config({
           <FirmwareUpdate
             config={config}
             showToast={showToast}
+            hideToast={hideToast}
             otaProgress={otaProgress}
             loaded={loaded}
             setConfig={wrappedSetConfig}

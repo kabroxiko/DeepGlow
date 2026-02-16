@@ -129,13 +129,10 @@ export function Home({
         );
       })
     : [];
+
   return (
     <>
       <div className="container">
-        {wsError && <div className="toast toast-error">{wsError}</div>}
-        {!wsReady && !wsError && (
-          <div className="toast toast-warn">Connecting to device...</div>
-        )}
         {/* Floating LED Bar */}
         <LedBar ref={ledBarRef} />
         {/* Header */}

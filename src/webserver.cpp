@@ -344,27 +344,77 @@ void WebServerManager::setupRoutes() {
                   resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
                 request->send(resp);
               });
+  // Update API endpoint: GET for remote manifest, POST for OTA update
+  _server->on("/api/update", HTTP_ANY,
+    [logRequest, this](AsyncWebServerRequest *request) {
+      logRequest(request);
+      if (request->method() == HTTP_GET) {
+        // Serve remote manifest (firmware version and metadata)
+        String manifestJson = fetchRemoteManifestJson();
+        if (manifestJson.length() == 0) {
+          AsyncWebServerResponse *resp = request->beginResponse(404, "application/json", "{\"error\":\"No release manifest found\"}");
+          for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+            resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+          resp->addHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          resp->addHeader("Pragma", "no-cache");
+          request->send(resp);
+          return;
+        }
+        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", manifestJson);
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+          resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        resp->addHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+        resp->addHeader("Pragma", "no-cache");
+        request->send(resp);
+        return;
+      }
+      if (request->method() == HTTP_POST) {
+        // Find the WebSocket client with the same IP as the HTTP request
+        IPAddress reqIp = request->client()->remoteIP();
+        for (auto &client : _ws->getClients()) {
+          if (client.remoteIP() == reqIp) {
+            pendingOtaClients.insert(client.id());
+          }
+        }
+#if defined(ESP32)
+        xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
+#endif
+        AsyncWebServerResponse *resp = request->beginResponse(
+            200, "application/json",
+            "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
+        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+          resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+        request->send(resp);
+        return;
+      }
+      // Method not allowed
+      AsyncWebServerResponse *resp = request->beginResponse(405, "application/json", "{\"error\":\"Method Not Allowed\"}");
+      for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+        resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+      request->send(resp);
+    });
+
   // Update API endpoint: POST /api/update (OTA with .bin.gz support)
   _server->on("/api/update", HTTP_POST,
-              [logRequest, this](AsyncWebServerRequest *request) {
-                logRequest(request);
-                // Find the WebSocket client with the same IP as the HTTP request
-                IPAddress reqIp = request->client()->remoteIP();
-                for (auto &client : _ws->getClients()) {
-                  if (client.remoteIP() == reqIp) {
-                    pendingOtaClients.insert(client.id());
-                  }
-                }
+    [logRequest, this](AsyncWebServerRequest *request) {
+      logRequest(request);
+      // Find the WebSocket client with the same IP as the HTTP request
+      IPAddress reqIp = request->client()->remoteIP();
+      for (auto &client : _ws->getClients()) {
+        if (client.remoteIP() == reqIp) {
+          pendingOtaClients.insert(client.id());
+        }
+      }
 #if defined(ESP32)
-                xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
+      xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
 #endif
-                AsyncWebServerResponse *resp = request->beginResponse(
-                    200, "application/json",
-                    "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
-                for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
-                  resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-                request->send(resp);
-              });
+      AsyncWebServerResponse *resp = request->beginResponse(
+          200, "application/json",
+          "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
+      for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+        resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+      request->send(resp);
+    });
 
   // System command API (reboot, update, etc.)
   _server->on("/api/command", HTTP_OPTIONS,

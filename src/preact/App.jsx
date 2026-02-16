@@ -22,13 +22,15 @@ export function App() {
   const [toasts, showToast, hideToast] = useToast();
 
   // Toast helper (App-level, always use this)
-  function showToastHelper(message, type = "info", duration = 4000) {
+  function showToastHelper(message, opts = {}) {
     let msg = message;
     if (typeof msg === "object" && msg !== null) {
       msg = msg.message || JSON.stringify(msg);
     }
     if (!msg || String(msg).trim() === "") return;
-    showToast(msg, { type, autoHide: true, hideDelay: duration });
+    const type = opts.type || "info";
+    const hideDelay = opts.hideDelay || 4000;
+    return showToast(msg, { ...opts, type, hideDelay });
   }
   // Tab state from URL hash, fallback to localStorage, then home
   const getInitialTab = () => {
@@ -91,10 +93,12 @@ export function App() {
             }
           }
           if (data.status === "success") {
-            showToast("OTA update successful! Device will reboot.", "success");
+            showToast("OTA update successful! Device will reboot.", {
+              type: "success",
+            });
             setTimeout(() => globalThis.location.reload(), 7000);
           } else if (data.status === "error") {
-            showToast("OTA update failed: " + data.message, "error");
+            showToast("OTA update failed: " + data.message, { type: "error" });
           }
         }
       },
@@ -228,6 +232,7 @@ export function App() {
           timezones={timezones}
           sunTimes={sunTimes}
           showToast={showToastHelper}
+          hideToast={hideToast}
           loaded={loaded}
           setTab={setTab}
           presets={presets || []}

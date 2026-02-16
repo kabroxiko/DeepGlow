@@ -130,15 +130,18 @@ function buildFlatChartData(state) {
   };
 }
 
-function buildTimerChartData(events, config, minutesPerDay, timers, presets, rgbwHexToPreview) {
+function buildTimerChartData(
+  events,
+  config,
+  minutesPerDay,
+  timers,
+  presets,
+  rgbwHexToPreview,
+) {
   let transitionDuration = config.transitionTimes.schedule / 1000 / 60;
   transitionDuration = Math.max(0.01, transitionDuration);
   transitionDuration = Math.round(transitionDuration * 100) / 100;
-  let points = getRampStepPoints(
-    events,
-    transitionDuration,
-    minutesPerDay,
-  );
+  let points = getRampStepPoints(events, transitionDuration, minutesPerDay);
   const n = events.length;
   const firstEvent = events[0];
   const lastEvent = events[n - 1];

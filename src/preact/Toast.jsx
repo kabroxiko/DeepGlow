@@ -1,11 +1,5 @@
 import { useState, useEffect } from "preact/hooks";
 
-// Border color for each toast type
-function getBorderColor(type) {
-  // All toast borders use the same color as CSS
-  return "#00cc88";
-}
-
 export function ToastContainer({ toasts, onDismiss }) {
   return (
     <div
@@ -79,10 +73,7 @@ function ToastItem({
   else if (type === "warning") typeClass = "toast-warning";
   else if (type === "error") typeClass = "toast-error";
   return (
-    <div
-      className={`toast-custom ${typeClass} fade-${fade}`}
-      role="alert"
-    >
+    <div className={`toast-custom ${typeClass} fade-${fade}`} role="alert">
       <button
         className="toast-dismiss"
         aria-label="Dismiss"

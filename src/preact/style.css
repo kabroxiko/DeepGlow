@@ -1,34 +1,84 @@
-.toast-info {
-  background: #1e3447;
-  border-color: #00cc88;
+.toast-custom.toast-info {
+  background: #1e3447 !important;
+  border: 2px solid #00cc88 !important;
 }
-.toast-success {
-  background: #1e3447;
-  border-color: #4caf50;
+.toast-custom.toast-success {
+  background: #1e472e !important;
+  border: 2px solid #4caf50 !important;
 }
-.toast-warning {
-  background: #2d2a00;
-  border-color: #ffaa00;
+.toast-custom.toast-warning {
+  background: #473f1e !important;
+  border: 2px solid #ffaa00 !important;
 }
-.toast-error {
-  background: #2a1818;
-  border-color: #ff4466;
+.toast-custom.toast-error {
+  background: #471e1e !important;
+  border: 2px solid #ff4466 !important;
+}
+/* Modal styles for confirmation dialogs matching Toast look */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-confirm {
+  background: var(--bg-light);
+  border-radius: 10px;
+  padding: 2em 2.5em 1.5em 2.5em;
+  min-width: 320px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+  text-align: center;
+  position: relative;
+  color: #fff;
+  border: 2px solid #00cc88;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+.modal-confirm .modal-title {
+  font-weight: 600;
+  font-size: 1.15em;
+  margin-bottom: 10px;
+  color: #fff;
+}
+.modal-confirm .modal-version {
+  margin-bottom: 16px;
+  color: #fff;
+}
+.modal-confirm .modal-version span {
+  font-weight: 500;
+  color: #00cc88;
+}
+.modal-confirm .modal-desc {
+  margin-bottom: 18px;
+  color: #fff;
+}
+.modal-confirm .modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }
 /* Toast styles for Toast.jsx */
 .toast-custom {
   min-width: 220px;
   padding: 1em 2em 1em 1em;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
   border-radius: 8px;
   display: flex;
   align-items: flex-start;
-  background: var(--bg-light);
   pointer-events: auto;
-  border: 2px solid #00cc88;
   color: #fff;
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 0.3s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    opacity 0.3s,
+    transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
 }
 .toast-custom.fade-init {
@@ -184,7 +234,6 @@
   transition:
     opacity 0.3s,
     transform 0.3s;
-  border: 2px solid #00cc88;
 }
 .toast.show {
   opacity: 0.95;
