@@ -3,6 +3,97 @@ import { Controls } from "./Controls.jsx";
 import { PresetsCard } from "./PresetsCard.jsx";
 import { LedBar } from "./LedBar.jsx";
 import { LiveClock } from "./LiveClock.jsx";
+import { getBaseUrl } from "./baseUrl.js";
+
+function ScheduleTable({ timers = [], presets = [], state }) {
+  let nowMinutes = 0;
+  if (state?.time && /^\d{2}:\d{2}:\d{2}$/.test(state.time)) {
+    const [h, m] = state.time.split(":").map(Number);
+    nowMinutes = h * 60 + m;
+  } else {
+    const now = new Date();
+    nowMinutes = now.getHours() * 60 + now.getMinutes();
+  }
+  let lastTimerIdx = -1;
+  let lastTimerTime = -1;
+  timers.forEach((timer, idx) => {
+    if (!timer.enabled) return;
+    let timerTime = timer.hour * 60 + timer.minute;
+    if (timerTime <= nowMinutes && timerTime > lastTimerTime) {
+      lastTimerTime = timerTime;
+      lastTimerIdx = idx;
+    }
+  });
+  return (
+    <table className="schedule-table-inner">
+      <thead>
+        <tr>
+          <th>Time</th>
+          <th>Preset</th>
+          <th>Brightness</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {timers.map((timer, idx) => {
+          if (!timer.enabled && !timer.name && !timer.hour && !timer.minute)
+            return null;
+          let timeStr = "--:--";
+          if (
+            typeof timer.hour === "number" &&
+            typeof timer.minute === "number"
+          ) {
+            timeStr = `${timer.hour.toString().padStart(2, "0")}:${timer.minute.toString().padStart(2, "0")}`;
+          } else if (timer.time) {
+            const d = new Date(timer.time);
+            if (!Number.isNaN(d.getTime())) {
+              timeStr = d.toLocaleTimeString([], {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
+            }
+          }
+          let presetStr = "--";
+          if (
+            typeof timer.presetId === "number" &&
+            Array.isArray(presets) &&
+            presets.length > 0
+          ) {
+            let found = presets.find((p) => p.id === timer.presetId);
+            if (found?.name) {
+              presetStr = found.name;
+            } else {
+              presetStr = `Preset ${timer.presetId}`;
+            }
+          }
+          const statusStr = timer.enabled ? (
+            <span className="timer-enabled">Enabled</span>
+          ) : (
+            <span className="timer-disabled">Disabled</span>
+          );
+          const brightStr =
+            typeof timer.brightness === "number"
+              ? `${timer.brightness}%`
+              : "--";
+          return (
+            <tr
+              key={
+                timer.id ?? `${timer.hour}-${timer.minute}-${timer.presetId}`
+              }
+              className={idx === lastTimerIdx ? "active-timer-row" : ""}
+            >
+              <td>{timeStr}</td>
+              <td>{presetStr}</td>
+              <td>{brightStr}</td>
+              <td>{statusStr}</td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
 export function Home({
   wsError,
   wsReady,
@@ -13,11 +104,27 @@ export function Home({
   activePreset,
   ledBarRef,
   sendState,
-  applyPreset,
-  ScheduleTable,
   setTab,
   config,
+  setActivePreset,
 }) {
+    function applyPreset(presetId) {
+      fetch(getBaseUrl() + "/api/preset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: presetId, apply: true }),
+      }).then(() => setActivePreset?.(presetId));
+    }
+  // Sort timers by time (hour, minute) for display in Home page
+  const sortedTimers = Array.isArray(timers)
+    ? [...timers].sort((a, b) => {
+        // Sunrise and Sunset types (1,2) always at the top
+        if (a.type === 1 || a.type === 2) return -1;
+        if (b.type === 1 || b.type === 2) return 1;
+        // Otherwise, sort by hour then minute
+        return (a.hour ?? 0) * 60 + (a.minute ?? 0) - ((b.hour ?? 0) * 60 + (b.minute ?? 0));
+      })
+    : [];
   return (
     <>
       <div className="container">
@@ -35,13 +142,19 @@ export function Home({
               ●
             </span>
             <LiveClock />
-            <a
-              href="#"
+            <button
+              type="button"
               className="status-config-link"
               title="Configuration"
-              onClick={(e) => {
-                e.preventDefault();
-                setTab && setTab("config");
+              aria-label="Configuration"
+              onClick={() => {
+                setTab?.("config");
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
               }}
             >
               <span className="status-config-icon" aria-label="Configuration">
@@ -59,7 +172,7 @@ export function Home({
                   />
                 </svg>
               </span>
-            </a>
+            </button>
           </div>
         </header>
 
@@ -91,12 +204,12 @@ export function Home({
             </div>
           </div>
           <div className="schedule-table" id="scheduleTable">
-            <ScheduleTable />
+            <ScheduleTable timers={sortedTimers} presets={presets} state={state} />
           </div>
           {/* Brightness graph moved to its own component */}
           <Graph
             state={state}
-            timers={timers}
+            timers={sortedTimers}
             presets={presets}
             config={config}
           />

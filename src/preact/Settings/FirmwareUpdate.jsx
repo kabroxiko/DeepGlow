@@ -1,4 +1,3 @@
-import { h } from "preact";
 import { getBaseUrl } from "../baseUrl.js";
 
 export function FirmwareUpdate({
@@ -52,7 +51,7 @@ export function FirmwareUpdate({
             xhr.onload = function () {
               if (xhr.status === 200) {
                 showToast("Firmware uploaded! Rebooting...", "success");
-                setTimeout(() => window.location.reload(), 7000);
+                setTimeout(() => globalThis.location.reload(), 7000);
                 resetFileInput();
               } else {
                 showToast(
@@ -94,12 +93,12 @@ export function FirmwareUpdate({
             style={{ display: "none" }}
             id="otaFileInput"
             onChange={(e) => {
-              const file = e.target.files && e.target.files[0];
+              const file = e.target.files?.[0];
               setOtaFileName(file ? file.name : "");
             }}
           />
-          <label
-            htmlFor="otaFileInput"
+          <button
+            type="button"
             class="btn btn-primary"
             style={{
               margin: 0,
@@ -109,10 +108,11 @@ export function FirmwareUpdate({
             }}
             onClick={() => {
               resetFileInput();
+              document.getElementById("otaFileInput")?.click();
             }}
           >
             Choose File
-          </label>
+          </button>
           <button
             type="submit"
             class="btn btn-primary"
@@ -151,17 +151,17 @@ export function FirmwareUpdate({
                 method: "POST",
               });
               const result = await resp.json();
-              if (result && result.success) {
+              if (result?.success) {
                 showToast("Installing update... Device will reboot.", "info");
               } else {
                 showToast(
-                  result && result.message
-                    ? result.message
-                    : "No update found.",
+                  result?.message ? result.message : "No update found.",
                   "info",
                 );
               }
             } catch (e) {
+              // Log the error for debugging
+              console.error("Update check failed:", e);
               showToast("Update check failed!", "error");
             }
           }}
@@ -170,38 +170,46 @@ export function FirmwareUpdate({
         </button>
       </form>
       {/* OTA Progress Bar */}
-      {(localOtaProgress >= 0 || otaProgress >= 0) && (
-        <div style={{ width: "100%", marginTop: "1em" }}>
-          <div
-            style={{
-              height: "12px",
-              background: "#eee",
-              borderRadius: "6px",
-              overflow: "hidden",
-              boxShadow: "0 1px 2px #aaa inset",
-            }}
-          >
-            <div
-              style={{
-                width: `${localOtaProgress >= 0 ? localOtaProgress : otaProgress}%`,
-                height: "100%",
-                background:
-                  (localOtaProgress >= 0 ? localOtaProgress : otaProgress) < 100
-                    ? "#66ccff"
-                    : "#4caf50",
-                transition: "width 0.2s",
-              }}
-            />
-          </div>
-          <div
-            style={{ fontSize: "0.9em", marginTop: "2px", textAlign: "right" }}
-          >
-            {(localOtaProgress >= 0 ? localOtaProgress : otaProgress) < 100
-              ? `Uploading... ${localOtaProgress >= 0 ? localOtaProgress : otaProgress}%`
-              : "Update complete! Rebooting..."}
-          </div>
-        </div>
-      )}
+      {(localOtaProgress >= 0 || otaProgress >= 0) &&
+        (() => {
+          const progress =
+            localOtaProgress >= 0 ? localOtaProgress : otaProgress;
+          const isUploading = progress < 100;
+          const progressText = isUploading
+            ? `Uploading... ${progress}%`
+            : "Update complete! Rebooting...";
+          return (
+            <div style={{ width: "100%", marginTop: "1em" }}>
+              <div
+                style={{
+                  height: "12px",
+                  background: "#eee",
+                  borderRadius: "6px",
+                  overflow: "hidden",
+                  boxShadow: "0 1px 2px #aaa inset",
+                }}
+              >
+                <div
+                  style={{
+                    width: `${progress}%`,
+                    height: "100%",
+                    background: isUploading ? "#66ccff" : "#4caf50",
+                    transition: "width 0.2s",
+                  }}
+                />
+              </div>
+              <div
+                style={{
+                  fontSize: "0.9em",
+                  marginTop: "2px",
+                  textAlign: "right",
+                }}
+              >
+                {progressText}
+              </div>
+            </div>
+          );
+        })()}
     </section>
   );
 }

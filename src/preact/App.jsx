@@ -5,6 +5,14 @@ import { Toast, useToast } from "./Toast.jsx";
 import { Home } from "./Home.jsx";
 import { Config } from "./Config.jsx";
 
+function sendState(updates) {
+  fetch(getBaseUrl() + "/api/state", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(updates),
+  });
+}
+
 export function App() {
   // OTA progress state (shared for Config)
   const [otaProgress, setOtaProgress] = useState(-1); // -1: hidden, 0-100: progress
@@ -19,9 +27,9 @@ export function App() {
     if (
       typeof message === "object" &&
       message !== null &&
-      Object.prototype.hasOwnProperty.call(message, "message") &&
-      Object.prototype.hasOwnProperty.call(message, "type") &&
-      Object.prototype.hasOwnProperty.call(message, "visible")
+      Object.hasOwn(message, "message") &&
+      Object.hasOwn(message, "type") &&
+      Object.hasOwn(message, "visible")
     ) {
       message = message.message || JSON.stringify(message);
     }
@@ -38,33 +46,36 @@ export function App() {
   }
   // Tab state from URL hash, fallback to localStorage, then home
   const getInitialTab = () => {
-    if (window.location.hash === "#config") return "config";
-    if (window.location.hash === "#home") return "home";
+    if (globalThis.location.hash === "#config") return "config";
+    if (globalThis.location.hash === "#home") return "home";
+    let saved;
     try {
-      const saved = localStorage.getItem("deepglow_tab");
-      if (saved === "config" || saved === "home") return saved;
-    } catch {}
+      saved = localStorage.getItem("deepglow_tab");
+    } catch (e) {
+      console.error("Error accessing localStorage for deepglow_tab:", e);
+    }
+    if (saved === "config" || saved === "home") return saved;
     return "home";
   };
   const [tab, setTab] = useState(getInitialTab);
   // Update tab when hash changes
   useEffect(() => {
     const onHashChange = () => {
-      if (window.location.hash === "#config") setTab("config");
+      if (globalThis.location.hash === "#config") setTab("config");
       else setTab("home");
     };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
+    globalThis.addEventListener("hashchange", onHashChange);
+    return () => globalThis.removeEventListener("hashchange", onHashChange);
   }, []);
   // Persist tab to localStorage and URL hash on change
   useEffect(() => {
     try {
       if (tab === "config") {
         localStorage.setItem("deepglow_tab", "config");
-        window.location.hash = "#config";
+        globalThis.location.hash = "#config";
       } else {
         localStorage.setItem("deepglow_tab", "home");
-        window.location.hash = "#home";
+        globalThis.location.hash = "#home";
       }
     } catch {}
   }, [tab]);
@@ -95,14 +106,17 @@ export function App() {
           }
           if (data.status === "success") {
             showToast("OTA update successful! Device will reboot.", "success");
-            setTimeout(() => window.location.reload(), 7000);
+            setTimeout(() => globalThis.location.reload(), 7000);
           } else if (data.status === "error") {
             showToast("OTA update failed: " + data.message, "error");
           }
         }
       },
       onBinary: (buffer) => {
-        if (ledBarRef.current && typeof ledBarRef.current.updateBuffer === 'function') {
+        if (
+          ledBarRef.current &&
+          typeof ledBarRef.current.updateBuffer === "function"
+        ) {
           ledBarRef.current.updateBuffer(buffer);
         }
       },
@@ -125,11 +139,10 @@ export function App() {
 
   // Only send handshake/subscription message on tab change
   useEffect(() => {
-    if (wsRef.current && wsRef.current.readyState === 1) {
+    wsRef.current?.readyState === 1 &&
       wsRef.current.send(
         JSON.stringify({ type: tab === "config" ? "ota_client" : "state" }),
       );
-    }
   }, [tab]);
   // Home state
   const [presets, setPresets] = useState([]);
@@ -148,38 +161,7 @@ export function App() {
   });
 
   // Toast helper
-  function showToast(message, type = "info", duration = 4000) {
-    console.log("showToast called with:", { message, type, duration });
-    // Defensive: If message is a toast-like object, log a stack trace ONCE
-    if (
-      typeof message === "object" &&
-      message !== null &&
-      Object.prototype.hasOwnProperty.call(message, "message") &&
-      Object.prototype.hasOwnProperty.call(message, "type") &&
-      Object.prototype.hasOwnProperty.call(message, "visible")
-    ) {
-      if (!window.__toastStackWarned) {
-        window.__toastStackWarned = true;
-        console.warn(
-          "showToast called with a toast-like object! This is a bug. Stack trace:",
-          message,
-        );
-        console.trace();
-      }
-      // Flatten to string
-      message = message.message || JSON.stringify(message);
-    }
-    let msg = message;
-    if (typeof msg === "object" && msg !== null) {
-      msg = msg.message || JSON.stringify(msg);
-    }
-    if (!msg || String(msg).trim() === "") return;
-    setToast({ message: msg, type, visible: true });
-    setTimeout(
-      () => setToast((t) => ({ ...t, visible: false, message: "" })),
-      duration,
-    );
-  }
+  // Duplicate showToast removed (already defined above)
 
   // Fetch shared data (presets, timers, effects, version, config, timezones) in parallel
   useEffect(() => {
@@ -217,7 +199,7 @@ export function App() {
       setTimers(config?.timers);
       setLoaded({ presets: true, timezones: true, config: true });
       // Set version string if available
-      if (version && version.version) {
+      if (version?.version) {
         const vEl = document.getElementById("versionString");
         if (vEl) vEl.textContent = "Version: " + version.version;
       }
@@ -229,27 +211,25 @@ export function App() {
 
   // Defensive normalization: if toast.message is an object (unexpected),
   // convert to a display string and prefer any nested `type`.
-  let _displayMessage = toast.message;
-  let _displayType = toast.type;
-  if (typeof _displayMessage === "object" && _displayMessage !== null) {
-    // prefer nested .message if available
-    if (typeof _displayMessage.message === "string") {
-      _displayMessage = _displayMessage.message;
-    } else {
-      try {
-        _displayMessage = JSON.stringify(_displayMessage);
-      } catch (e) {
-        _displayMessage = String(_displayMessage);
+  const [_displayMessage, _displayType] = (() => {
+    const msg = toast.message;
+    if (typeof msg === "object" && msg !== null) {
+      let messageStr;
+      if (typeof msg.message === "string") {
+        messageStr = msg.message;
+      } else {
+        try {
+          messageStr = JSON.stringify(msg);
+        } catch (e) {
+          console.error("Error stringifying toast message:", e);
+          messageStr = String(msg);
+        }
       }
+      const typeStr = typeof msg.type === "string" ? msg.type : toast.type;
+      return [messageStr, typeStr];
     }
-    // prefer nested type if present
-    if (_displayMessage && typeof toast.message.type === "string") {
-      _displayType = toast.message.type;
-    }
-    // fix the state so subsequent renders are correct
-    setToast((t) => ({ ...t, message: _displayMessage, type: _displayType }));
-  }
-
+    return [msg, toast.type];
+  })();
 
   return (
     <div>
@@ -269,10 +249,9 @@ export function App() {
           activePreset={activePreset}
           ledBarRef={ledBarRef}
           sendState={sendState}
-          applyPreset={applyPreset}
-          ScheduleTable={ScheduleTable}
           setTab={setTab}
           config={config}
+          setActivePreset={setActivePreset}
         />
       ) : (
         <Config
@@ -289,110 +268,4 @@ export function App() {
       )}
     </div>
   );
-
-  // Event handlers for controls
-  function sendState(updates) {
-    fetch(getBaseUrl() + "/api/state", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
-    });
-  }
-
-  function applyPreset(presetId) {
-    fetch(getBaseUrl() + "/api/preset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: presetId, apply: true }),
-    }).then(() => setActivePreset(presetId));
-  }
-
-  // Schedule table
-  function ScheduleTable() {
-    let nowMinutes = 0;
-    if (state.time && /^\d{2}:\d{2}:\d{2}$/.test(state.time)) {
-      const [h, m] = state.time.split(":").map(Number);
-      nowMinutes = h * 60 + m;
-    } else {
-      const now = new Date();
-      nowMinutes = now.getHours() * 60 + now.getMinutes();
-    }
-    let lastTimerIdx = -1;
-    let lastTimerTime = -1;
-    timers.forEach((timer, idx) => {
-      if (!timer.enabled) return;
-      let timerTime = timer.hour * 60 + timer.minute;
-      if (timerTime <= nowMinutes && timerTime > lastTimerTime) {
-        lastTimerTime = timerTime;
-        lastTimerIdx = idx;
-      }
-    });
-    return (
-      <table className="schedule-table-inner">
-        <thead>
-          <tr>
-            <th>Time</th>
-            <th>Preset</th>
-            <th>Brightness</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {timers.map((timer, index) => {
-            if (!timer.enabled && !timer.name && !timer.hour && !timer.minute)
-              return null;
-            const name = timer.name;
-            let timeStr = "--:--";
-            if (
-              typeof timer.hour === "number" &&
-              typeof timer.minute === "number"
-            ) {
-              timeStr = `${timer.hour.toString().padStart(2, "0")}:${timer.minute.toString().padStart(2, "0")}`;
-            } else if (timer.time) {
-              const d = new Date(timer.time);
-              if (!isNaN(d.getTime())) {
-                timeStr = d.toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
-              }
-            }
-            let presetStr = "--";
-            if (
-              typeof timer.presetId === "number" &&
-              Array.isArray(presets) &&
-              presets.length > 0
-            ) {
-              let found = presets.find((p) => p.id === timer.presetId);
-              if (found && found.name) {
-                presetStr = found.name;
-              } else {
-                presetStr = `Preset ${timer.presetId}`;
-              }
-            }
-            const statusStr = timer.enabled ? (
-              <span className="timer-enabled">Enabled</span>
-            ) : (
-              <span className="timer-disabled">Disabled</span>
-            );
-            const brightStr =
-              typeof timer.brightness === "number"
-                ? `${timer.brightness}%`
-                : "--";
-            return (
-              <tr
-                key={index}
-                className={index === lastTimerIdx ? "active-timer-row" : ""}
-              >
-                <td>{timeStr}</td>
-                <td>{presetStr}</td>
-                <td>{brightStr}</td>
-                <td>{statusStr}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    );
-  }
 }

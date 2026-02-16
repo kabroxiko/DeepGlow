@@ -4,7 +4,7 @@ import { App } from "./App.jsx";
 import { WifiSetup } from "./WifiSetup.jsx";
 
 function getPage() {
-  const path = window.location.pathname;
+  const path = globalThis.location.pathname;
   // Always show WifiSetup for /wifi or /wifi.html
   if (path === "/wifi" || path.endsWith("wifi.html")) return WifiSetup;
   return App;

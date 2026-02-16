@@ -4,8 +4,9 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
       <h2>Location & Time</h2>
       <div className="config-grid">
         <div className="config-item">
-          <label>NTP Server</label>
+          <label htmlFor="ntpServer-input">NTP Server</label>
           <input
+            id="ntpServer-input"
             type="text"
             className="text-input"
             value={config?.time?.ntpServer}
@@ -18,8 +19,9 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
           />
         </div>
         <div className="config-item">
-          <label>Timezone</label>
+          <label htmlFor="timezone-select">Timezone</label>
           <select
+            id="timezone-select"
             className="select-input"
             value={config?.time?.timezone}
             onInput={(e) =>
@@ -50,8 +52,9 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
           </label>
         </div>
         <div className="config-item">
-          <label>Latitude</label>
+          <label htmlFor="latitude-input">Latitude</label>
           <input
+            id="latitude-input"
             type="number"
             min="-90"
             max="90"
@@ -67,8 +70,9 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
           />
         </div>
         <div className="config-item">
-          <label>Longitude</label>
+          <label htmlFor="longitude-input">Longitude</label>
           <input
+            id="longitude-input"
             type="number"
             min="-180"
             max="180"
@@ -96,13 +100,14 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
           className="btn btn-info"
           onClick={() => {
             // Open GPS popup and listen for message
-            const w = 500, h = 500;
+            const w = 500,
+              h = 500;
             const left = window.screenX + (window.outerWidth - w) / 2;
             const top = window.screenY + (window.outerHeight - h) / 2;
             const popup = window.open(
               "https://locate.wled.me",
               "wled_gps",
-              `width=${w},height=${h},left=${left},top=${top},resizable,scrollbars`
+              `width=${w},height=${h},left=${left},top=${top},resizable,scrollbars`,
             );
             if (popup) popup.focus();
             function handleMessage(event) {

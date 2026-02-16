@@ -1,6 +1,6 @@
 // Utility functions for Home and App
 
-// Legacy mapping: 0-59 = seconds, 60-119 = minutes, 120-127 = hours
+// 0-59 = seconds, 60-119 = minutes, 120-127 = hours
 export function steppedTransitionValue(val) {
   const v = Number(val);
   if (v <= 59) return v; // seconds
@@ -22,10 +22,10 @@ export function rgbwHexToPreview(hex) {
   if (!hex || typeof hex !== "string") return "#000";
   if (hex.length === 9) {
     // #RRGGBBWW, add white channel to each RGB
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
-    const w = parseInt(hex.slice(7, 9), 16);
+    const r = Number.parseInt(hex.slice(1, 3), 16);
+    const g = Number.parseInt(hex.slice(3, 5), 16);
+    const b = Number.parseInt(hex.slice(5, 7), 16);
+    const w = Number.parseInt(hex.slice(7, 9), 16);
     const rr = Math.min(255, r + w);
     const gg = Math.min(255, g + w);
     const bb = Math.min(255, b + w);

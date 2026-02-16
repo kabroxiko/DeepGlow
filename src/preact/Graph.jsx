@@ -1,16 +1,156 @@
 import { useEffect, useRef } from "preact/hooks";
 import { rgbwHexToPreview } from "./util.js";
 
+// Helper to find the active timer for a given minute
+function findActiveTimer(minute, timers) {
+  if (!Array.isArray(timers) || timers.length === 0) return null;
+  let activeTimer = null;
+  for (const t of timers) {
+    if (
+      !t.enabled ||
+      typeof t.hour !== "number" ||
+      typeof t.minute !== "number"
+    )
+      continue;
+    let tMin = t.hour * 60 + t.minute;
+    if (tMin <= minute) activeTimer = t;
+  }
+  return activeTimer || timers[0];
+}
+
+// Helper to find the preset for a timer
+function findPresetForTimer(timer, presets) {
+  if (!presets || !timer) return null;
+  for (const p of presets) {
+    if (p.id === timer.presetId) return p;
+  }
+  return presets.length > 0 ? presets[0] : null;
+}
+
+// Helper to calculate ramp/step points for the chart
+function getRampStepPoints(events, transitionDuration, minutesPerDay) {
+  const n = events.length;
+  let points = [];
+  for (let i = 0; i < n; i++) {
+    const event = events[i];
+    const prevIdx = (i - 1 + n) % n;
+    const prevEvent = events[prevIdx];
+    const nextIdx = (i + 1) % n;
+    const nextEvent = events[nextIdx];
+    const rampEnd = calcRampEnd(event.time, transitionDuration, minutesPerDay, nextEvent.time);
+    const startBrightness = calcStartBrightness(event, prevEvent, events, prevIdx, minutesPerDay, transitionDuration);
+    if (!points.length || points.at(-1).time !== event.time) {
+      points.push({ time: event.time, brightness: startBrightness });
+    }
+    if (!points.length || points.at(-1).time !== rampEnd) {
+      points.push({ time: rampEnd, brightness: event.brightness });
+    }
+  }
+  return points;
+}
+
+function calcRampEnd(tCurr, transitionDuration, minutesPerDay, tNext) {
+  let rampEnd = tCurr + transitionDuration;
+  if (rampEnd > minutesPerDay) rampEnd -= minutesPerDay;
+  const tCurrToNext = tNext > tCurr ? tNext - tCurr : minutesPerDay - tCurr + tNext;
+  if (transitionDuration > tCurrToNext) rampEnd = tNext;
+  return rampEnd;
+}
+
+function calcStartBrightness(event, prevEvent, events, prevIdx, minutesPerDay, transitionDuration) {
+  const tCurr = event.time;
+  const tPrev = prevEvent.time;
+  const prevIntendedEnd = tPrev + transitionDuration > minutesPerDay ? tPrev + transitionDuration - minutesPerDay : tPrev + transitionDuration;
+  const prevTargetIdx = (prevIdx - 1 + events.length) % events.length;
+  const bPrevTarget = events[prevTargetIdx].brightness;
+  const prevRampDuration = prevIntendedEnd > tPrev ? prevIntendedEnd - tPrev : minutesPerDay - tPrev + prevIntendedEnd;
+  const timeFromPrevToCurr = tCurr > tPrev ? tCurr - tPrev : minutesPerDay - tPrev + tCurr;
+  let startBrightness = prevEvent.brightness;
+  if (timeFromPrevToCurr < prevRampDuration && prevRampDuration > 0) {
+    const frac = timeFromPrevToCurr / prevRampDuration;
+    startBrightness = prevEvent.brightness + (bPrevTarget - prevEvent.brightness) * (1 - frac);
+  }
+  return startBrightness;
+}
+
+// Helper to calculate background colors for chart blocks
+function getBgColors(bgBlocks, timers, presets, rgbwHexToPreview) {
+  return bgBlocks.map((minute) => {
+    const activeTimer = findActiveTimer(minute, timers);
+    const preset = findPresetForTimer(activeTimer, presets);
+    const primaryColor = preset?.params?.colors?.[0] ?? null;
+    return primaryColor ? rgbwHexToPreview(primaryColor) : "rgb(0,116,217)";
+  });
+}
+
+function buildFlatChartData(state) {
+  const hours = Array.from({ length: 25 }, (_, h) => h);
+  const flat = hours.map(() => state.brightness || 0);
+  return {
+    labels: hours.map((h) => `${h.toString().padStart(2, "0")}:00`),
+    datasets: [
+      {
+        label: "Brightness (%)",
+        data: flat,
+        borderColor: "#66ccff",
+        backgroundColor: "rgba(102,204,255,0.2)",
+        fill: true,
+        tension: 0,
+        stepped: true,
+      },
+    ],
+  };
+}
+
+function buildTimerChartData(events, config, minutesPerDay, timers, presets, rgbwHexToPreview) {
+  let transitionDuration = config.transitionTimes.schedule / 1000 / 60;
+  transitionDuration = Math.max(0.01, transitionDuration);
+  transitionDuration = Math.round(transitionDuration * 100) / 100;
+  let points = getRampStepPoints(
+    events,
+    transitionDuration,
+    minutesPerDay,
+  );
+  const n = events.length;
+  const firstEvent = events[0];
+  const lastEvent = events[n - 1];
+  const prevEvent = events[(n - 2 + n) % n];
+  const t1 = lastEvent.time;
+  const bStart = prevEvent.brightness;
+  const bEnd = lastEvent.brightness;
+  let midnightBrightness = bEnd;
+  if (t1 + transitionDuration > minutesPerDay && t1 !== firstEvent.time) {
+    const frac = (minutesPerDay - t1) / transitionDuration;
+    midnightBrightness = bStart + (bEnd - bStart) * frac;
+  }
+  if (!points.some((p) => p.time === 0))
+    points.push({ time: 0, brightness: midnightBrightness });
+  if (!points.some((p) => p.time === minutesPerDay))
+    points.push({ time: minutesPerDay, brightness: midnightBrightness });
+  points.sort((a, b) => a.time - b.time);
+  let uniquePoints = [];
+  let seen = new Set();
+  for (let i = points.length - 1; i >= 0; i--) {
+    if (!seen.has(points[i].time)) {
+      uniquePoints.unshift(points[i]);
+      seen.add(points[i].time);
+    }
+  }
+  const pointsForChart = uniquePoints.map((p) => ({
+    x: p.time,
+    y: Math.min(100, p.brightness),
+  }));
+  const minutesArray = uniquePoints.map((p) => p.time);
+  const bgBlocks = minutesArray;
+  const bgColors = getBgColors(bgBlocks, timers, presets, rgbwHexToPreview);
+  return { pointsForChart, minutesArray, bgColors };
+}
+
 export function Graph({ state, timers, presets, config }) {
   const brightnessGraphRef = useRef(null);
   useEffect(() => {
     if (!brightnessGraphRef.current) return;
-    if (
-      !config ||
-      !config.transitionTimes ||
-      typeof config.transitionTimes.schedule !== "number"
-    )
-      return;
+    if (typeof config?.transitionTimes?.schedule !== "number") return;
 
     // Explicitly set canvas height and width to avoid Chart.js sizing bugs
     brightnessGraphRef.current.style.height = "220px";
@@ -68,23 +208,7 @@ export function Graph({ state, timers, presets, config }) {
       // Build chart data
       let chartData, chartOptions, chartPlugins;
       if (events.length === 0) {
-        // No timers: flat line
-        const hours = Array.from({ length: 25 }, (_, h) => h);
-        const flat = hours.map(() => state.brightness || 0);
-        chartData = {
-          labels: hours.map((h) => `${h.toString().padStart(2, "0")}:00`),
-          datasets: [
-            {
-              label: "Brightness (%)",
-              data: flat,
-              borderColor: "#66ccff",
-              backgroundColor: "rgba(102,204,255,0.2)",
-              fill: true,
-              tension: 0,
-              stepped: true,
-            },
-          ],
-        };
+        chartData = buildFlatChartData(state);
         chartOptions = {
           responsive: true,
           plugins: {
@@ -108,135 +232,25 @@ export function Graph({ state, timers, presets, config }) {
         };
         chartPlugins = [actualTimeLinePlugin];
       } else {
-        // Timers present: build ramp/step data
-        // transitionTimes.schedule is in ms, convert to minutes (float)
-        let transitionDuration = config.transitionTimes.schedule / 1000 / 60;
-        // Clamp to at least 0.01 to avoid zero-length ramps, but do not force to 1 minute
-        transitionDuration = Math.max(0.01, transitionDuration);
-        // Round to 2 decimals for visual accuracy
-        transitionDuration = Math.round(transitionDuration * 100) / 100;
-        let n = events.length;
-        let points = [];
-        for (let i = 0; i < n; i++) {
-          let prevIdx = (i - 1 + n) % n;
-          let nextIdx = (i + 1) % n;
-          let tCurr = events[i].time;
-          let tPrev = events[prevIdx].time;
-          let tNext = events[nextIdx].time;
-          let bCurr = events[i].brightness;
-          let bPrev = events[prevIdx].brightness;
-          // Calculate ramp end: either transitionDuration after tCurr, or next event, whichever is sooner
-          let rampEnd = tCurr + transitionDuration;
-          if (rampEnd > minutesPerDay) rampEnd -= minutesPerDay;
-          let tCurrToNext =
-            tNext > tCurr ? tNext - tCurr : minutesPerDay - tCurr + tNext;
-          if (transitionDuration > tCurrToNext) {
-            rampEnd = tNext;
-          }
-          // For previous event, determine its intended ramp end and target brightness
-          let prevIntendedEnd = tPrev + transitionDuration;
-          if (prevIntendedEnd > minutesPerDay) prevIntendedEnd -= minutesPerDay;
-          // Find the intended target for previous ramp: next event after prevIdx (wrap around)
-          // prevTargetIdx should be the event after the previous event (wrap around)
-          let prevTargetIdx = (prevIdx - 1 + n) % n;
-          // Always use the intended target of the previous ramp for interpolation
-          let bPrevTarget = events[prevTargetIdx].brightness;
-          let prevRampDuration =
-            prevIntendedEnd > tPrev
-              ? prevIntendedEnd - tPrev
-              : minutesPerDay - tPrev + prevIntendedEnd;
-          let timeFromPrevToCurr =
-            tCurr > tPrev ? tCurr - tPrev : minutesPerDay - tPrev + tCurr;
-          let startBrightness = bPrev;
-          let frac = 0;
-          if (timeFromPrevToCurr < prevRampDuration && prevRampDuration > 0) {
-            frac = timeFromPrevToCurr / prevRampDuration;
-            startBrightness = bPrev + (bPrevTarget - bPrev) * (1 - frac);
-          }
-          points.push({ time: tCurr, brightness: startBrightness });
-          points.push({ time: rampEnd, brightness: bCurr });
-        }
-        // Calculate brightness at 0:00 and 24:00 for wrap-around
-        const firstEvent = events[0];
-        const lastEvent = events[n - 1];
-        const prevEvent = events[(n - 2 + n) % n];
-        const t0 = firstEvent.time;
-        const t1 = lastEvent.time;
-        const bStart = prevEvent.brightness;
-        const bEnd = lastEvent.brightness;
-        let midnightBrightness = bEnd;
-        // If last ramp ends after midnight, interpolate brightness at 0:00
-        if (t1 + transitionDuration > minutesPerDay && t1 !== t0) {
-          const frac = (minutesPerDay - t1) / transitionDuration;
-          midnightBrightness = bStart + (bEnd - bStart) * frac;
-        }
-        points.push({ time: 0, brightness: midnightBrightness });
-        points.push({ time: minutesPerDay, brightness: midnightBrightness });
-        // Sort points by time
-        points.sort((a, b) => a.time - b.time);
-        // Remove duplicate times (keep last occurrence)
-        let uniquePoints = [];
-        let seen = new Set();
-        for (let i = points.length - 1; i >= 0; i--) {
-          if (!seen.has(points[i].time)) {
-            uniquePoints.unshift(points[i]);
-            seen.add(points[i].time);
-          }
-        }
-        // Only plot dots at relevant points: event times and ramp ends (uniquePoints)
-        // uniquePoints is already sorted and deduplicated
-        // Use exact time (in minutes) for X axis, not just index
-        const pointsForChart = uniquePoints.map((p) => ({
-          x: p.time,
-          y: Math.min(100, p.brightness),
-        }));
-        // For X axis labels, show HH:MM at each event/ramp point
+        const { pointsForChart, minutesArray, bgColors } = buildTimerChartData(
+          events,
+          config,
+          minutesPerDay,
+          timers,
+          presets,
+          rgbwHexToPreview,
+        );
+
         const timeToLabel = (minute) => {
           const h = Math.floor(minute / 60);
           return `${h.toString().padStart(2, "0")}` + "h";
         };
-        const minutesArray = uniquePoints.map((p) => p.time);
-        // --- Chart.js plugin for colorized background by 1-hour block ---
-        // Use minutesArray for background color to match data
         const bgBlocks = minutesArray;
-        const bgColors = bgBlocks.map((minute) => {
-          let activeTimer = null;
-          if (Array.isArray(timers)) {
-            for (let i = 0; i < timers.length; i++) {
-              let t = timers[i];
-              if (
-                !t.enabled ||
-                typeof t.hour !== "number" ||
-                typeof t.minute !== "number"
-              )
-                continue;
-              let tMin = t.hour * 60 + t.minute;
-              if (tMin <= minute) activeTimer = t;
-            }
-            if (!activeTimer) activeTimer = timers[0];
-          }
-          let preset =
-            presets && activeTimer
-              ? presets.find((p) => p.id === activeTimer.presetId)
-              : null;
-          if (!preset && presets && presets.length > 0) preset = presets[0];
-          let primaryColor =
-            preset &&
-            preset.params &&
-            preset.params.colors &&
-            preset.params.colors[0]
-              ? preset.params.colors[0]
-              : null;
-          let previewColor = primaryColor
-            ? rgbwHexToPreview(primaryColor)
-            : "rgb(0,116,217)";
-          return previewColor;
-        });
 
         const colorBgPlugin = {
           id: "colorBgByBlock",
           beforeDatasetsDraw: (chart) => {
-            const { ctx, chartArea, scales, data } = chart;
+            const { ctx, chartArea, scales } = chart;
             if (!chartArea) return;
             const dataset = chart.data.datasets[0];
             const points = dataset.data;
@@ -330,7 +344,7 @@ export function Graph({ state, timers, presets, config }) {
       }
       // Create new Chart.js instance
       const ctx = brightnessGraphRef.current.getContext("2d");
-      brightnessGraphRef.current._chartInstance = new window.Chart(ctx, {
+      brightnessGraphRef.current._chartInstance = new globalThis.Chart(ctx, {
         type: "line",
         data: chartData,
         options: chartOptions,
@@ -339,7 +353,7 @@ export function Graph({ state, timers, presets, config }) {
     }
 
     // If Chart.js is not loaded, load from CDN
-    if (!window.Chart) {
+    if (globalThis.Chart === undefined) {
       const script = document.createElement("script");
       script.src = "https://cdn.jsdelivr.net/npm/chart.js";
       script.async = true;
@@ -353,27 +367,19 @@ export function Graph({ state, timers, presets, config }) {
     function handleWindowFocus() {
       renderChart();
     }
-    window.addEventListener("focus", handleWindowFocus);
+    globalThis.addEventListener("focus", handleWindowFocus);
 
     // Resize chart on window resize to fix tall/short bug
     function handleResize() {
-      if (
-        brightnessGraphRef.current &&
-        brightnessGraphRef.current._chartInstance
-      ) {
-        brightnessGraphRef.current._chartInstance.resize();
-      }
+      brightnessGraphRef.current?._chartInstance?.resize();
     }
-    window.addEventListener("resize", handleResize);
+    globalThis.addEventListener("resize", handleResize);
 
     // Cleanup on unmount
     return () => {
-      window.removeEventListener("resize", handleResize);
-      window.removeEventListener("focus", handleWindowFocus);
-      if (
-        brightnessGraphRef.current &&
-        brightnessGraphRef.current._chartInstance
-      ) {
+      globalThis.removeEventListener("resize", handleResize);
+      globalThis.removeEventListener("focus", handleWindowFocus);
+      if (brightnessGraphRef.current?._chartInstance) {
         brightnessGraphRef.current._chartInstance.destroy();
         brightnessGraphRef.current._chartInstance = null;
       }

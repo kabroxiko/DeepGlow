@@ -1,4 +1,9 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "preact/compat";
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "preact/compat";
 /**
  * Floating LED Bar Canvas
  * @param {import('preact').Ref<any>} ref
@@ -13,7 +18,7 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
     updateBuffer: (newBuffer) => {
       bufferRef.current = newBuffer;
       drawBar();
-    }
+    },
   }));
 
   // Draw the LED bar
@@ -69,10 +74,17 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
   }, []);
 
   // Optionally, clear on unmount
-  useEffect(() => () => { bufferRef.current = null; }, []);
+  useEffect(
+    () => () => {
+      bufferRef.current = null;
+    },
+    [],
+  );
 
   // Initial mount: clear canvas
-  useEffect(() => { drawBar(); }, []);
+  useEffect(() => {
+    drawBar();
+  }, []);
 
   return (
     <div id="ledBarContainer" className="led-bar-floating">

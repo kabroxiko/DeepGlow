@@ -9,10 +9,11 @@ export function createWebSocket({ handshake, onMessage, onBinary }) {
   if (BASE_URL) {
     wsUrl = BASE_URL.replace(/^http/, "ws") + "/ws";
   } else {
-    const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+    const wsProtocol =
+      globalThis.location.protocol === "https:" ? "wss:" : "ws:";
+    wsUrl = `${wsProtocol}//${globalThis.location.host}/ws`;
   }
-  const ws = new window.WebSocket(wsUrl);
+  const ws = new globalThis.WebSocket(wsUrl);
   ws.binaryType = "arraybuffer";
   ws.onopen = () => {
     if (handshake) ws.send(JSON.stringify(handshake));
@@ -25,7 +26,9 @@ export function createWebSocket({ handshake, onMessage, onBinary }) {
     try {
       const data = JSON.parse(event.data);
       if (typeof onMessage === "function") onMessage(data);
-    } catch (e) {}
+    } catch (e) {
+      console.error("WebSocket message JSON parse error:", e);
+    }
   };
   ws.onclose = () => {};
   ws.onerror = () => {};

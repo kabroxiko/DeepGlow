@@ -6,8 +6,9 @@ export function TransitionSettings({ config, setConfig }) {
       <h2>Transition Times</h2>
       <div className="config-grid">
         <div className="config-item">
-          <label>Power On</label>
+          <label htmlFor="poweron-range">Power On</label>
           <input
+            id="poweron-range"
             type="range"
             min="0"
             max="127"
@@ -37,8 +38,9 @@ export function TransitionSettings({ config, setConfig }) {
           </span>
         </div>
         <div className="config-item">
-          <label>Schedule</label>
+          <label htmlFor="schedule-range">Schedule</label>
           <input
+            id="schedule-range"
             type="range"
             min="0"
             max="127"
@@ -68,8 +70,9 @@ export function TransitionSettings({ config, setConfig }) {
           </span>
         </div>
         <div className="config-item">
-          <label>Manual</label>
+          <label htmlFor="manual-range">Manual</label>
           <input
+            id="manual-range"
             type="range"
             min="0"
             max="127"
@@ -99,8 +102,9 @@ export function TransitionSettings({ config, setConfig }) {
           </span>
         </div>
         <div className="config-item">
-          <label>Effect</label>
+          <label htmlFor="effect-range">Effect</label>
           <input
+            id="effect-range"
             type="range"
             min="0"
             max="127"

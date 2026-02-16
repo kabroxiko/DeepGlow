@@ -4,8 +4,9 @@ export function LEDSettings({ config, setConfig }) {
       <h2>LED Settings</h2>
       <div className="config-grid">
         <div className="config-item">
-          <label>LED Pin (GPIO)</label>
+          <label htmlFor="led-pin">LED Pin (GPIO)</label>
           <input
+            id="led-pin"
             type="number"
             min="0"
             max="39"
@@ -20,8 +21,9 @@ export function LEDSettings({ config, setConfig }) {
           />
         </div>
         <div className="config-item">
-          <label>LED Count</label>
+          <label htmlFor="led-count">LED Count</label>
           <input
+            id="led-count"
             type="number"
             min="1"
             max="512"
@@ -36,8 +38,9 @@ export function LEDSettings({ config, setConfig }) {
           />
         </div>
         <div className="config-item">
-          <label>LED Type</label>
+          <label htmlFor="led-type">LED Type</label>
           <select
+            id="led-type"
             className="select-input"
             value={config?.led?.type}
             onInput={(e) =>
@@ -52,8 +55,9 @@ export function LEDSettings({ config, setConfig }) {
           </select>
         </div>
         <div className="config-item">
-          <label>Color Order</label>
+          <label htmlFor="led-color-order">Color Order</label>
           <select
+            id="led-color-order"
             className="select-input"
             value={config?.led?.colorOrder}
             onInput={(e) =>

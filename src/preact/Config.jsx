@@ -27,6 +27,34 @@ export function Config({
   const otaInputRef = useRef();
   // Local upload progress for manual upload only
   const [localOtaProgress, setLocalOtaProgress] = useState(-1); // -1: hidden, 0-100: progress
+  // Track only modified fields
+  const [modifiedConfig, setModifiedConfig] = useState({});
+
+  // Helper to update modifiedConfig with a field change
+  const handleFieldChange = (key, value) => {
+    setModifiedConfig((prev) => ({ ...prev, [key]: value }));
+    setConfig((prev) => ({ ...prev, [key]: value }));
+  };
+
+  // Patch setConfig so that if called directly (not via handleFieldChange), we still track changes
+  const wrappedSetConfig = (updater) => {
+    setConfig((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Compare prev and next, add changed keys to modifiedConfig
+      const changed = {};
+      for (const k in next) {
+        if (next[k] !== prev[k]) changed[k] = next[k];
+      }
+      if (Object.keys(changed).length > 0) {
+        setModifiedConfig((prevMod) => ({ ...prevMod, ...changed }));
+      }
+      return next;
+    });
+  };
+
+  // Helper to reset modifiedConfig after save
+  const resetModifiedConfig = () => setModifiedConfig({});
+
   return (
     <div>
       {!loaded.timezones && (
@@ -52,27 +80,31 @@ export function Config({
               ●
             </span>
             <span id="currentTime"></span>
-            <a
-              href="#"
+            <button
+              type="button"
               className="back-to-main-link"
               title="Back to Main"
-              onClick={(e) => {
-                e.preventDefault();
+              aria-label="Back to Main"
+              onClick={() => {
                 if (typeof setTab === "function") {
                   setTab("home");
                 } else {
-                  window.location.href = "index.html";
+                  globalThis.location.href = "index.html";
                 }
               }}
+              style={{
+                background: "none",
+                border: "none",
+                padding: 0,
+                cursor: "pointer",
+              }}
             >
-              {/* FontAwesome Free SVG: fa-home (solid) exact */}
               <svg
-                aria-hidden="true"
+                aria-label="Home"
                 focusable="false"
                 data-prefix="fas"
                 data-icon="home"
                 className="svg-inline--fa fa-home fa-w-18 back-to-main-icon icon-glow-hover"
-                role="img"
                 xmlns="http://www.w3.org/2000/svg"
                 viewBox="0 0 576 512"
                 width="24"
@@ -83,7 +115,7 @@ export function Config({
                   d="M280.37 148.26L96 300.11V464a16 16 0 0 0 16 16l112-.3a16 16 0 0 0 16-15.7V368a16 16 0 0 1 16-16h64a16 16 0 0 1 16 16v95.7a16 16 0 0 0 16 16l112 .3a16 16 0 0 0 16-16V300L295.67 148.26a12.19 12.19 0 0 0-15.3 0zM573.32 268.35L512 220.69V56a24 24 0 0 0-24-24h-88a24 24 0 0 0-24 24v51.61L318.47 43a48 48 0 0 0-61 0L2.61 268.35a16 16 0 0 0-1.6 22.59l21.41 25.5a16 16 0 0 0 22.59 1.6L64 271.69V464a48 48 0 0 0 48 48h352a48 48 0 0 0 48-48V271.7l19 16.35a16 16 0 0 0 22.59-1.6l21.41-25.5a16 16 0 0 0-1.68-22.6z"
                 />
               </svg>
-            </a>
+            </button>
           </div>
         </header>
         <div
@@ -108,7 +140,7 @@ export function Config({
               document.body.appendChild(a);
               a.click();
               setTimeout(() => {
-                document.body.removeChild(a);
+                a.remove();
                 URL.revokeObjectURL(url);
                 showToast("Config downloaded!", "success");
               }, 100);
@@ -120,56 +152,52 @@ export function Config({
           <label
             class="btn btn-secondary"
             style={{ marginRight: "0.5em", cursor: "pointer" }}
+            htmlFor="upload-config-input"
           >
             Upload Config
-            <input
-              type="file"
-              accept=".json,application/json"
-              style={{ display: "none" }}
-              onChange={(e) => {
-                const file = e.target.files && e.target.files[0];
-                if (!file) return;
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                  try {
-                    const json = JSON.parse(evt.target.result);
-                    fetch(getBaseUrl() + "/api/config", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(json),
-                    })
-                      .then(async (response) => {
-                        if (!response.ok) throw new Error("Upload failed");
-                        return response.text();
-                      })
-                      .then(() => {
-                        showToast("Config uploaded!", "success");
-                        setTimeout(() => window.location.reload(), 1200);
-                      })
-                      .catch((err) => {
-                        showToast("Error uploading config: " + err, "error");
-                      });
-                  } catch (err) {
-                    showToast("Invalid config file: " + err.message, "error");
-                  }
-                };
-                reader.readAsText(file);
-                e.target.value = "";
-              }}
-            />
           </label>
+          <input
+            id="upload-config-input"
+            type="file"
+            accept=".json,application/json"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                const text = await file.text();
+                const json = JSON.parse(text);
+                const response = await fetch(getBaseUrl() + "/api/config", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(json),
+                });
+                if (!response.ok) throw new Error("Upload failed");
+                showToast("Config uploaded!", "success");
+                setTimeout(() => globalThis.location.reload(), 1200);
+              } catch (err) {
+                showToast(
+                  "Error uploading config: " + (err.message || err),
+                  "error",
+                );
+              }
+              e.target.value = "";
+            }}
+          />
           {/* Save Configuration */}
           <button
             class="btn btn-primary"
+            disabled={Object.keys(modifiedConfig).length === 0}
             onClick={async () => {
               try {
                 const resp = await fetch(getBaseUrl() + "/api/config", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(config),
+                  body: JSON.stringify(modifiedConfig),
                 });
                 if (!resp.ok) throw new Error("Save failed");
                 showToast("Configuration saved!", "success");
+                resetModifiedConfig();
               } catch (err) {
                 showToast("Error saving config: " + err, "error");
               }
@@ -179,41 +207,59 @@ export function Config({
           </button>
         </div>
         <div class="card-grid">
-          <WiFiSettings config={config} setConfig={setConfig} />
-          <LEDSettings config={config} setConfig={setConfig} />
-          <RelaySettings config={config} setConfig={setConfig} />
-          <SafetySettings config={config} setConfig={setConfig} />
-          <TransitionSettings config={config} setConfig={setConfig} />
+          <WiFiSettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
+          <LEDSettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
+          <RelaySettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
+          <SafetySettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
+          <TransitionSettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
           <LocationTimeSettings
             config={config}
-            setConfig={setConfig}
+            setConfig={wrappedSetConfig}
             timezones={timezones}
+            onFieldChange={handleFieldChange}
           />
           <FirmwareUpdate
             config={config}
             showToast={showToast}
             otaProgress={otaProgress}
             loaded={loaded}
-            setConfig={setConfig}
+            setConfig={wrappedSetConfig}
             otaFileName={otaFileName}
             setOtaFileName={setOtaFileName}
             otaInputRef={otaInputRef}
             localOtaProgress={localOtaProgress}
             setLocalOtaProgress={setLocalOtaProgress}
+            onFieldChange={handleFieldChange}
           />
           <DeviceActions
             config={config}
             showToast={showToast}
             loaded={loaded}
-            setConfig={setConfig}
+            setConfig={wrappedSetConfig}
+            onFieldChange={handleFieldChange}
           />
-          </div>
-          <Schedule
-            config={config}
-            setConfig={setConfig}
-            presets={presets}
-            sunTimes={sunTimes}
-          />
+        </div>
+        <Schedule
+          config={config}
+          setConfig={(updater) => {
+            wrappedSetConfig((prev) => {
+              const next = typeof updater === "function" ? updater(prev) : updater;
+              // Use a functional update to avoid stale closure
+              if (next.schedule !== prev.schedule) {
+                setModifiedConfig((prevMod) => ({ ...prevMod, schedule: next.schedule }));
+              }
+              return next;
+            });
+          }}
+          presets={presets}
+          sunTimes={sunTimes}
+          onFieldChange={(key, value) => {
+            if (key === "schedule") {
+              setModifiedConfig((prevMod) => ({ ...prevMod, schedule: value }));
+            }
+            handleFieldChange(key, value);
+          }}
+        />
       </div>
     </div>
   );

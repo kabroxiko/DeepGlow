@@ -12,7 +12,7 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
         await fetch(getBaseUrl() + "/api/command", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ command: "reboot" })
+          body: JSON.stringify({ command: "reboot" }),
         });
         showToast("Device rebooting...", "info");
       } else if (type === "reset") {
@@ -20,9 +20,11 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
         showToast("Factory reset initiated. Device will reboot.", "info");
       }
     } catch (e) {
+      // Log the error for debugging
+      console.error("Device action failed:", e);
       showToast(
         type === "reboot" ? "Reboot failed!" : "Factory reset failed!",
-        "error"
+        "error",
       );
     } finally {
       setPending(false);
@@ -34,16 +36,10 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
     <section class="card system-card">
       <h2>Device Actions</h2>
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <button
-          class="btn btn-warning"
-          onClick={() => setModal("reboot")}
-        >
+        <button class="btn btn-warning" onClick={() => setModal("reboot")}>
           Reboot Device
         </button>
-        <button
-          class="btn btn-danger"
-          onClick={() => setModal("reset")}
-        >
+        <button class="btn btn-danger" onClick={() => setModal("reset")}>
           Factory Reset
         </button>
       </div>
@@ -81,7 +77,14 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
                 ? "Are you sure you want to reboot the device?"
                 : "Factory reset will erase all settings. Continue?"}
             </p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center", marginTop: 24 }}>
+            <div
+              style={{
+                display: "flex",
+                gap: 12,
+                justifyContent: "center",
+                marginTop: 24,
+              }}
+            >
               <button
                 class="btn btn-secondary"
                 onClick={() => setModal(null)}
@@ -90,11 +93,17 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
                 Cancel
               </button>
               <button
-                class={modal === "reboot" ? "btn btn-warning" : "btn btn-danger"}
+                class={
+                  modal === "reboot" ? "btn btn-warning" : "btn btn-danger"
+                }
                 onClick={() => handleAction(modal)}
                 disabled={pending}
               >
-                {pending ? "Please wait..." : modal === "reboot" ? "Reboot" : "Factory Reset"}
+                {(() => {
+                  if (pending) return "Please wait...";
+                  if (modal === "reboot") return "Reboot";
+                  return "Factory Reset";
+                })()}
               </button>
             </div>
           </div>

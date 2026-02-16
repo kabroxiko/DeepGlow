@@ -20,7 +20,7 @@ export function WifiSetup() {
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
-            // Legacy: backend returns array directly
+            // backend returns array directly
             setSsidList({ ssids: data });
             setScanning(false);
           } else if (data?.status === "scanning") {
@@ -145,11 +145,13 @@ export function WifiSetup() {
               <option value="" disabled>
                 {scanning ? "Scanning..." : "Select network"}
               </option>
-              {(Array.isArray(ssidList.ssids) ? ssidList.ssids : ssidList).map((ssid) => (
-                <option value={ssid} key={ssid}>
-                  {ssid}
-                </option>
-              ))}
+              {(Array.isArray(ssidList.ssids) ? ssidList.ssids : ssidList).map(
+                (ssid) => (
+                  <option value={ssid} key={ssid}>
+                    {ssid}
+                  </option>
+                ),
+              )}
               <option value="__other__">Other...</option>
             </select>
             <button

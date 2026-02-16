@@ -5,8 +5,9 @@ export function WiFiSettings({ config, setConfig }) {
       <form autoComplete="on">
         <div className="config-grid">
           <div className="config-item">
-            <label>WiFi SSID</label>
+            <label htmlFor="wifi-ssid">WiFi SSID</label>
             <input
+              id="wifi-ssid"
               type="text"
               className="text-input"
               autoComplete="on"
@@ -20,8 +21,9 @@ export function WiFiSettings({ config, setConfig }) {
             />
           </div>
           <div className="config-item">
-            <label>WiFi Password</label>
+            <label htmlFor="wifi-password">WiFi Password</label>
             <input
+              id="wifi-password"
               type="password"
               className="text-input"
               autoComplete="on"

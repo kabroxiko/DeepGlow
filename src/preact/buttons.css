@@ -43,6 +43,7 @@
 .btn-danger {
   background: #d32f2f;
   color: #fff;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2);
 }
 .btn-danger:hover,
 .btn-danger:focus {
@@ -50,15 +51,16 @@
 }
 .btn-warning {
   background: #ffa000;
-  color: #fff;
+  color: #222;
 }
 .btn-warning:hover,
 .btn-warning:focus {
   background: #ff6f00;
 }
 .btn-info {
-  background: #0288d1;
-  color: #fff;
+  background: #e3f2fd;
+  color: #222;
+  text-shadow: none;
 }
 .btn-info:hover,
 .btn-info:focus {

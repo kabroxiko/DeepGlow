@@ -13,7 +13,7 @@ export function ColorPickers({ colors, sendState }) {
         }
         // Use a more unique key, e.g., color value plus index fallback
         return (
-          <div className="control-item" key={color + '-' + idx}>
+          <div className="control-item" key={color + "-" + idx}>
             <label
               style={{ display: "flex", alignItems: "center", gap: "1px" }}
             >
@@ -69,19 +69,35 @@ export function ColorPickers({ colors, sendState }) {
 }
 
 export function Controls({ state, effects, sendState }) {
-
   // Generic handler to avoid duplication for slider POST on release
   const sliderReleaseHandler = (extractValue, updateObj) => (e) => {
-    sendState(typeof updateObj === 'function' ? updateObj(extractValue(e)) : { [updateObj]: extractValue(e) });
+    sendState(
+      typeof updateObj === "function"
+        ? updateObj(extractValue(e))
+        : { [updateObj]: extractValue(e) },
+    );
   };
 
   return (
     <div className="control-grid">
       <div className="control-item">
         <div className="switch-label">
-          <label htmlFor="powerToggle"><span>Power</span></label>
+          <label htmlFor="powerToggle">
+            <span>Power</span>
+          </label>
           <label className="switch" htmlFor="powerToggle">
-            <span style={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0,0,0,0)', border: 0 }}>
+            <span
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                padding: 0,
+                margin: -1,
+                overflow: "hidden",
+                clip: "rect(0,0,0,0)",
+                border: 0,
+              }}
+            >
               Power toggle
             </span>
             <input
@@ -112,8 +128,14 @@ export function Controls({ state, effects, sendState }) {
             document.getElementById("brightnessValue").textContent =
               e.target.value + "%";
           }}
-          onMouseUp={sliderReleaseHandler(e => Number.parseInt(e.target.value), 'brightness')}
-          onTouchEnd={sliderReleaseHandler(e => Number.parseInt(e.target.value), 'brightness')}
+          onMouseUp={sliderReleaseHandler(
+            (e) => Number.parseInt(e.target.value),
+            "brightness",
+          )}
+          onTouchEnd={sliderReleaseHandler(
+            (e) => Number.parseInt(e.target.value),
+            "brightness",
+          )}
         />
       </div>
 
@@ -146,8 +168,14 @@ export function Controls({ state, effects, sendState }) {
             document.getElementById("transitionValue").textContent =
               formatTransitionTime(steppedTransitionValue(e.target.value));
           }}
-          onMouseUp={sliderReleaseHandler(e => steppedTransitionValue(e.target.value) * 1000, v => ({ transitionTime: v }))}
-          onTouchEnd={sliderReleaseHandler(e => steppedTransitionValue(e.target.value) * 1000, v => ({ transitionTime: v }))}
+          onMouseUp={sliderReleaseHandler(
+            (e) => steppedTransitionValue(e.target.value) * 1000,
+            (v) => ({ transitionTime: v }),
+          )}
+          onTouchEnd={sliderReleaseHandler(
+            (e) => steppedTransitionValue(e.target.value) * 1000,
+            (v) => ({ transitionTime: v }),
+          )}
         />
       </div>
 
@@ -157,7 +185,9 @@ export function Controls({ state, effects, sendState }) {
           id="effectSelect"
           className="select-input"
           value={state.effect}
-          onChange={(e) => sendState({ effect: Number.parseInt(e.target.value) })}
+          onChange={(e) =>
+            sendState({ effect: Number.parseInt(e.target.value) })
+          }
         >
           {effects.map((effect) => (
             <option key={effect.id} value={effect.id}>
@@ -183,8 +213,14 @@ export function Controls({ state, effects, sendState }) {
             document.getElementById("speedValue").textContent =
               e.target.value + "%";
           }}
-          onMouseUp={sliderReleaseHandler(e => Number.parseInt(e.target.value), v => ({ params: { speed: v } }))}
-          onTouchEnd={sliderReleaseHandler(e => Number.parseInt(e.target.value), v => ({ params: { speed: v } }))}
+          onMouseUp={sliderReleaseHandler(
+            (e) => Number.parseInt(e.target.value),
+            (v) => ({ params: { speed: v } }),
+          )}
+          onTouchEnd={sliderReleaseHandler(
+            (e) => Number.parseInt(e.target.value),
+            (v) => ({ params: { speed: v } }),
+          )}
         />
       </div>
       <div className="control-item">
@@ -203,8 +239,14 @@ export function Controls({ state, effects, sendState }) {
             document.getElementById("intensityValue").textContent =
               e.target.value + "%";
           }}
-          onMouseUp={sliderReleaseHandler(e => Number.parseInt(e.target.value), v => ({ params: { intensity: v } }))}
-          onTouchEnd={sliderReleaseHandler(e => Number.parseInt(e.target.value), v => ({ params: { intensity: v } }))}
+          onMouseUp={sliderReleaseHandler(
+            (e) => Number.parseInt(e.target.value),
+            (v) => ({ params: { intensity: v } }),
+          )}
+          onTouchEnd={sliderReleaseHandler(
+            (e) => Number.parseInt(e.target.value),
+            (v) => ({ params: { intensity: v } }),
+          )}
         />
       </div>
       {state.params?.colors && <ColorPickers colors={state.params.colors} />}

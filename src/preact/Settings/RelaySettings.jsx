@@ -4,8 +4,9 @@ export function RelaySettings({ config, setConfig }) {
       <h2>Relay Settings</h2>
       <div className="config-grid">
         <div className="config-item">
-          <label>Relay Pin (GPIO)</label>
+          <label htmlFor="relay-pin">Relay Pin (GPIO)</label>
           <input
+            id="relay-pin"
             type="number"
             min="0"
             max="39"
@@ -20,8 +21,9 @@ export function RelaySettings({ config, setConfig }) {
           />
         </div>
         <div className="config-item">
-          <label>Relay Active Level</label>
+          <label htmlFor="relay-active-level">Relay Active Level</label>
           <select
+            id="relay-active-level"
             className="select-input"
             value={String(config?.led?.relayActiveHigh)}
             onInput={(e) =>

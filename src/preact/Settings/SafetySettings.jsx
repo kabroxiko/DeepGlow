@@ -6,8 +6,9 @@ export function SafetySettings({ config, setConfig }) {
       <h2>Safety</h2>
       <div className="config-grid">
         <div className="config-item">
-          <label>Max Brightness (Fish Safety)</label>
+          <label htmlFor="max-brightness">Max Brightness (Fish Safety)</label>
           <input
+            id="max-brightness"
             type="range"
             min="0"
             max="100"
@@ -23,8 +24,9 @@ export function SafetySettings({ config, setConfig }) {
           <span>{config?.safety?.maxBrightness}%</span>
         </div>
         <div className="config-item">
-          <label>Min Transition Time</label>
+          <label htmlFor="min-transition-time">Min Transition Time</label>
           <input
+            id="min-transition-time"
             type="range"
             min="0"
             max="127"

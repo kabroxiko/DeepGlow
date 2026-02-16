@@ -1,6 +1,34 @@
-import { h } from "preact";
+import { useState, useEffect, useRef } from "preact/hooks";
+
+function sortTimers(timers) {
+  return [...timers].sort((a, b) => {
+    // Sunrise and Sunset types (1,2) always at the top
+    if (a.type === 1 || a.type === 2) return -1;
+    if (b.type === 1 || b.type === 2) return 1;
+    // Otherwise, sort by hour then minute
+    return (a.hour ?? 0) * 60 + (a.minute ?? 0) - ((b.hour ?? 0) * 60 + (b.minute ?? 0));
+  });
+}
 
 export function Schedule({ config, setConfig, presets, sunTimes }) {
+  // Always sort timers on first mount and when config.timers changes (e.g. after config upload/reset)
+  const [displayTimers, setDisplayTimers] = useState(() =>
+    Array.isArray(config?.timers) ? sortTimers(config.timers) : []
+  );
+  useEffect(() => {
+    if (Array.isArray(config?.timers)) {
+      // Only update if timers are different (by reference or length)
+      if (config.timers !== displayTimers && config.timers.length !== displayTimers.length) {
+        setDisplayTimers(sortTimers(config.timers));
+      }
+    }
+  }, [config?.timers]);
+
+  const updateTimers = (timers) => {
+    setDisplayTimers(timers);
+    setConfig((prev) => ({ ...prev, timers }));
+  };
+
   return (
     <section class="card">
       <h2>Schedule</h2>
@@ -17,99 +45,92 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
             </tr>
           </thead>
           <tbody>
-            {Array.isArray(config?.timers) && config.timers.length > 0
-              ? config.timers.map((timer, idx) => (
-                  <tr key={idx}>
+            {displayTimers.length > 0
+              ? displayTimers.map((timer, idx) => (
+                  <tr key={timer.id || idx}>
                     {/* Enabled checkbox */}
                     <td>
                       <input
                         type="checkbox"
                         checked={!!timer.enabled}
                         onInput={(e) => {
-                          setConfig((c) => {
-                            const timers = [...c.timers];
-                            timers[idx] = {
-                              ...timers[idx],
-                              enabled: e.target.checked,
-                            };
-                            return { ...c, timers };
-                          });
+                          const timers = [...displayTimers];
+                          timers[idx] = {
+                            ...timers[idx],
+                            enabled: e.target.checked,
+                          };
+                          updateTimers(timers);
                         }}
                       />
                     </td>
                     {/* Type radio group */}
                     <td>
-                      {["Regular", "Sunrise", "Sunset"].map(
-                        (label, val) => (
-                          <label style={{ marginRight: "0.5em" }} key={val}>
-                            <input
-                              type="radio"
-                              name={`type_${idx}`}
-                              value={val}
-                              checked={timer.type === val}
-                              onInput={(e) => {
-                                setConfig((c) => {
-                                  const timers = [...c.timers];
-                                  // Prevent multiple Sunrise/Sunset
-                                  if (val === 1 || val === 2) {
-                                    timers.forEach((t, i) => {
-                                      if (i !== idx && t.type === val)
-                                        t.type = 0;
-                                    });
+                      {['Regular', 'Sunrise', 'Sunset'].map((label, val) => (
+                        <label style={{ marginRight: '0.5em' }} key={label}>
+                          <input
+                            type="radio"
+                            name={`type_${timer.id || idx}`}
+                            value={val}
+                            checked={timer.type === val}
+                            onInput={(e) => {
+                              const timers = [...displayTimers];
+                              // Prevent multiple Sunrise/Sunset
+                              if (val === 1 || val === 2) {
+                                for (let i = 0; i < timers.length; i++) {
+                                  if (i !== idx && timers[i].type === val) {
+                                    timers[i] = { ...timers[i], type: 0 };
                                   }
-                                  timers[idx] = {
-                                    ...timers[idx],
-                                    type: val,
-                                  };
-                                  return { ...c, timers };
-                                });
-                              }}
-                            />
-                            {label}
-                          </label>
-                        ),
-                      )}
+                                }
+                              }
+                              timers[idx] = {
+                                ...timers[idx],
+                                type: val,
+                              };
+                              updateTimers(timers);
+                            }}
+                          />
+                          {label}
+                        </label>
+                      ))}
                     </td>
                     {/* Time input or sunrise/sunset label */}
                     <td>
-                      {timer.type === 1 ? (
-                        <span>{sunTimes.sunrise || ""}</span>
-                      ) : timer.type === 2 ? (
-                        <span>{sunTimes.sunset || ""}</span>
-                      ) : (
-                        <input
-                          type="time"
-                          value={`${String(timer.hour).padStart(2, "0")}:${String(timer.minute).padStart(2, "0")}`}
-                          onInput={(e) => {
-                            const [h, m] = e.target.value
-                              .split(":")
-                              .map(Number);
-                            setConfig((c) => {
-                              const timers = [...c.timers];
+                      {(() => {
+                        if (timer.type === 1)
+                          return <span>{sunTimes.sunrise || ''}</span>;
+                        if (timer.type === 2)
+                          return <span>{sunTimes.sunset || ''}</span>;
+                        return (
+                          <input
+                            type="time"
+                            value={`${String(timer.hour).padStart(2, '0')}:${String(timer.minute).padStart(2, '0')}`}
+                            onInput={(e) => {
+                              const [h, m] = e.target.value
+                                .split(":")
+                                .map(Number);
+                              const timers = [...displayTimers];
                               timers[idx] = {
                                 ...timers[idx],
                                 hour: h || 0,
                                 minute: m || 0,
                               };
-                              return { ...c, timers };
-                            });
-                          }}
-                        />
-                      )}
+                              updateTimers(timers);
+                            }}
+                          />
+                        );
+                      })()}
                     </td>
                     {/* Preset select */}
                     <td>
                       <select
                         value={timer.presetId}
                         onInput={(e) => {
-                          setConfig((c) => {
-                            const timers = [...c.timers];
-                            timers[idx] = {
-                              ...timers[idx],
-                              presetId: parseInt(e.target.value),
-                            };
-                            return { ...c, timers };
-                          });
+                          const timers = [...displayTimers];
+                          timers[idx] = {
+                            ...timers[idx],
+                            presetId: Number.parseInt(e.target.value),
+                          };
+                          updateTimers(timers);
                         }}
                       >
                         {presets.length > 0 ? (
@@ -130,20 +151,18 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
                         min="0"
                         max="100"
                         value={timer.brightness}
-                        style={{ width: "60px" }}
+                        style={{ width: '60px' }}
                         onInput={(e) => {
                           const val = Math.max(
                             0,
-                            Math.min(100, parseInt(e.target.value) || 0),
+                            Math.min(100, Number.parseInt(e.target.value) || 0),
                           );
-                          setConfig((c) => {
-                            const timers = [...c.timers];
-                            timers[idx] = {
-                              ...timers[idx],
-                              brightness: val,
-                            };
-                            return { ...c, timers };
-                          });
+                          const timers = [...displayTimers];
+                          timers[idx] = {
+                            ...timers[idx],
+                            brightness: val,
+                          };
+                          updateTimers(timers);
                         }}
                       />
                     </td>
@@ -153,11 +172,9 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
                         class="btn btn-danger"
                         onClick={(e) => {
                           e.preventDefault();
-                          setConfig((c) => {
-                            const timers = [...c.timers];
-                            timers.splice(idx, 1);
-                            return { ...c, timers };
-                          });
+                          const newTimers = [...displayTimers];
+                          newTimers.splice(idx, 1);
+                          updateTimers(newTimers);
                         }}
                       >
                         Delete
@@ -170,21 +187,22 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
         </table>
         <button
           class="btn btn-secondary"
-          style={{ marginTop: "1em" }}
+          style={{ marginTop: "1em", marginRight: "1em" }}
           onClick={(e) => {
             e.preventDefault();
-            setConfig((c) => {
-              const timers = Array.isArray(c.timers) ? [...c.timers] : [];
-              timers.push({
+            // Just append, do not sort
+            const newTimers = [
+              ...displayTimers,
+              {
                 enabled: true,
                 type: 0,
                 hour: 12,
                 minute: 0,
                 presetId: presets.length > 0 ? presets[0].id : 0,
                 brightness: 80,
-              });
-              return { ...c, timers };
-            });
+              },
+            ];
+            updateTimers(newTimers);
           }}
         >
           Add Timer
