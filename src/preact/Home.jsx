@@ -108,13 +108,13 @@ export function Home({
   config,
   setActivePreset,
 }) {
-    function applyPreset(presetId) {
-      fetch(getBaseUrl() + "/api/preset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: presetId, apply: true }),
-      }).then(() => setActivePreset?.(presetId));
-    }
+  function applyPreset(presetId) {
+    fetch(getBaseUrl() + "/api/preset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: presetId, apply: true }),
+    }).then(() => setActivePreset?.(presetId));
+  }
   // Sort timers by time (hour, minute) for display in Home page
   const sortedTimers = Array.isArray(timers)
     ? [...timers].sort((a, b) => {
@@ -122,7 +122,11 @@ export function Home({
         if (a.type === 1 || a.type === 2) return -1;
         if (b.type === 1 || b.type === 2) return 1;
         // Otherwise, sort by hour then minute
-        return (a.hour ?? 0) * 60 + (a.minute ?? 0) - ((b.hour ?? 0) * 60 + (b.minute ?? 0));
+        return (
+          (a.hour ?? 0) * 60 +
+          (a.minute ?? 0) -
+          ((b.hour ?? 0) * 60 + (b.minute ?? 0))
+        );
       })
     : [];
   return (
@@ -204,7 +208,11 @@ export function Home({
             </div>
           </div>
           <div className="schedule-table" id="scheduleTable">
-            <ScheduleTable timers={sortedTimers} presets={presets} state={state} />
+            <ScheduleTable
+              timers={sortedTimers}
+              presets={presets}
+              state={state}
+            />
           </div>
           {/* Brightness graph moved to its own component */}
           <Graph

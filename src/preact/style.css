@@ -1,3 +1,69 @@
+.toast-info {
+  background: #1e3447;
+  border-color: #00cc88;
+}
+.toast-success {
+  background: #1e3447;
+  border-color: #4caf50;
+}
+.toast-warning {
+  background: #2d2a00;
+  border-color: #ffaa00;
+}
+.toast-error {
+  background: #2a1818;
+  border-color: #ff4466;
+}
+/* Toast styles for Toast.jsx */
+.toast-custom {
+  min-width: 220px;
+  padding: 1em 2em 1em 1em;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-start;
+  background: var(--bg-light);
+  pointer-events: auto;
+  border: 2px solid #00cc88;
+  color: #fff;
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 0.3s, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+}
+.toast-custom.fade-init {
+  opacity: 0;
+  transform: translateY(120%);
+}
+.toast-custom.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+.toast-custom.fade-out {
+  opacity: 0;
+  transform: translateY(120%);
+}
+.toast-custom .toast-dismiss {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 0.95em;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.toast-custom .toast-message {
+  flex: 1;
+  font-weight: 500;
+}
 /* Reusable icon glow effect for SVG path */
 .icon-glow-hover:hover path {
   filter: drop-shadow(0 0 3px #66ccff) drop-shadow(0 0 6px #b3eaff);
@@ -500,7 +566,9 @@ select {
   margin-bottom: 8px;
   font-size: 1rem;
   color: #fff;
-  text-shadow: 0 1px 4px #000a, 0 0 2px #00ccff44;
+  text-shadow:
+    0 1px 4px #000a,
+    0 0 2px #00ccff44;
 }
 
 .preset-info {

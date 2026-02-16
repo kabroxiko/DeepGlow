@@ -198,7 +198,11 @@ export function Config({
                   sortedTimers = [...toSave.timers].sort((a, b) => {
                     if (a.type === 1 || a.type === 2) return -1;
                     if (b.type === 1 || b.type === 2) return 1;
-                    return (a.hour ?? 0) * 60 + (a.minute ?? 0) - ((b.hour ?? 0) * 60 + (b.minute ?? 0));
+                    return (
+                      (a.hour ?? 0) * 60 +
+                      (a.minute ?? 0) -
+                      ((b.hour ?? 0) * 60 + (b.minute ?? 0))
+                    );
                   });
                   toSave.timers = sortedTimers;
                 }
@@ -223,11 +227,31 @@ export function Config({
           </button>
         </div>
         <div class="card-grid">
-          <WiFiSettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
-          <LEDSettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
-          <RelaySettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
-          <SafetySettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
-          <TransitionSettings config={config} setConfig={wrappedSetConfig} onFieldChange={handleFieldChange} />
+          <WiFiSettings
+            config={config}
+            setConfig={wrappedSetConfig}
+            onFieldChange={handleFieldChange}
+          />
+          <LEDSettings
+            config={config}
+            setConfig={wrappedSetConfig}
+            onFieldChange={handleFieldChange}
+          />
+          <RelaySettings
+            config={config}
+            setConfig={wrappedSetConfig}
+            onFieldChange={handleFieldChange}
+          />
+          <SafetySettings
+            config={config}
+            setConfig={wrappedSetConfig}
+            onFieldChange={handleFieldChange}
+          />
+          <TransitionSettings
+            config={config}
+            setConfig={wrappedSetConfig}
+            onFieldChange={handleFieldChange}
+          />
           <LocationTimeSettings
             config={config}
             setConfig={wrappedSetConfig}
@@ -259,10 +283,14 @@ export function Config({
           config={config}
           setConfig={(updater) => {
             wrappedSetConfig((prev) => {
-              const next = typeof updater === "function" ? updater(prev) : updater;
+              const next =
+                typeof updater === "function" ? updater(prev) : updater;
               // Use a functional update to avoid stale closure
               if (next.schedule !== prev.schedule) {
-                setModifiedConfig((prevMod) => ({ ...prevMod, schedule: next.schedule }));
+                setModifiedConfig((prevMod) => ({
+                  ...prevMod,
+                  schedule: next.schedule,
+                }));
               }
               return next;
             });

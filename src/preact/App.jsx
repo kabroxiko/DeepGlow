@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "preact/hooks";
 import { getBaseUrl } from "./baseUrl.js";
 import { initializeWebSocket } from "./websocket.js";
-import { Toast, useToast } from "./Toast.jsx";
+import { ToastContainer, useToast } from "./Toast.jsx";
 import { Home } from "./Home.jsx";
 import { Config } from "./Config.jsx";
 
@@ -19,30 +19,16 @@ export function App() {
   // Home state (move up so it's available for all hooks)
   const [state, setState] = useState({});
   // Toast state
-  const [toast, setToast] = useToast();
+  const [toasts, showToast, hideToast] = useToast();
 
   // Toast helper (App-level, always use this)
-  function showToast(message, type = "info", duration = 4000) {
-    // Defensive: If message is a toast-like object, flatten
-    if (
-      typeof message === "object" &&
-      message !== null &&
-      Object.hasOwn(message, "message") &&
-      Object.hasOwn(message, "type") &&
-      Object.hasOwn(message, "visible")
-    ) {
-      message = message.message || JSON.stringify(message);
-    }
+  function showToastHelper(message, type = "info", duration = 4000) {
     let msg = message;
     if (typeof msg === "object" && msg !== null) {
       msg = msg.message || JSON.stringify(msg);
     }
     if (!msg || String(msg).trim() === "") return;
-    setToast({ message: msg, type, visible: true });
-    setTimeout(
-      () => setToast((t) => ({ ...t, visible: false, message: "" })),
-      duration,
-    );
+    showToast(msg, { type, autoHide: true, hideDelay: duration });
   }
   // Tab state from URL hash, fallback to localStorage, then home
   const getInitialTab = () => {
@@ -216,35 +202,11 @@ export function App() {
   // Tab UI
   // ...existing code...
 
-  // Defensive normalization: if toast.message is an object (unexpected),
-  // convert to a display string and prefer any nested `type`.
-  const [_displayMessage, _displayType] = (() => {
-    const msg = toast.message;
-    if (typeof msg === "object" && msg !== null) {
-      let messageStr;
-      if (typeof msg.message === "string") {
-        messageStr = msg.message;
-      } else {
-        try {
-          messageStr = JSON.stringify(msg);
-        } catch (e) {
-          console.error("Error stringifying toast message:", e);
-          messageStr = String(msg);
-        }
-      }
-      const typeStr = typeof msg.type === "string" ? msg.type : toast.type;
-      return [messageStr, typeStr];
-    }
-    return [msg, toast.type];
-  })();
+  // Toast normalization logic removed; ToastContainer handles all toasts.
 
   return (
     <div>
-      <Toast
-        message={_displayMessage}
-        type={_displayType}
-        visible={toast.visible}
-      />
+      <ToastContainer toasts={toasts} onDismiss={hideToast} />
       {tab === "home" ? (
         <Home
           wsError={wsError}
@@ -265,7 +227,7 @@ export function App() {
           config={config}
           timezones={timezones}
           sunTimes={sunTimes}
-          showToast={showToast}
+          showToast={showToastHelper}
           loaded={loaded}
           setTab={setTab}
           presets={presets || []}
