@@ -575,16 +575,12 @@ void WebServerManager::setupRoutes() {
   _server->on("/wifi/scan", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
     logRequest(request);
     int scanStatus = WiFi.scanComplete();
-    debugPrintln(String("[WiFiScan] scanComplete status: ") + scanStatus);
     if (scanStatus == -2) { // No scan started
-      debugPrintln("[WiFiScan] Starting async scan");
       WiFi.scanNetworks(true);
       request->send(200, "application/json", "{\"status\":\"scanning\"}");
     } else if (scanStatus == -1) { // Scan ongoing
-      debugPrintln("[WiFiScan] Scan in progress");
       request->send(200, "application/json", "{\"status\":\"scanning\"}");
     } else if (scanStatus >= 0) { // Scan complete
-      debugPrintln(String("[WiFiScan] Scan complete, networks found: ") + scanStatus);
       String json = "[";
       for (int i = 0; i < scanStatus; ++i) {
         if (i > 0) json += ",";
@@ -594,7 +590,6 @@ void WebServerManager::setupRoutes() {
       WiFi.scanDelete();
       request->send(200, "application/json", json);
     } else {
-      debugPrintln("[WiFiScan] Unknown scan status");
       request->send(500, "application/json", "{\"error\":\"scan error\"}");
     }
   });
