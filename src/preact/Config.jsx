@@ -1,5 +1,6 @@
 // Config page as Preact component
 import { useState, useRef } from "preact/hooks";
+import { LiveClock } from "./LiveClock.jsx";
 
 import { getBaseUrl } from "./baseUrl.js";
 import { WiFiSettings } from "./Settings/WiFiSettings.jsx";
@@ -79,7 +80,7 @@ export function Config({
             <span class="status-indicator" id="statusIndicator">
               ●
             </span>
-            <span id="currentTime"></span>
+            <LiveClock />
             <button
               type="button"
               className="back-to-main-link"
