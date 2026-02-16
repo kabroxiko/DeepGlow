@@ -191,13 +191,28 @@ export function Config({
             disabled={Object.keys(modifiedConfig).length === 0}
             onClick={async () => {
               try {
+                // If timers are being saved, sort them before sending
+                let toSave = { ...modifiedConfig };
+                let sortedTimers = null;
+                if (toSave.timers && Array.isArray(toSave.timers)) {
+                  sortedTimers = [...toSave.timers].sort((a, b) => {
+                    if (a.type === 1 || a.type === 2) return -1;
+                    if (b.type === 1 || b.type === 2) return 1;
+                    return (a.hour ?? 0) * 60 + (a.minute ?? 0) - ((b.hour ?? 0) * 60 + (b.minute ?? 0));
+                  });
+                  toSave.timers = sortedTimers;
+                }
                 const resp = await fetch(getBaseUrl() + "/api/config", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(modifiedConfig),
+                  body: JSON.stringify(toSave),
                 });
                 if (!resp.ok) throw new Error("Save failed");
                 showToast("Configuration saved!", "success");
+                // Update local config state with sorted timers so UI reflects the change
+                if (sortedTimers) {
+                  setConfig((prev) => ({ ...prev, timers: sortedTimers }));
+                }
                 resetModifiedConfig();
               } catch (err) {
                 showToast("Error saving config: " + err, "error");

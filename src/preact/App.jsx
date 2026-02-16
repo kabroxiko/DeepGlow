@@ -160,6 +160,13 @@ export function App() {
     config: false,
   });
 
+  // Keep timers in sync with config.timers
+  useEffect(() => {
+    if (config && Array.isArray(config.timers)) {
+      setTimers(config.timers);
+    }
+  }, [config?.timers]);
+
   // Toast helper
   // Duplicate showToast removed (already defined above)
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect } from "preact/hooks";
 
 function sortTimers(timers) {
   return [...timers].sort((a, b) => {
@@ -11,16 +11,12 @@ function sortTimers(timers) {
 }
 
 export function Schedule({ config, setConfig, presets, sunTimes }) {
-  // Always sort timers on first mount and when config.timers changes (e.g. after config upload/reset)
   const [displayTimers, setDisplayTimers] = useState(() =>
     Array.isArray(config?.timers) ? sortTimers(config.timers) : []
   );
   useEffect(() => {
-    if (Array.isArray(config?.timers)) {
-      // Only update if timers are different (by reference or length)
-      if (config.timers !== displayTimers && config.timers.length !== displayTimers.length) {
-        setDisplayTimers(sortTimers(config.timers));
-      }
+    if (Array.isArray(config?.timers) && config.timers !== displayTimers) {
+      setDisplayTimers(sortTimers(config.timers));
     }
   }, [config?.timers]);
 
