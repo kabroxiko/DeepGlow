@@ -1,7 +1,7 @@
 import { useState, useEffect } from "preact/hooks";
 import { Fragment } from "preact";
 import { getBaseUrl } from "../baseUrl.js";
-import { CommonModal } from "../CommonModal.jsx";
+import { Modal } from "../Modal.jsx";
 
 export function FirmwareUpdate({
   config,
@@ -101,7 +101,7 @@ export function FirmwareUpdate({
 
   return (
     <Fragment>
-      <CommonModal
+      <Modal
         open={showModal}
         title="Install Update?"
         description={

@@ -1,6 +1,6 @@
 import { getBaseUrl } from "../baseUrl.js";
 import { useState } from "preact/hooks";
-import { CommonModal } from "../CommonModal.jsx";
+import { Modal } from "../Modal.jsx";
 
 export function DeviceActions({ config, showToast, loaded, setConfig }) {
   const [modal, setModal] = useState(null); // null | 'reboot' | 'reset'
@@ -50,7 +50,7 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
           Factory Reset
         </button>
       </div>
-      <CommonModal
+      <Modal
         open={!!modal}
         title={modal === "reboot" ? "Reboot Device" : "Factory Reset"}
         description={modal === "reboot"

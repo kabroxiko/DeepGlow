@@ -9,7 +9,7 @@
  * - onClose: function (called when modal is dismissed)
  * - children: optional (for custom content)
  */
-export function CommonModal({ open, title, description, actions = [], onClose, children }) {
+export function Modal({ open, title, description, actions = [], onClose, children }) {
   if (!open) return null;
   return (
     <dialog className="modal-overlay" open aria-modal="true">
@@ -18,23 +18,11 @@ export function CommonModal({ open, title, description, actions = [], onClose, c
         type="button"
         aria-label="Close modal"
         tabIndex={0}
-        style={{
-          position: "fixed",
-          inset: 0,
-          width: "100vw",
-          height: "100vh",
-          background: "transparent",
-          border: 0,
-          padding: 0,
-          margin: 0,
-          zIndex: 1,
-          cursor: "pointer",
-        }}
+        className="modal-backdrop"
         onClick={onClose}
       />
       <div
         className="modal-confirm"
-        style={{ position: "relative", zIndex: 2 }}
       >
         {title && <div className="modal-title">{title}</div>}
         {description && <div className="modal-desc">{description}</div>}
