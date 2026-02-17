@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from "preact/hooks";
 import { getBaseUrl } from "./baseUrl.js";
 import { initializeWebSocket } from "./websocket.js";
 import { ToastContainer, useToast } from "./Toast.jsx";
-import { Home } from "./Home.jsx";
-import { Config } from "./Config.jsx";
+import { useTabs, getHandshakeType, Tabs } from "./Tabs.jsx";
 
 function sendState(updates) {
   fetch(getBaseUrl() + "/api/state", {
@@ -32,41 +31,10 @@ export function App() {
     const hideDelay = opts.hideDelay || 4000;
     return showToast(msg, { ...opts, type, hideDelay });
   }
-  // Tab state from URL hash, fallback to localStorage, then home
-  const getInitialTab = () => {
-    if (globalThis.location.hash === "#config") return "config";
-    if (globalThis.location.hash === "#home") return "home";
-    let saved;
-    try {
-      saved = localStorage.getItem("deepglow_tab");
-    } catch (e) {
-      console.error("Error accessing localStorage for deepglow_tab:", e);
-    }
-    if (saved === "config" || saved === "home") return saved;
-    return "home";
-  };
-  const [tab, setTab] = useState(getInitialTab);
-  // Update tab when hash changes
-  useEffect(() => {
-    const onHashChange = () => {
-      if (globalThis.location.hash === "#config") setTab("config");
-      else setTab("home");
-    };
-    globalThis.addEventListener("hashchange", onHashChange);
-    return () => globalThis.removeEventListener("hashchange", onHashChange);
-  }, []);
-  // Persist tab to localStorage and URL hash on change
-  useEffect(() => {
-    try {
-      if (tab === "config") {
-        localStorage.setItem("deepglow_tab", "config");
-        globalThis.location.hash = "#config";
-      } else {
-        localStorage.setItem("deepglow_tab", "home");
-        globalThis.location.hash = "#home";
-      }
-    } catch {}
-  }, [tab]);
+
+  // Tabs logic (migrated)
+  const [tab, setTab] = useTabs();
+
   // Shared WebSocket connection
   const wsRef = useRef(null);
   const [setWsReady] = useState(false);
@@ -75,7 +43,7 @@ export function App() {
   // Create the WebSocket connection only once
   useEffect(() => {
     wsRef.current = initializeWebSocket({
-      handshake: { type: tab === "config" ? "ota_client" : "state" },
+      handshake: getHandshakeType(tab),
       onMessage: (data) => {
         setState((prev) => ({ ...prev, ...data }));
         if (data.preset !== undefined) setActivePreset(data.preset);
@@ -127,12 +95,11 @@ export function App() {
     };
   }, []);
 
-  // Only send handshake/subscription message on tab change
+  // Send handshake/subscription message on tab change
   useEffect(() => {
-    wsRef.current?.readyState === 1 &&
-      wsRef.current.send(
-        JSON.stringify({ type: tab === "config" ? "ota_client" : "state" }),
-      );
+    if (wsRef.current?.readyState === 1) {
+      wsRef.current.send(JSON.stringify(getHandshakeType(tab)));
+    }
   }, [tab]);
   // Home state
   const [presets, setPresets] = useState([]);
@@ -206,33 +173,26 @@ export function App() {
   return (
     <div>
       <ToastContainer toasts={toasts} onDismiss={hideToast} />
-      {tab === "home" ? (
-        <Home
-          state={state}
-          presets={presets}
-          timers={timers}
-          effects={effects}
-          activePreset={activePreset}
-          ledBarRef={ledBarRef}
-          sendState={sendState}
-          setTab={setTab}
-          config={config}
-          setActivePreset={setActivePreset}
-        />
-      ) : (
-        <Config
-          config={config}
-          timezones={timezones}
-          sunTimes={sunTimes}
-          showToast={showToastHelper}
-          hideToast={hideToast}
-          loaded={loaded}
-          setTab={setTab}
-          presets={presets || []}
-          setConfig={setConfig}
-          otaProgress={otaProgress}
-        />
-      )}
+      <Tabs
+        tab={tab}
+        setTab={setTab}
+        state={state}
+        presets={presets}
+        timers={timers}
+        effects={effects}
+        activePreset={activePreset}
+        ledBarRef={ledBarRef}
+        sendState={sendState}
+        config={config}
+        setActivePreset={setActivePreset}
+        timezones={timezones}
+        sunTimes={sunTimes}
+        showToast={showToastHelper}
+        hideToast={hideToast}
+        loaded={loaded}
+        setConfig={setConfig}
+        otaProgress={otaProgress}
+      />
     </div>
   );
 }

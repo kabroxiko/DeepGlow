@@ -1,5 +1,4 @@
 import { LiveClock } from "./LiveClock.jsx";
-import { setTab } from "./App.jsx";
 
 /**
  * StatusBar component for Home and Config pages.
@@ -15,10 +14,9 @@ import { setTab } from "./App.jsx";
  */
 export function StatusBar({
   indicatorColor = "var(--success)",
-  indicatorId = "statusIndicator",
   buttonLabel,
   buttonSvgPath,
-  buttonClass = "",
+  buttonClass = "icon-header-btn",
   showIndicator = true,
   children,
   buttonSvgViewBox = "0 0 640 640",
@@ -40,7 +38,7 @@ export function StatusBar({
       {showIndicator && (
         <span
           className="status-indicator"
-          id={indicatorId}
+          id="statusIndicator"
           style={{ color: indicatorColor }}
         >
           ●
