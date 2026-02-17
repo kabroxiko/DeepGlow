@@ -1,7 +1,8 @@
 import { getBaseUrl } from "../baseUrl.js";
 import { useState } from "preact/hooks";
+import { Modal } from "../Modal.jsx";
 
-export function DeviceActions({ config, showToast, loaded, setConfig }) {
+export function DeviceActions({ showToast }) {
   const [modal, setModal] = useState(null); // null | 'reboot' | 'reset'
   const [pending, setPending] = useState(false);
   let actionLabel = "";
@@ -49,38 +50,28 @@ export function DeviceActions({ config, showToast, loaded, setConfig }) {
           Factory Reset
         </button>
       </div>
-      {modal && (
-        <div className="modal-overlay">
-          <div className="modal-confirm">
-            <div className="modal-title">
-              {modal === "reboot" ? "Reboot Device" : "Factory Reset"}
-            </div>
-            <div className="modal-desc">
-              {modal === "reboot"
-                ? "Are you sure you want to reboot the device?"
-                : "Factory reset will erase all settings. Continue?"}
-            </div>
-            <div className="modal-actions">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setModal(null)}
-                disabled={pending}
-              >
-                Cancel
-              </button>
-              <button
-                className={
-                  modal === "reboot" ? "btn btn-warning" : "btn btn-danger"
-                }
-                onClick={() => handleAction(modal)}
-                disabled={pending}
-              >
-                {actionLabel}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Modal
+        open={!!modal}
+        title={modal === "reboot" ? "Reboot Device" : "Factory Reset"}
+        description={modal === "reboot"
+          ? "Are you sure you want to reboot the device?"
+          : "Factory reset will erase all settings. Continue?"}
+        onClose={() => !pending && setModal(null)}
+        actions={[
+          {
+            label: "Cancel",
+            onClick: () => setModal(null),
+            className: "btn btn-secondary",
+            disabled: pending,
+          },
+          {
+            label: actionLabel,
+            onClick: () => handleAction(modal),
+            className: modal === "reboot" ? "btn btn-warning" : "btn btn-danger",
+            disabled: pending,
+          },
+        ]}
+      />
     </section>
   );
 }

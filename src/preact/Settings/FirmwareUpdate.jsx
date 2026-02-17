@@ -1,14 +1,12 @@
 import { useState, useEffect } from "preact/hooks";
 import { Fragment } from "preact";
 import { getBaseUrl } from "../baseUrl.js";
+import { Modal } from "../Modal.jsx";
 
 export function FirmwareUpdate({
-  config,
   showToast,
   hideToast,
   otaProgress,
-  loaded,
-  setConfig,
   otaFileName,
   setOtaFileName,
   otaInputRef,
@@ -100,35 +98,33 @@ export function FirmwareUpdate({
 
   return (
     <Fragment>
-      {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-confirm">
-            <div className="modal-title">Install Update?</div>
+      <Modal
+        open={showModal}
+        title="Install Update?"
+        description={
+          <>
             <div className="modal-version">
               Latest version: <span>{latestVersion || "unknown"}</span>
             </div>
-            <div className="modal-desc">
-              Are you sure you want to install this update?
-            </div>
-            <div className="modal-actions">
-              <button
-                className="btn btn-primary"
-                disabled={installing}
-                onClick={handleConfirmInstall}
-              >
-                {installing ? "Installing..." : "Install"}
-              </button>
-              <button
-                className="btn btn-secondary"
-                disabled={installing}
-                onClick={() => setShowModal(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+            Are you sure you want to install this update?
+          </>
+        }
+        onClose={() => !installing && setShowModal(false)}
+        actions={[
+          {
+            label: installing ? "Installing..." : "Install",
+            onClick: handleConfirmInstall,
+            className: "btn btn-primary",
+            disabled: installing,
+          },
+          {
+            label: "Cancel",
+            onClick: () => setShowModal(false),
+            className: "btn btn-secondary",
+            disabled: installing,
+          },
+        ]}
+      />
       <section class="card system-card">
         <h2>Firmware Update (OTA)</h2>
         <form
