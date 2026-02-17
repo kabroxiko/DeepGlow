@@ -2,7 +2,7 @@ import { getBaseUrl } from "../baseUrl.js";
 import { useState } from "preact/hooks";
 import { Modal } from "../Modal.jsx";
 
-export function DeviceActions({ config, showToast, loaded, setConfig }) {
+export function DeviceActions({ showToast }) {
   const [modal, setModal] = useState(null); // null | 'reboot' | 'reset'
   const [pending, setPending] = useState(false);
   let actionLabel = "";

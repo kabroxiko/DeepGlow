@@ -4,12 +4,9 @@ import { getBaseUrl } from "../baseUrl.js";
 import { Modal } from "../Modal.jsx";
 
 export function FirmwareUpdate({
-  config,
   showToast,
   hideToast,
   otaProgress,
-  loaded,
-  setConfig,
   otaFileName,
   setOtaFileName,
   otaInputRef,

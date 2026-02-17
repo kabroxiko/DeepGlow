@@ -259,25 +259,17 @@ export function Config({
             onFieldChange={handleFieldChange}
           />
           <FirmwareUpdate
-            config={config}
             showToast={showToast}
             hideToast={hideToast}
             otaProgress={otaProgress}
-            loaded={loaded}
-            setConfig={wrappedSetConfig}
             otaFileName={otaFileName}
             setOtaFileName={setOtaFileName}
             otaInputRef={otaInputRef}
             localOtaProgress={localOtaProgress}
             setLocalOtaProgress={setLocalOtaProgress}
-            onFieldChange={handleFieldChange}
           />
           <DeviceActions
-            config={config}
             showToast={showToast}
-            loaded={loaded}
-            setConfig={wrappedSetConfig}
-            onFieldChange={handleFieldChange}
           />
         </div>
         <Schedule
