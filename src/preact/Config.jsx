@@ -1,6 +1,7 @@
 // Config page as Preact component
 import { useState, useRef } from "preact/hooks";
-import { LiveClock } from "./LiveClock.jsx";
+
+import { StatusBar } from "./StatusBar.jsx";
 
 import { getBaseUrl } from "./baseUrl.js";
 import { WiFiSettings } from "./Settings/WiFiSettings.jsx";
@@ -60,10 +61,7 @@ export function Config({
   return (
     <div>
       {!loaded.timezones && (
-        <div
-          id="loadingIndicator"
-          style={{ textAlign: "center", marginTop: "3em", fontSize: "1.3em" }}
-        >
+        <div id="loadingIndicator" className="loading-indicator">
           Loading configuration...
         </div>
       )}
@@ -77,60 +75,19 @@ export function Config({
       >
         <header class="header">
           <h1>Configuration</h1>
-          <div class="status-bar">
-            <span class="status-indicator" id="statusIndicator">
-              ●
-            </span>
-            <LiveClock />
-            <button
-              type="button"
-              className="back-to-main-link"
-              title="Back to Main"
-              aria-label="Back to Main"
-              onClick={() => {
-                if (typeof setTab === "function") {
-                  setTab("home");
-                } else {
-                  globalThis.location.href = "index.html";
-                }
-              }}
-              style={{
-                background: "none",
-                border: "none",
-                padding: 0,
-                cursor: "pointer",
-              }}
-            >
-              <svg
-                aria-label="Home"
-                focusable="false"
-                data-prefix="fas"
-                data-icon="home"
-                className="svg-inline--fa fa-home fa-w-18 back-to-main-icon icon-glow-hover"
-                xmlns="http://www.w3.org/2000/svg"
-                viewBox="0 0 576 512"
-                width="24"
-                height="24"
-              >
-                <path
-                  fill="#66ccff"
-                  d="M280.37 148.26L96 300.11V464a16 16 0 0 0 16 16l112-.3a16 16 0 0 0 16-15.7V368a16 16 0 0 1 16-16h64a16 16 0 0 1 16 16v95.7a16 16 0 0 0 16 16l112 .3a16 16 0 0 0 16-16V300L295.67 148.26a12.19 12.19 0 0 0-15.3 0zM573.32 268.35L512 220.69V56a24 24 0 0 0-24-24h-88a24 24 0 0 0-24 24v51.61L318.47 43a48 48 0 0 0-61 0L2.61 268.35a16 16 0 0 0-1.6 22.59l21.41 25.5a16 16 0 0 0 22.59 1.6L64 271.69V464a48 48 0 0 0 48 48h352a48 48 0 0 0 48-48V271.7l19 16.35a16 16 0 0 0 22.59-1.6l21.41-25.5a16 16 0 0 0-1.68-22.6z"
-                />
-              </svg>
-            </button>
-          </div>
+          <StatusBar
+            indicatorId="statusIndicator"
+            buttonLabel="Back to Main"
+            buttonClass="icon-header-btn"
+            buttonSvgPath="M341.8 72.6C329.5 61.2 310.5 61.2 298.3 72.6L74.3 280.6C64.7 289.6 61.5 303.5 66.3 315.7C71.1 327.9 82.8 336 96 336L112 336L112 512C112 547.3 140.7 576 176 576L464 576C499.3 576 528 547.3 528 512L528 336L544 336C557.2 336 569 327.9 573.8 315.7C578.6 303.5 575.4 289.5 565.8 280.6L341.8 72.6zM304 384L336 384C362.5 384 384 405.5 384 432L384 528L256 528L256 432C256 405.5 277.5 384 304 384z"
+            buttonTab="home"
+            setTab={setTab}
+          />
         </header>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            marginBottom: "0.5em",
-          }}
-        >
+        <div className="config-action-bar">
           {/* Download Config */}
           <button
-            class="btn btn-secondary"
-            style={{ marginRight: "0.5em" }}
+            className="btn btn-secondary"
             onClick={() => {
               const blob = new Blob([JSON.stringify(config, null, 2)], {
                 type: "application/json",
@@ -152,8 +109,7 @@ export function Config({
           </button>
           {/* Upload Config */}
           <label
-            class="btn btn-secondary"
-            style={{ marginRight: "0.5em", cursor: "pointer" }}
+            className="btn btn-secondary"
             htmlFor="upload-config-input"
           >
             Upload Config
@@ -162,7 +118,7 @@ export function Config({
             id="upload-config-input"
             type="file"
             accept=".json,application/json"
-            style={{ display: "none" }}
+            className="hidden-input"
             onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
@@ -187,7 +143,7 @@ export function Config({
           />
           {/* Save Configuration */}
           <button
-            class="btn btn-primary"
+            className="btn btn-primary"
             disabled={Object.keys(modifiedConfig).length === 0}
             onClick={async () => {
               try {

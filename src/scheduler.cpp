@@ -106,7 +106,6 @@ void Scheduler::updateNTP() {
   if (_config) {
     String ntpServer = _config->time.ntpServer;
     if (ntpServer.length() == 0 || ntpServer == "null") {
-      // ...existing code...
       return;
     }
   }
@@ -124,7 +123,6 @@ void Scheduler::updateNTP() {
   }
   _timeClient->forceUpdate();
   _lastNTPUpdate = millis();
-  // ...existing code...
 }
 
 bool Scheduler::isTimeValid() {

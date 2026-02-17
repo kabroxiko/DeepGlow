@@ -12,7 +12,6 @@ static bool apFallbackTriggered = false;
 DNSServer captiveDnsServer;
 
 void networkSetup(Configuration& config) {
-    // ...existing code...
 #ifdef ESP8266
     WiFi.hostname(config.network.hostname);
 #else
@@ -97,14 +96,12 @@ void networkLoop(Configuration& config) {
         if (WiFi.status() != WL_CONNECTED) {
             uint32_t now = millis();
             if (now - lastWiFiCheck > wifiReconnectInterval) {
-                // ...existing code...
                 WiFi.disconnect();
                 delay(100);
                 WiFi.begin(config.network.ssid.c_str(), config.network.password.c_str());
                 wifiReconnectAttempts++;
                 lastWiFiCheck = now;
                 if (wifiReconnectAttempts >= maxWiFiReconnectAttempts) {
-                    // ...existing code...
                     apFallbackTriggered = true;
                     WiFi.mode(WIFI_AP_STA);
                     WiFi.softAP(config.network.hostname.c_str(), config.network.apPassword.c_str());

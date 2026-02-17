@@ -69,8 +69,8 @@ export function App() {
   }, [tab]);
   // Shared WebSocket connection
   const wsRef = useRef(null);
-  const [wsReady, setWsReady] = useState(false);
-  const [wsError, setWsError] = useState(null);
+  const [setWsReady] = useState(false);
+  const [setWsError] = useState(null);
 
   // Create the WebSocket connection only once
   useEffect(() => {
@@ -203,18 +203,11 @@ export function App() {
     });
   }, []);
 
-  // Tab UI
-  // ...existing code...
-
-  // Toast normalization logic removed; ToastContainer handles all toasts.
-
   return (
     <div>
       <ToastContainer toasts={toasts} onDismiss={hideToast} />
       {tab === "home" ? (
         <Home
-          wsError={wsError}
-          wsReady={wsReady}
           state={state}
           presets={presets}
           timers={timers}
