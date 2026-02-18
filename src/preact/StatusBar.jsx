@@ -1,36 +1,17 @@
 import { LiveClock } from "./LiveClock.jsx";
+import { BUTTONS } from "./Tabs.jsx";
 
-/**
- * StatusBar component for Home and Config pages.
- * Props:
- * - indicatorColor: CSS color for the status indicator (default: var(--success))
- * - indicatorId: id for the indicator span (optional)
- * - onButtonClick: function to call when the button is clicked
- * - buttonLabel: aria-label/title for the button (e.g., "Configuration", "Back to Main")
- * - buttonIcon: JSX for the icon (svg or similar)
- * - buttonClass: className for the button (optional)
- * - showIndicator: whether to show the status indicator (default: true)
- * - children: additional elements (optional, e.g., extra status text)
- */
 export function StatusBar({
+  tab,
+  setTab,
   indicatorColor = "var(--success)",
-  buttonLabel,
-  buttonSvgPath,
-  buttonClass = "icon-header-btn",
   showIndicator = true,
   children,
-  buttonSvgViewBox = "0 0 640 640",
-  buttonSvgWidth = 24,
-  buttonSvgHeight = 24,
-  buttonSvgAriaLabel = buttonLabel,
-  buttonSvgClass = "icon-glow-hover",
-  buttonSvgFill = "#66ccff",
-  buttonTab,
-  setTab,
 }) {
+  const { label, svgPath, nextTab } = BUTTONS[tab] || {};
   const handleButtonClick = () => {
-    if (buttonTab && typeof setTab === "function") {
-      setTab(buttonTab);
+    if (nextTab && typeof setTab === "function") {
+      setTab(nextTab);
     }
   };
   return (
@@ -48,20 +29,20 @@ export function StatusBar({
       {children}
       <button
         type="button"
-        className={buttonClass}
-        title={buttonLabel}
-        aria-label={buttonLabel}
+        className="icon-header-btn"
+        title={label}
+        aria-label={label}
         onClick={handleButtonClick}
       >
         <svg
-          className={buttonSvgClass}
-          aria-label={buttonSvgAriaLabel}
+          className="icon-glow-hover"
+          aria-label={label}
           xmlns="http://www.w3.org/2000/svg"
-          viewBox={buttonSvgViewBox}
-          width={buttonSvgWidth}
-          height={buttonSvgHeight}
+          viewBox="0 0 640 640"
+          width={24}
+          height={24}
         >
-          <path fill={buttonSvgFill} d={buttonSvgPath} />
+          <path fill="#66ccff" d={svgPath} />
         </svg>
       </button>
     </div>
