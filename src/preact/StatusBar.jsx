@@ -1,13 +1,13 @@
 import { LiveClock } from "./LiveClock.jsx";
-import { BUTTONS } from "./Tabs.jsx";
+import { BUTTONS, useCurrentTab } from "./Tabs.jsx";
 
 export function StatusBar({
-  tab,
   setTab,
   indicatorColor = "var(--success)",
   showIndicator = true,
   children,
 }) {
+  const tab = useCurrentTab();
   const { label, svgPath, nextTab } = BUTTONS[tab] || {};
   const handleButtonClick = () => {
     if (nextTab && typeof setTab === "function") {

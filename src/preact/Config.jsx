@@ -11,7 +11,6 @@ import { LocationTimeSettings } from "./Settings/LocationTimeSettings.jsx";
 import { FirmwareUpdate } from "./Settings/FirmwareUpdate.jsx";
 import { DeviceActions } from "./Settings/DeviceActions.jsx";
 import { Schedule } from "./Settings/Schedule.jsx";
-import { TABS } from "./Tabs.jsx";
 
 export function Config({
   config,
@@ -74,7 +73,7 @@ export function Config({
       >
         <header class="header">
           <h1>Configuration</h1>
-          <StatusBar tab={TABS.CONFIG} setTab={setTab} />
+          <StatusBar setTab={setTab} />
         </header>
         <div className="config-action-bar">
           {/* Download Config */}

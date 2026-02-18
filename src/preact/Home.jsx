@@ -4,7 +4,6 @@ import { PresetsCard } from "./PresetsCard.jsx";
 import { LedBar } from "./LedBar.jsx";
 import { StatusBar } from "./StatusBar.jsx";
 import { getBaseUrl } from "./baseUrl.js";
-import { TABS } from "./Tabs.jsx";
 
 function ScheduleTable({ timers = [], presets = [], state }) {
   let nowMinutes = 0;
@@ -137,7 +136,7 @@ export function Home({
         {/* Header */}
         <header className="header">
           <h1>🐠 Aquarium Control</h1>
-          <StatusBar tab={TABS.HOME} setTab={setTab} />
+          <StatusBar setTab={setTab} />
         </header>
         {/* Quick Controls */}
         <section className="card">

@@ -7,6 +7,24 @@ export const TABS = Object.freeze({
   CONFIG: "config",
 });
 
+// Hook to get current tab from URL hash
+export function useCurrentTab() {
+  const [tab, setTab] = useState(() => {
+    if (globalThis.location.hash === "#" + TABS.CONFIG) return TABS.CONFIG;
+    if (globalThis.location.hash === "#" + TABS.HOME) return TABS.HOME;
+    return TABS.HOME;
+  });
+  useEffect(() => {
+    const onHashChange = () => {
+      if (globalThis.location.hash === "#" + TABS.CONFIG) setTab(TABS.CONFIG);
+      else setTab(TABS.HOME);
+    };
+    globalThis.addEventListener("hashchange", onHashChange);
+    return () => globalThis.removeEventListener("hashchange", onHashChange);
+  }, []);
+  return tab;
+}
+
 // Button config for StatusBar navigation
 export const BUTTONS = {
   [TABS.HOME]: {
