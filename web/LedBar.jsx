@@ -1,9 +1,6 @@
-import {
-  forwardRef,
-  useEffect,
-  useImperativeHandle,
-  useRef,
-} from "preact/compat";
+import { rgbwToDisplayColor } from "./util.js";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "preact/compat";
+
 /**
  * Floating LED Bar Canvas
  * @param {import('preact').Ref<any>} ref
@@ -38,27 +35,20 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
       let g1 = arr[i * 4 + 1];
       let b1 = arr[i * 4 + 2];
       let wch1 = arr[i * 4 + 3];
-      // Blend white channel with RGB, clamp to 255
-      r1 = Math.min(255, r1 + wch1);
-      g1 = Math.min(255, g1 + wch1);
-      b1 = Math.min(255, b1 + wch1);
-      let r2 = r1,
-        g2 = g1,
-        b2 = b1;
+      let [rr1, gg1, bb1] = rgbwToDisplayColor(r1, g1, b1, wch1);
+      let rr2 = rr1, gg2 = gg1, bb2 = bb1;
       if (i < ledCount - 1) {
-        r2 = arr[(i + 1) * 4];
-        g2 = arr[(i + 1) * 4 + 1];
-        b2 = arr[(i + 1) * 4 + 2];
+        let r2 = arr[(i + 1) * 4];
+        let g2 = arr[(i + 1) * 4 + 1];
+        let b2 = arr[(i + 1) * 4 + 2];
         let wch2 = arr[(i + 1) * 4 + 3];
-        r2 = Math.min(255, r2 + wch2);
-        g2 = Math.min(255, g2 + wch2);
-        b2 = Math.min(255, b2 + wch2);
+        [rr2, gg2, bb2] = rgbwToDisplayColor(r2, g2, b2, wch2);
       }
       let x0 = i * ledWidth;
       let x1 = (i + 1) * ledWidth;
       let grad = ctx.createLinearGradient(x0, 0, x1, 0);
-      grad.addColorStop(0, `rgb(${r1},${g1},${b1})`);
-      grad.addColorStop(1, `rgb(${r2},${g2},${b2})`);
+      grad.addColorStop(0, `rgb(${rr1},${gg1},${bb1})`);
+      grad.addColorStop(1, `rgb(${rr2},${gg2},${bb2})`);
       ctx.fillStyle = grad;
       ctx.fillRect(x0, 0, Math.ceil(ledWidth), h);
     }
