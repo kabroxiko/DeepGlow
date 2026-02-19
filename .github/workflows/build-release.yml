@@ -50,7 +50,7 @@ jobs:
             .pio
             ~/.platformio/.cache
             ~/.platformio/lib
-            src/preact/node_modules
+            web/node_modules
           key: cache-deps
 
   build:
