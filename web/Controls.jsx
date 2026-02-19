@@ -1,4 +1,4 @@
-import { formatTransitionTime, steppedTransitionValue } from "./util.js";
+import { formatTransitionTime, steppedTransitionValue, rgbwToDisplayColor } from "./util.js";
 
 export function ColorPickers({ colors, sendState }) {
   if (!colors) return null;
@@ -7,9 +7,15 @@ export function ColorPickers({ colors, sendState }) {
       {colors.map((color, idx) => {
         let hex = color.length === 9 ? color.slice(0, 7) : color;
         let w = color.length === 9 ? color.slice(7, 9) : "";
+        // For the swatch, use rgbwToDisplayColor; for the input, always use hex
         let swatchColor = hex;
-        if (hex.toLowerCase() === "#000000" && w.toLowerCase() === "ff") {
-          swatchColor = "#ffffff";
+        if (color.length === 9) {
+          const r = Number.parseInt(color.slice(1, 3), 16);
+          const g = Number.parseInt(color.slice(3, 5), 16);
+          const b = Number.parseInt(color.slice(5, 7), 16);
+          const wch = Number.parseInt(color.slice(7, 9), 16);
+          const [rr, gg, bb] = rgbwToDisplayColor(r, g, b, wch);
+          swatchColor = `rgb(${rr},${gg},${bb})`;
         }
         // Use a more unique key, e.g., color value plus index fallback
         return (
@@ -37,7 +43,7 @@ export function ColorPickers({ colors, sendState }) {
                 <input
                   type="color"
                   aria-label={`${["Primary", "Secondary", "Tertiary"][idx]} Color`}
-                  value={swatchColor}
+                  value={hex}
                   onChange={(e) => {
                     let newColors = [...colors];
                     let orig = newColors[idx];
