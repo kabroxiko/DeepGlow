@@ -160,6 +160,17 @@ void setup() {
       setBrightness(state.brightness);
       setPower(state.power);
     }
+
+    // --- Apply transition if maxBrightness changed ---
+    if (config.safety.maxBrightness != lastConfiguration.safety.maxBrightness) {
+      // If current brightness is above new max, transition down; otherwise, re-apply current brightness with transition
+      uint8_t targetBrightness = state.brightness;
+      if (state.brightness > config.safety.maxBrightness) {
+        targetBrightness = config.safety.maxBrightness;
+      }
+      setBrightness(targetBrightness);
+      lastConfiguration.safety.maxBrightness = config.safety.maxBrightness;
+    }
   });
 
   webServer.begin();

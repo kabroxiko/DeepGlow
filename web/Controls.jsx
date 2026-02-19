@@ -124,10 +124,7 @@ export function Controls({ state, effects, sendState }) {
           max="100"
           value={state.brightness}
           className="slider-input"
-          onInput={(e) => {
-            document.getElementById("brightnessValue").textContent =
-              e.target.value + "%";
-          }}
+          onInput={() => {}}
           onMouseUp={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
             "brightness",
