@@ -25,16 +25,26 @@ logging.basicConfig(
 
 # Use project root as base (PlatformIO sets cwd to project root)
 ASSET_DIR_DIST = os.path.join(os.getcwd(), 'dist')
-ASSET_DIR_SRC = os.path.join(os.getcwd(), 'src/defaults')
+ASSET_DIR_SRC = os.path.join(os.getcwd(), 'defaults')
 OUT_DIR = os.path.join(os.getcwd(), 'src/inc')
+
+# Output file constants
+INDEX_HTML_INC = 'index_html.inc'
+INDEX_JS_INC = 'index_js.inc'
+STYLE_CSS_INC = 'style_css.inc'
+CONFIG_JSON_INC = 'config_default.inc'
+PRESETS_JSON_INC = 'presets_json.inc'
+TIMEZONES_JSON_INC = 'timezones_json.inc'
+APP_JS_INC = 'app_js.inc'
+
 ASSETS = [
-	(ASSET_DIR_DIST, 'index.html', 'index_html.inc'),
-	(ASSET_DIR_DIST, 'index.js', 'index_js.inc'),
-	(ASSET_DIR_DIST, 'style.css', 'style_css.inc'),
-	(ASSET_DIR_SRC, 'config.json', 'config_default.inc'),
-	(ASSET_DIR_SRC, 'presets.json', 'presets_json.inc'),
-	(ASSET_DIR_SRC, 'timezones.json', 'timezones_json.inc'),
-	('DYNAMIC', 'app_js.inc'),
+	(ASSET_DIR_DIST, 'index.html', INDEX_HTML_INC),
+	(ASSET_DIR_DIST, 'index.js', INDEX_JS_INC),
+	(ASSET_DIR_DIST, 'style.css', STYLE_CSS_INC),
+	(ASSET_DIR_SRC, 'config.json', CONFIG_JSON_INC),
+	(ASSET_DIR_SRC, 'presets.json', PRESETS_JSON_INC),
+	(ASSET_DIR_SRC, 'timezones.json', TIMEZONES_JSON_INC),
+	('DYNAMIC', APP_JS_INC),
 ]
 
 
@@ -53,12 +63,12 @@ def asset_needs_update(src_path, inc_path, force=False):
 	return src_mtime > inc_mtime
 
 
-def minify_asset(infile, ext, do_minify=True):
+def minify_asset(infile):
 	# No extra minification; use Vite output as-is
 	with open(infile, 'r', encoding='utf-8') as f:
 		return f.read()
 
-def to_inc(infile, outfile, do_minify=True):
+def to_inc(infile, outfile):
 	try:
 		infile_path = infile  # infile is now absolute path
 		outfile_path = os.path.join(OUT_DIR, outfile)
@@ -69,9 +79,8 @@ def to_inc(infile, outfile, do_minify=True):
 			logging.error(f'Source file not found: {infile_path}')
 			return False
 		ext = os.path.splitext(infile_path)[1]
-		minified = minify_asset(infile_path, ext, do_minify)
 		with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix=ext) as tmp:
-			tmp.write(minified)
+			tmp.write(infile_path)
 			tmp.flush()
 			tmp_path = tmp.name
 		with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix='.inc') as xxd_tmp:
@@ -117,73 +126,76 @@ def to_inc(infile, outfile, do_minify=True):
 		return False
 
 
-def main():
-	if env.IsCleanTarget():
-		return
-
-
-	# Run npm build before embedding assets
+def run_npm_build():
 	try:
 		logging.info('Running npm run build to generate dist assets...')
+		subprocess.run(['npm', 'i'], check=True)
 		subprocess.run(['npm', 'run', 'build'], check=True)
 		logging.info('npm build completed.')
 	except Exception as e:
 		logging.error(f'npm build failed: {e}')
 		sys.exit(1)
 
-	minify_opt = os.environ.get('PLATFORMIO_MINIFY')
-	if minify_opt is None:
-		config = configparser.ConfigParser()
-		config.read(os.path.join(os.getcwd(), 'platformio.ini'))
-		minify_opt = config.get('common', 'minify', fallback='true')
-	do_minify = minify_opt.lower() in ('1', 'true', 'yes', 'on')
 
-
-	# Add force parameter via environment variable or command line
+def get_force_flag():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('--force', action='store_true', help='Force regeneration of all .inc files')
-	args, unknown = parser.parse_known_args()
-	force = args.force or os.environ.get('EMBED_ASSETS_FORCE', '0') in ('1', 'true', 'yes', 'on')
-	all_ok = True
-	# Find hashed JS and CSS files
+	args, _ = parser.parse_known_args()
+	return args.force or os.environ.get('EMBED_ASSETS_FORCE', '0') in ('1', 'true', 'yes', 'on')
+
+
+def find_dynamic_assets():
 	dist_assets = ASSET_DIR_DIST
 	js_files = [f for f in os.listdir(dist_assets) if re.match(r'index-.*\.js$', f)]
 	css_files = [f for f in os.listdir(dist_assets) if re.match(r'index-.*\.css$', f)]
 	app_js_files = [f for f in os.listdir(dist_assets) if re.match(r'app-.*\.js$', f)]
+	return js_files[0] if js_files else None, css_files[0] if css_files else None, app_js_files[0] if app_js_files else None
 
-	# Use the first match (should only be one per build)
-	index_js = js_files[0] if js_files else None
-	style_css = css_files[0] if css_files else None
-	app_js = app_js_files[0] if app_js_files else None
 
+def get_asset_paths(asset, index_js, style_css, app_js):
+	if asset[0] == 'DYNAMIC':
+		if asset[1] == INDEX_JS_INC and index_js:
+			return os.path.join(ASSET_DIR_DIST, index_js), os.path.join(OUT_DIR, INDEX_JS_INC)
+		elif asset[1] == STYLE_CSS_INC and style_css:
+			return os.path.join(ASSET_DIR_DIST, style_css), os.path.join(OUT_DIR, STYLE_CSS_INC)
+		elif asset[1] == APP_JS_INC and app_js:
+			return os.path.join(ASSET_DIR_DIST, app_js), os.path.join(OUT_DIR, APP_JS_INC)
+		return None, None
+	else:
+		asset_dir, src, dst = asset
+		return os.path.join(asset_dir, src), os.path.join(OUT_DIR, dst)
+
+
+def process_asset(src_path, inc_path, force):
+	if asset_needs_update(src_path, inc_path, force=force):
+		if os.path.exists(inc_path):
+			try:
+				os.remove(inc_path)
+			except Exception as e:
+				logging.warning(f'Could not delete {inc_path}: {e}')
+		return to_inc(src_path, os.path.basename(inc_path))
+	else:
+		logging.info(f'Skipping unchanged asset: {os.path.basename(src_path)}')
+		return True
+
+
+def main():
+	if env.IsCleanTarget():
+		return
+
+	run_npm_build()
+
+	force = get_force_flag()
+	index_js, style_css, app_js = find_dynamic_assets()
+
+	all_ok = True
 	for asset in ASSETS:
-		if asset[0] == 'DYNAMIC':
-			# Map dynamic assets
-			if asset[1] == 'index_js.inc' and index_js:
-				src_path = os.path.join(dist_assets, index_js)
-				inc_path = os.path.join(OUT_DIR, 'index_js.inc')
-			elif asset[1] == 'style_css.inc' and style_css:
-				src_path = os.path.join(dist_assets, style_css)
-				inc_path = os.path.join(OUT_DIR, 'style_css.inc')
-			elif asset[1] == 'app_js.inc' and app_js:
-				src_path = os.path.join(dist_assets, app_js)
-				inc_path = os.path.join(OUT_DIR, 'app_js.inc')
-			else:
-				continue
-		else:
-			asset_dir, src, dst = asset
-			src_path = os.path.join(asset_dir, src)
-			inc_path = os.path.join(OUT_DIR, dst)
-		if asset_needs_update(src_path, inc_path, force=force):
-			if os.path.exists(inc_path):
-				try:
-					os.remove(inc_path)
-				except Exception as e:
-					logging.warning(f'Could not delete {inc_path}: {e}')
-			ok = to_inc(src_path, os.path.basename(inc_path), do_minify)
-			all_ok = all_ok and ok
-		else:
-			logging.info(f'Skipping unchanged asset: {os.path.basename(src_path)}')
+		src_path, inc_path = get_asset_paths(asset, index_js, style_css, app_js)
+		if src_path is None:
+			continue
+		ok = process_asset(src_path, inc_path, force)
+		all_ok = all_ok and ok
+
 	if all_ok:
 		logging.info('Web assets embedded as .inc files.')
 	else:
