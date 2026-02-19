@@ -1,54 +1,5 @@
 // Inputs, selects, sliders, color, text, time, number
 
-.btn {
-  padding: 12px 24px;
-  border: none;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  outline: none;
-}
-
-.btn-primary {
-  background: linear-gradient(
-    135deg,
-    var(--primary-color),
-    var(--accent-color)
-  );
-  color: white;
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 16px var(--shadow);
-}
-
-.btn-secondary {
-  background: var(--bg-light);
-  color: var(--text-primary);
-  border: 1px solid rgba(102, 204, 255, 0.2);
-}
-
-.btn-secondary:hover {
-  border-color: var(--primary-color);
-}
-
-
-// Select Input
-.select-input {
-  width: 100%;
-  padding: 12px;
-  background: var(--bg-light);
-  border: 1px solid rgba(102, 204, 255, 0.2);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 1rem;
-  cursor: pointer;
-  outline: none;
-}
-
 .select-input:focus {
   border-color: var(--primary-color);
 }
