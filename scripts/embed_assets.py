@@ -63,10 +63,13 @@ def asset_needs_update(src_path, inc_path, force=False):
 	return src_mtime > inc_mtime
 
 
+
+import gzip
+
 def to_inc(infile, outfile):
 	"""
-	Convert a file to a C header (.inc) file using xxd, optionally adding WEB_PROGMEM macro for non-JSON files.
-	Handles both JSON and non-JSON assets, and ensures the output is suitable for ESP32/AVR/ESP8266.
+	Gzip HTML, JS, and CSS files before embedding as C header (.inc) files using xxd.
+	JSON files are embedded as plain text (not gzipped).
 	"""
 	try:
 		infile_path = infile  # infile is now absolute path
@@ -78,25 +81,29 @@ def to_inc(infile, outfile):
 			logging.error(f'Source file not found: {infile_path}')
 			return False
 		ext = os.path.splitext(infile_path)[1]
-		with open(infile_path, 'r', encoding='utf-8') as f:
-			file_content = f.read()
-		with tempfile.NamedTemporaryFile('w+', delete=False, encoding='utf-8', suffix=ext) as tmp:
-			tmp.write(file_content)
-			tmp.flush()
-			tmp_path = tmp.name
+		is_json = ext == '.json'
+		# Gzip if not JSON
+		if not is_json:
+			with open(infile_path, 'rb') as f:
+				file_content = f.read()
+			with tempfile.NamedTemporaryFile('wb', delete=False, suffix=ext+'.gz') as gz_tmp:
+				with gzip.GzipFile(fileobj=gz_tmp, mode='wb', compresslevel=9) as gzfile:
+					gzfile.write(file_content)
+				gz_tmp.flush()
+				gz_path = gz_tmp.name
+			xxd_input_path = gz_path
+		else:
+			xxd_input_path = infile_path
 		with tempfile.NamedTemporaryFile('r', delete=False, encoding='utf-8', suffix='.inc') as xxd_tmp:
-			subprocess.run(['xxd', '-i', '-n', var_name, tmp_path], stdout=xxd_tmp, check=True)
+			subprocess.run(['xxd', '-i', '-n', var_name, xxd_input_path], stdout=xxd_tmp, check=True)
 			xxd_tmp_path = xxd_tmp.name
 		with open(xxd_tmp_path, 'r', encoding='utf-8') as xxd_file:
 			xxd_lines = xxd_file.readlines()
 		# Replace first line with const and WEB_PROGMEM for non-json
-		is_json = ext == '.json'
-		# Always replace 'unsigned char' with 'const unsigned char' in the first line
 		first = xxd_lines[0]
 		first = first.replace('unsigned char', 'const unsigned char')
 		xxd_lines[0] = first
 		if is_json:
-			# For json, just use xxd output as is
 			with open(outfile_path, 'w', encoding='utf-8') as out:
 				out.writelines(xxd_lines)
 		else:
@@ -120,7 +127,8 @@ def to_inc(infile, outfile):
 				out.write(macro_block)
 				out.writelines(xxd_lines)
 		os.remove(xxd_tmp_path)
-		os.remove(tmp_path)
+		if not is_json:
+			os.remove(gz_path)
 		logging.info(f'Success: {outfile_path}')
 		return True
 	except Exception as e:

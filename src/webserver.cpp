@@ -555,20 +555,28 @@ void WebServerManager::setupRoutes() {
   // Serve static SPA assets
   _server->on("/index.js", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
     logRequest(request);
-    request->send_P(200, "application/javascript", web_index_js, web_index_js_len);
+    AsyncWebServerResponse *resp = request->beginResponse_P(200, "application/javascript", web_index_js, web_index_js_len);
+    resp->addHeader("Content-Encoding", "gzip");
+    request->send(resp);
   });
   _server->on("/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
     logRequest(request);
-    request->send_P(200, "text/css", web_style_css, web_style_css_len);
+    AsyncWebServerResponse *resp = request->beginResponse_P(200, "text/css", web_style_css, web_style_css_len);
+    resp->addHeader("Content-Encoding", "gzip");
+    request->send(resp);
   });
   _server->on("/", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
     logRequest(request);
-    request->send_P(200, "text/html", web_index_html, web_index_html_len);
+    AsyncWebServerResponse *resp = request->beginResponse_P(200, "text/html", web_index_html, web_index_html_len);
+    resp->addHeader("Content-Encoding", "gzip");
+    request->send(resp);
   });
   _server->on(
       "/index.html", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
         logRequest(request);
-        request->send_P(200, "text/html", web_index_html, web_index_html_len);
+        AsyncWebServerResponse *resp = request->beginResponse_P(200, "text/html", web_index_html, web_index_html_len);
+        resp->addHeader("Content-Encoding", "gzip");
+        request->send(resp);
       });
   // Register WiFi endpoints directly
   // WiFi scan endpoint (returns SSID list as JSON, triggers scan)
