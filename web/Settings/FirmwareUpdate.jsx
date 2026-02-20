@@ -31,7 +31,7 @@ export function FirmwareUpdate({
     try {
       toastId = showToast('Checking for latest version...', { type: 'info' });
       // Fetch the latest manifest from the remote repository (GET /api/update)
-      const resp = await fetch(getBaseUrl() + '/api/update');
+      const resp = await fetch(`${getBaseUrl()  }/api/update`);
       if (!resp.ok) throw new Error('Could not fetch remote manifest');
       const manifest = await resp.json();
       // If manifest is an array, find the entry for this environment (optional: filter by env)
@@ -62,7 +62,7 @@ export function FirmwareUpdate({
     setInstalling(true);
     try {
       // Actually trigger the install (same as before)
-      const resp = await fetch(getBaseUrl() + '/api/update', {
+      const resp = await fetch(`${getBaseUrl()  }/api/update`, {
         method: 'POST',
       });
       const result = await resp.json();
@@ -145,7 +145,7 @@ export function FirmwareUpdate({
             try {
               setLocalOtaProgress(0);
               const xhr = new XMLHttpRequest();
-              xhr.open('POST', getBaseUrl() + '/ota', true);
+              xhr.open('POST', `${getBaseUrl()  }/ota`, true);
               xhr.setRequestHeader('Accept', 'application/json');
               xhr.upload.onprogress = function (evt) {
                 if (evt.lengthComputable) {
@@ -162,7 +162,7 @@ export function FirmwareUpdate({
                   resetFileInput();
                 } else {
                   showToast(
-                    'OTA failed: ' + (xhr.responseText || xhr.statusText),
+                    `OTA failed: ${  xhr.responseText || xhr.statusText}`,
                     { type: 'error' }
                   );
                   setLocalOtaProgress(-1);
@@ -176,7 +176,7 @@ export function FirmwareUpdate({
               };
               xhr.send(otaFile);
             } catch (err) {
-              showToast('OTA error: ' + err, { type: 'error' });
+              showToast(`OTA error: ${  err}`, { type: 'error' });
               setLocalOtaProgress(-1);
               resetFileInput();
             }

@@ -346,7 +346,7 @@ export function Graph({ state, timers, presets, config }) {
               max: 1440,
               ticks: {
                 stepSize: 60,
-                callback: function (value, index, ticks) {
+                callback (value, index, ticks) {
                   // Show label at each event/ramp point and on the hour
                   if (minutesArray.includes(value)) return timeToLabel(value);
                   if (value % 60 === 0) return timeToLabel(value);
@@ -415,7 +415,7 @@ export function Graph({ state, timers, presets, config }) {
         brightnessGraphRef.current._chartInstance = null;
       }
     };
-  }, [timers, state.brightness, config]);
+  }, [timers, state, presets, config]);
 
   return (
     <canvas
@@ -429,6 +429,6 @@ export function Graph({ state, timers, presets, config }) {
         marginTop: '16px',
         outline: 'none',
       }}
-    ></canvas>
+     />
   );
 }

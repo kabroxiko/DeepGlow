@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'preact/hooks';
+import { useState, useEffect, useCallback } from 'preact/hooks';
 
 export function ToastContainer({ toasts, onDismiss }) {
   return (
@@ -88,9 +88,7 @@ function ToastItem({
 
 export function useToast() {
   const [toasts, setToasts] = useState([]);
-  let toastId = 0;
-  const showToast = (message, opts = {}) => {
-    toastId++;
+  const showToast = useCallback((message, opts = {}) => {
     const id = Date.now() + Math.random();
     setToasts((prev) => [
       ...prev,
@@ -104,7 +102,7 @@ export function useToast() {
       },
     ]);
     return id;
-  };
+  }, []);
   const hideToast = (id) =>
     setToasts((prev) => prev.filter((t) => t.id !== id));
   const clearToasts = () => setToasts([]);

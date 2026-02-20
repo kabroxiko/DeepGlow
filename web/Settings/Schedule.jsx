@@ -22,7 +22,7 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
     if (Array.isArray(config?.timers) && config.timers !== displayTimers) {
       setDisplayTimers(sortTimers(config.timers));
     }
-  }, [config?.timers]);
+  }, [config?.timers, displayTimers]);
 
   const updateTimers = (timers) => {
     setDisplayTimers(timers);
@@ -72,7 +72,7 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
                             name={`type_${timer.id || idx}`}
                             value={val}
                             checked={timer.type === val}
-                            onInput={(e) => {
+                            onInput={() => {
                               const timers = [...displayTimers];
                               // Prevent multiple Sunrise/Sunset
                               if (val === 1 || val === 2) {
@@ -128,7 +128,7 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
                           const timers = [...displayTimers];
                           timers[idx] = {
                             ...timers[idx],
-                            presetId: Number.parseInt(e.target.value),
+                            presetId: Number.parseInt(e.target.value, 10),
                           };
                           updateTimers(timers);
                         }}
@@ -155,7 +155,10 @@ export function Schedule({ config, setConfig, presets, sunTimes }) {
                         onInput={(e) => {
                           const val = Math.max(
                             0,
-                            Math.min(100, Number.parseInt(e.target.value) || 0)
+                            Math.min(
+                              100,
+                              Number.parseInt(e.target.value, 10) || 0
+                            )
                           );
                           const timers = [...displayTimers];
                           timers[idx] = {

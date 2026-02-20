@@ -5,7 +5,7 @@ import { ToastContainer, useToast } from './Toast.jsx';
 import { useTabs, getHandshakeType, Tabs } from './Tabs.jsx';
 
 function sendState(updates) {
-  fetch(getBaseUrl() + '/api/state', {
+  fetch(`${getBaseUrl()  }/api/state`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
@@ -66,7 +66,7 @@ export function App() {
             });
             setTimeout(() => globalThis.location.reload(), 7000);
           } else if (data.status === 'error') {
-            showToast('OTA update failed: ' + data.message, { type: 'error' });
+            showToast(`OTA update failed: ${  data.message}`, { type: 'error' });
           }
         }
       },
@@ -93,7 +93,7 @@ export function App() {
     return () => {
       if (wsRef.current) wsRef.current.close();
     };
-  }, []);
+  }, [setWsError, setWsReady, showToast]);
 
   // Send handshake/subscription message on tab change
   useEffect(() => {
@@ -122,7 +122,7 @@ export function App() {
     if (config && Array.isArray(config.timers)) {
       setTimers(config.timers);
     }
-  }, [config?.timers]);
+  }, [config]);
 
   // Toast helper
   // Duplicate showToast removed (already defined above)
@@ -130,21 +130,21 @@ export function App() {
   // Fetch shared data (presets, timers, effects, version, config, timezones) in parallel
   useEffect(() => {
     Promise.all([
-      fetch(getBaseUrl() + '/api/presets')
+      fetch(`${getBaseUrl()  }/api/presets`)
         .then((r) => r.json())
         .then((data) => (Array.isArray(data) ? data : data.presets))
         .catch(() => []),
-      fetch(getBaseUrl() + '/api/effects')
+      fetch(`${getBaseUrl()  }/api/effects`)
         .then((r) => r.json())
         .then((data) => data.effects)
         .catch(() => []),
-      fetch(getBaseUrl() + '/api/version')
+      fetch(`${getBaseUrl()  }/api/version`)
         .then((r) => r.json())
         .catch(() => {}),
-      fetch(getBaseUrl() + '/api/timezones')
+      fetch(`${getBaseUrl()  }/api/timezones`)
         .then((resp) => resp.json())
         .catch(() => []),
-      fetch(getBaseUrl() + '/api/config')
+      fetch(`${getBaseUrl()  }/api/config`)
         .then(async (response) => {
           const text = await response.text();
           if (!text) return {};
@@ -165,7 +165,7 @@ export function App() {
       // Set version string if available
       if (version?.version) {
         const vEl = document.getElementById('versionString');
-        if (vEl) vEl.textContent = 'Version: ' + version.version;
+        if (vEl) vEl.textContent = `Version: ${  version.version}`;
       }
     });
   }, []);

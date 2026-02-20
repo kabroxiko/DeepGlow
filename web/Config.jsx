@@ -113,7 +113,7 @@ export function Config({
               try {
                 const text = await file.text();
                 const json = JSON.parse(text);
-                const response = await fetch(getBaseUrl() + '/api/config', {
+                const response = await fetch(`${getBaseUrl()  }/api/config`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(json),
@@ -122,7 +122,7 @@ export function Config({
                 showToast('Config uploaded!', { type: 'success' });
                 setTimeout(() => globalThis.location.reload(), 1200);
               } catch (err) {
-                showToast('Error uploading config: ' + (err.message || err), {
+                showToast(`Error uploading config: ${  err.message || err}`, {
                   type: 'error',
                 });
               }
@@ -150,7 +150,7 @@ export function Config({
                   });
                   toSave.timers = sortedTimers;
                 }
-                const resp = await fetch(getBaseUrl() + '/api/config', {
+                const resp = await fetch(`${getBaseUrl()  }/api/config`, {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(toSave),
@@ -163,7 +163,7 @@ export function Config({
                 }
                 resetModifiedConfig();
               } catch (err) {
-                showToast('Error saving config: ' + err, { type: 'error' });
+                showToast(`Error saving config: ${  err}`, { type: 'error' });
               }
             }}
           >
