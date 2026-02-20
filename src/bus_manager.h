@@ -1,6 +1,7 @@
 #pragma once
 #include "debug.h"
 #include <memory>
+#include <numeric>
 #include <stdint.h>
 #include <vector>
 
@@ -73,8 +74,9 @@ public:
   }
   uint16_t totalLength() const {
     uint16_t sum = 0;
-    for (const auto &bus : buses)
+    for (const auto &bus : buses) {
       sum += bus->getLength();
+    }
     return sum;
   }
   // Update pixel count for all buses (returns total)

@@ -3,8 +3,6 @@
 #include <pgmspace.h>
 #endif
 #include "inc/index_html.inc"
-// #include "inc/app_js.inc" // migrated to SPA, now included in index_js.inc
-// #include "inc/config_js.inc" // migrated to SPA, now included in index_js.inc
 #include "inc/index_js.inc"
 #include "inc/style_css.inc"
 #include "network.h"
@@ -1171,7 +1169,7 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest *request,
   if (!parseJsonOrRespond(request, jsonStr, doc))
     return;
 
-  uint8_t timerId = doc["id"] | 0;
+  uint8_t timerId = doc["id"];
 
   if (timerId >= _config->timers.size()) {
     {
@@ -1184,15 +1182,15 @@ void WebServerManager::handleSetTimer(AsyncWebServerRequest *request,
     return;
   }
 
-  _config->timers[timerId].enabled = doc["enabled"] | false;
+  _config->timers[timerId].enabled = doc["enabled"];
   _config->timers[timerId].type = (TimerType)(int)doc["type"];
-  _config->timers[timerId].hour = doc["hour"] | 0;
-  _config->timers[timerId].minute = doc["minute"] | 0;
-  _config->timers[timerId].presetId = doc["presetId"] | 0;
+  _config->timers[timerId].hour = doc["hour"];
+  _config->timers[timerId].minute = doc["minute"];
+  _config->timers[timerId].presetId = doc["presetId"];
   // Always store timer brightness as hex internally; convert from percent at
   // API boundary
   if (doc.containsKey("brightness")) {
-    uint8_t percent = doc["brightness"] | 100;
+    uint8_t percent = doc["brightness"];
     _config->timers[timerId].brightness = percentToHex(percent);
   }
 

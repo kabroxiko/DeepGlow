@@ -7,6 +7,12 @@ metadata:
   version: "2.0"
 ---
 
+
+## Agentic Command: /check
+
+When the user writes `/check` in chat, immediately trigger the full code-quality protocol below, without further confirmation. This command acts as a shortcut for a comprehensive code review and static analysis. The agent should proceed automatically, applying all steps unless the user specifies otherwise.
+
+---
 ## Agentic Code Analysis and Quality Protocol
 
 As an AI assistant, your goal is to perform a comprehensive code quality check using industry-standard tools. When asked to "review the code," "check for bugs," or "improve code quality," follow this protocol.
@@ -24,16 +30,11 @@ This is the core of the code review. Run the appropriate tool to find bugs, vuln
 
 #### For C++ Firmware (`src/` directory):
 
-1.  **Configure C++ Standard:** First, ensure `cppcheck` is set to use the C++11 standard.
-    *   Read the `platformio.ini` file.
-    *   Check if the relevant build environment (e.g., `[env:esp32d_debug]`) contains the line `check_flags = cppcheck --std=c++11`.
-    *   If this line is missing or incorrect, inform the user: "To ensure the C++ analysis uses the correct standard, I need to configure `cppcheck` for C++11 in your `platformio.ini` file. May I add the necessary `check_flags`?"
-    *   If the user agrees, add or modify the `check_flags` for the appropriate environment(s).
-2.  **Run Static Analysis:** Execute the PlatformIO `check` command.
+1.  **Run Static Analysis:** Execute the PlatformIO `check` command.
     ```bash
     platformio check
     ```
-3.  Analyze the output for any reported defects, vulnerabilities, or performance issues.
+2.  Analyze the output for any reported defects, vulnerabilities, or performance issues.
 
 #### For React/JavaScript Frontend (`web/` directory):
 
@@ -56,9 +57,13 @@ This is the core of the code review. Run the appropriate tool to find bugs, vuln
 After the deep analysis, apply standard code formatting for consistency.
 
 #### For C++ Firmware:
-```bash
-platformio run --target format
-```
+
+1. **Formatting:** If the project provides a formatting script (e.g., `scripts/format.sh`) or a documented process, use that. Otherwise, use `clang-format` directly:
+    ```bash
+    clang-format -i src/**/*.cpp src/**/*.h
+    ```
+    *(Adjust the file pattern as needed for your project structure.)*
+2. If no formatting tool is available, inform the user and offer to help set up `clang-format` with a standard configuration file (e.g., `.clang-format`).
 
 #### For React/JavaScript Frontend:
 ```bash
