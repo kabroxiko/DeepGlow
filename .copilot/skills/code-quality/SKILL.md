@@ -1,15 +1,15 @@
 ---
 name: code-quality
-description: A protocol for formatting and reviewing code to ensure consistency and quality across the project. It handles both C++ firmware and React/JavaScript frontend code.
+description: A protocol for performing a deep code quality analysis using static analysis tools and formatting. It covers C++ (cppcheck) and React/JavaScript (ESLint).
 license: MIT
 metadata:
   author: GitHub Copilot
-  version: "1.0"
+  version: "2.0"
 ---
 
-## Agentic Code Quality Protocol
+## Agentic Code Analysis and Quality Protocol
 
-As an AI assistant, your goal is to format and review code to ensure it adheres to project standards. When asked to "review this file," "format the code," or "check my work," follow this protocol.
+As an AI assistant, your goal is to perform a comprehensive code quality check using industry-standard tools. When asked to "review the code," "check for bugs," or "improve code quality," follow this protocol.
 
 ### Step 1: Identify File Type and Scope
 
@@ -18,52 +18,51 @@ As an AI assistant, your goal is to format and review code to ensure it adheres 
     *   React/JavaScript/CSS (`.jsx`, `.js`, `.scss`)
 2.  Ask the user if you should apply formatting changes directly or just provide suggestions.
 
-### Step 2: Apply Automatic Formatting
+### Step 2: Run Static Analysis
 
-Based on the file type, run the appropriate formatting command.
+This is the core of the code review. Run the appropriate tool to find bugs, vulnerabilities, and code smells.
 
 #### For C++ Firmware (`src/` directory):
 
-1.  Execute the PlatformIO formatting tool, which uses `clang-format`.
+1.  Execute the PlatformIO `check` command. This uses `cppcheck` and other tools to perform a deep static analysis.
     ```bash
-    platformio run --target format
+    platformio check
     ```
-2.  Inform the user that you are using `clang-format` as defined by the project's configuration.
+2.  Analyze the output for any reported defects, vulnerabilities, or performance issues.
 
 #### For React/JavaScript Frontend (`web/` directory):
 
-1.  Execute the npm script for formatting. This typically uses a tool like `Prettier`.
-    ```bash
-    npm run format --prefix web
-    ```
-2.  Inform the user that you are using the project's defined frontend formatting tool.
-    *(Note: If the `format` script doesn't exist in `package.json`, you should add it first using a tool like Prettier.)*
+1.  **Check for ESLint setup:**
+    *   Look for an `.eslintrc.*` file in the root or `web/` directory.
+    *   Check `web/package.json` for a `lint` script.
+2.  **If ESLint is not configured:**
+    *   Inform the user that ESLint is not set up.
+    *   Ask for permission to set it up: "I've noticed ESLint isn't configured for the frontend code. It's a powerful tool for finding bugs. Would you like me to set it up for you?"
+    *   If yes, proceed to install `eslint` and a standard configuration (e.g., `eslint-plugin-react`). Create a basic `.eslintrc.js` and add a `lint` script to `package.json`.
+3.  **If ESLint is configured:**
+    *   Execute the linting command.
+        ```bash
+        npm run lint --prefix web
+        ```
+    *   Analyze the output for any errors or warnings.
 
-### Step 3: Perform a Code Review
+### Step 3: Apply Automatic Formatting
 
-After formatting, read the file and analyze it for common quality issues. Do not be overly critical; focus on clear improvements.
+After the deep analysis, apply standard code formatting for consistency.
 
-#### General Checks (All Code):
+#### For C++ Firmware:
+```bash
+platformio run --target format
+```
 
-*   **Clarity:** Are variable and function names clear and descriptive?
-*   **Magic Numbers:** Are there hard-coded numbers that should be named constants?
-*   **Comments:** Is there complex logic that could benefit from an explanatory comment?
-*   **Simplicity:** Could complex code blocks be simplified or broken into smaller functions?
-
-#### C++ Specific Checks:
-
-*   **Memory:** Are there obvious memory leaks (e.g., `new` without `delete`)? (Note: This is hard to do perfectly without running the code).
-*   **Pointers:** Are pointers being used safely? Check for potential null pointer dereferences.
-
-#### React/JavaScript Specific Checks:
-
-*   **Component Size:** Are components becoming too large and could be split into smaller, reusable ones?
-*   **Hook Rules:** Are React Hooks (like `useState`, `useEffect`) being used at the top level of the component?
-*   **State Management:** Is state being managed appropriately? (e.g., not using component state for what should be global state).
+#### For React/JavaScript Frontend:
+```bash
+npm run format --prefix web
+```
+*(Note: If the `format` script doesn't exist, offer to set it up with Prettier.)*
 
 ### Step 4: Report Findings and Suggestions
 
-1.  Summarize the formatting changes that were applied automatically.
-2.  Present your code review suggestions to the user in a clear, constructive list.
-3.  For each suggestion, provide a code snippet showing the *before* and *after* or explain the reasoning behind the recommended change.
-4.  Ask the user if they would like you to apply any of the suggested changes.
+1.  **Summarize Static Analysis Results:** Report the critical findings from `cppcheck` or `ESLint`. For each issue, provide the file, line number, and a description of the problem.
+2.  **Summarize Formatting:** Mention that the code has been automatically formatted for consistency.
+3.  **Offer to Fix:** Ask the user if they would like you to attempt to fix the issues found by the static analysis tools.
