@@ -24,11 +24,16 @@ This is the core of the code review. Run the appropriate tool to find bugs, vuln
 
 #### For C++ Firmware (`src/` directory):
 
-1.  Execute the PlatformIO `check` command. This uses `cppcheck` and other tools to perform a deep static analysis.
+1.  **Configure C++ Standard:** First, ensure `cppcheck` is set to use the C++11 standard.
+    *   Read the `platformio.ini` file.
+    *   Check if the relevant build environment (e.g., `[env:esp32d_debug]`) contains the line `check_flags = cppcheck --std=c++11`.
+    *   If this line is missing or incorrect, inform the user: "To ensure the C++ analysis uses the correct standard, I need to configure `cppcheck` for C++11 in your `platformio.ini` file. May I add the necessary `check_flags`?"
+    *   If the user agrees, add or modify the `check_flags` for the appropriate environment(s).
+2.  **Run Static Analysis:** Execute the PlatformIO `check` command.
     ```bash
     platformio check
     ```
-2.  Analyze the output for any reported defects, vulnerabilities, or performance issues.
+3.  Analyze the output for any reported defects, vulnerabilities, or performance issues.
 
 #### For React/JavaScript Frontend (`web/` directory):
 

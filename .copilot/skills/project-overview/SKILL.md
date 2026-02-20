@@ -1,5 +1,5 @@
 ---
-name: new-iot-led-project
+name: project-overview
 description: A protocol for creating a new IoT LED controller project from scratch, including setting up the folder structure, initializing PlatformIO for the firmware, and setting up a React/Vite project for the web UI.
 license: MIT
 metadata:

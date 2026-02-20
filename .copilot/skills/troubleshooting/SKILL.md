@@ -41,7 +41,7 @@ Based on the problem category and log analysis, proceed with the following inter
 
 #### If LEDs Are Not Working:
 
-1.  **Ask the user to confirm their hardware setup against the [hardware-and-wiring](hardware-and-wiring/SKILL.md) skill.**
+1.  **Ask the user to confirm their hardware setup against the hardware and wiring checklist.**
     *   "Are all grounds (ESP, LED strip, power supply) connected together?"
     *   "Is the data line connected to the correct GPIO pin (default is 2) and the 'DIN' port on the strip?"
     *   "Is there a resistor on the data line?"
