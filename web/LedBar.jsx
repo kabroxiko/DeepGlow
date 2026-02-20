@@ -1,5 +1,10 @@
-import { rgbwToDisplayColor } from "./util.js";
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "preact/compat";
+import { rgbwToDisplayColor } from './util.js';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'preact/compat';
 
 /**
  * Floating LED Bar Canvas
@@ -26,7 +31,7 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
     const ledCount = Math.floor(arr.length / 4);
     const w = canvas.width;
     const h = canvas.height;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, w, h);
     if (ledCount === 0) return;
     const ledWidth = w / ledCount;
@@ -36,7 +41,9 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
       let b1 = arr[i * 4 + 2];
       let wch1 = arr[i * 4 + 3];
       let [rr1, gg1, bb1] = rgbwToDisplayColor(r1, g1, b1, wch1);
-      let rr2 = rr1, gg2 = gg1, bb2 = bb1;
+      let rr2 = rr1,
+        gg2 = gg1,
+        bb2 = bb1;
       if (i < ledCount - 1) {
         let r2 = arr[(i + 1) * 4];
         let g2 = arr[(i + 1) * 4 + 1];
@@ -52,15 +59,15 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
       ctx.fillStyle = grad;
       ctx.fillRect(x0, 0, Math.ceil(ledWidth), h);
     }
-    ctx.strokeStyle = "#444";
+    ctx.strokeStyle = '#444';
     ctx.lineWidth = 1;
     ctx.strokeRect(0, 0, w, h);
   }
 
   // Redraw on resize
   useEffect(() => {
-    window.addEventListener("resize", drawBar);
-    return () => window.removeEventListener("resize", drawBar);
+    window.addEventListener('resize', drawBar);
+    return () => window.removeEventListener('resize', drawBar);
   }, []);
 
   // Optionally, clear on unmount
@@ -68,7 +75,7 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
     () => () => {
       bufferRef.current = null;
     },
-    [],
+    []
   );
 
   // Initial mount: clear canvas
@@ -84,12 +91,12 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
         width={1200}
         height={32}
         style={{
-          background: "#222",
-          borderRadius: "8px",
+          background: '#222',
+          borderRadius: '8px',
           flex: 1,
-          width: "100%",
-          height: "32px",
-          display: "block",
+          width: '100%',
+          height: '32px',
+          display: 'block',
         }}
       ></canvas>
     </div>

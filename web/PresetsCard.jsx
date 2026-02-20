@@ -1,4 +1,4 @@
-import { rgbwHexToPreview } from "./util.js";
+import { rgbwHexToPreview } from './util.js';
 
 export function PresetsCard({ presets, effects, activePreset, applyPreset }) {
   function PresetGrid() {
@@ -9,7 +9,7 @@ export function PresetsCard({ presets, effects, activePreset, applyPreset }) {
             Array.isArray(preset.params?.colors) &&
             preset.params.colors.length > 0
               ? preset.params.colors
-              : ["#000000"];
+              : ['#000000'];
           const stops = colors.map((c) => rgbwHexToPreview(c));
           let gradient;
           if (stops.length === 1) {
@@ -17,15 +17,15 @@ export function PresetsCard({ presets, effects, activePreset, applyPreset }) {
           } else {
             const pctStep = 100 / (stops.length - 1);
             const colorStops = stops
-              .map((c, i) => c + " " + i * pctStep + "%")
-              .join(", ");
-            gradient = "linear-gradient(135deg, " + colorStops + ")";
+              .map((c, i) => c + ' ' + i * pctStep + '%')
+              .join(', ');
+            gradient = 'linear-gradient(135deg, ' + colorStops + ')';
           }
           return (
             <button
               className={
-                "preset-card" +
-                (Object.is(activePreset, preset.id) ? " active" : "")
+                'preset-card' +
+                (Object.is(activePreset, preset.id) ? ' active' : '')
               }
               key={preset.id}
               type="button"

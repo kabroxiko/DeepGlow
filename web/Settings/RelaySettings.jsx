@@ -29,7 +29,7 @@ export function RelaySettings({ config, setConfig }) {
             onInput={(e) =>
               setConfig((c) => ({
                 ...c,
-                led: { ...c.led, relayActiveHigh: e.target.value === "true" },
+                led: { ...c.led, relayActiveHigh: e.target.value === 'true' },
               }))
             }
           >

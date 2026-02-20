@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "preact/hooks";
-import { getBaseUrl } from "./baseUrl.js";
-import { initializeWebSocket } from "./websocket.js";
-import { ToastContainer, useToast } from "./Toast.jsx";
-import { useTabs, getHandshakeType, Tabs } from "./Tabs.jsx";
+import { useState, useEffect, useRef } from 'preact/hooks';
+import { getBaseUrl } from './baseUrl.js';
+import { initializeWebSocket } from './websocket.js';
+import { ToastContainer, useToast } from './Toast.jsx';
+import { useTabs, getHandshakeType, Tabs } from './Tabs.jsx';
 
 function sendState(updates) {
-  fetch(getBaseUrl() + "/api/state", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+  fetch(getBaseUrl() + '/api/state', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
   });
 }
@@ -23,11 +23,11 @@ export function App() {
   // Toast helper (App-level, always use this)
   function showToastHelper(message, opts = {}) {
     let msg = message;
-    if (typeof msg === "object" && msg !== null) {
+    if (typeof msg === 'object' && msg !== null) {
       msg = msg.message || JSON.stringify(msg);
     }
-    if (!msg || String(msg).trim() === "") return;
-    const type = opts.type || "info";
+    if (!msg || String(msg).trim() === '') return;
+    const type = opts.type || 'info';
     const hideDelay = opts.hideDelay || 4000;
     return showToast(msg, { ...opts, type, hideDelay });
   }
@@ -47,33 +47,33 @@ export function App() {
       onMessage: (data) => {
         setState((prev) => ({ ...prev, ...data }));
         if (data.preset !== undefined) setActivePreset(data.preset);
-        if ("sunrise" in data) {
+        if ('sunrise' in data) {
           setSunTimes((st) => ({
             sunrise: data.sunrise,
             sunset: st.sunset,
           }));
         }
-        if (data.type === "ota_status") {
-          if (typeof data.progress === "number") {
+        if (data.type === 'ota_status') {
+          if (typeof data.progress === 'number') {
             setOtaProgress(data.progress);
             if (data.progress >= 100) {
               setTimeout(() => setOtaProgress(-1), 2000);
             }
           }
-          if (data.status === "success") {
-            showToast("OTA update successful! Device will reboot.", {
-              type: "success",
+          if (data.status === 'success') {
+            showToast('OTA update successful! Device will reboot.', {
+              type: 'success',
             });
             setTimeout(() => globalThis.location.reload(), 7000);
-          } else if (data.status === "error") {
-            showToast("OTA update failed: " + data.message, { type: "error" });
+          } else if (data.status === 'error') {
+            showToast('OTA update failed: ' + data.message, { type: 'error' });
           }
         }
       },
       onBinary: (buffer) => {
         if (
           ledBarRef.current &&
-          typeof ledBarRef.current.updateBuffer === "function"
+          typeof ledBarRef.current.updateBuffer === 'function'
         ) {
           ledBarRef.current.updateBuffer(buffer);
         }
@@ -110,7 +110,7 @@ export function App() {
   // Config state (moved from Config.jsx)
   const [config, setConfig] = useState(null);
   const [timezones, setTimezones] = useState([]);
-  const [sunTimes, setSunTimes] = useState({ sunrise: "", sunset: "" });
+  const [sunTimes, setSunTimes] = useState({ sunrise: '', sunset: '' });
   const [loaded, setLoaded] = useState({
     timezones: false,
     presets: false,
@@ -130,21 +130,21 @@ export function App() {
   // Fetch shared data (presets, timers, effects, version, config, timezones) in parallel
   useEffect(() => {
     Promise.all([
-      fetch(getBaseUrl() + "/api/presets")
+      fetch(getBaseUrl() + '/api/presets')
         .then((r) => r.json())
         .then((data) => (Array.isArray(data) ? data : data.presets))
         .catch(() => []),
-      fetch(getBaseUrl() + "/api/effects")
+      fetch(getBaseUrl() + '/api/effects')
         .then((r) => r.json())
         .then((data) => data.effects)
         .catch(() => []),
-      fetch(getBaseUrl() + "/api/version")
+      fetch(getBaseUrl() + '/api/version')
         .then((r) => r.json())
         .catch(() => {}),
-      fetch(getBaseUrl() + "/api/timezones")
+      fetch(getBaseUrl() + '/api/timezones')
         .then((resp) => resp.json())
         .catch(() => []),
-      fetch(getBaseUrl() + "/api/config")
+      fetch(getBaseUrl() + '/api/config')
         .then(async (response) => {
           const text = await response.text();
           if (!text) return {};
@@ -164,8 +164,8 @@ export function App() {
       setLoaded({ presets: true, timezones: true, config: true });
       // Set version string if available
       if (version?.version) {
-        const vEl = document.getElementById("versionString");
-        if (vEl) vEl.textContent = "Version: " + version.version;
+        const vEl = document.getElementById('versionString');
+        if (vEl) vEl.textContent = 'Version: ' + version.version;
       }
     });
   }, []);

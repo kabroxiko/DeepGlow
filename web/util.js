@@ -7,11 +7,7 @@ export function rgbwToDisplayColor(r, g, b, w) {
     return [255, 255, 255];
   }
   // For all other colors, blend W into RGB
-  return [
-    Math.min(255, r + w),
-    Math.min(255, g + w),
-    Math.min(255, b + w),
-  ];
+  return [Math.min(255, r + w), Math.min(255, g + w), Math.min(255, b + w)];
 }
 
 // 0-59 = seconds, 60-119 = minutes, 120-127 = hours
@@ -25,15 +21,15 @@ export function steppedTransitionValue(val) {
 
 export function formatTransitionTime(val) {
   val = Number(val);
-  if (val === 0) return "0s";
-  if (val < 60) return val + "s";
-  if (val < 3600) return Math.round(val / 60) + "m";
-  return Math.round(val / 3600) + "h";
+  if (val === 0) return '0s';
+  if (val < 60) return val + 's';
+  if (val < 3600) return Math.round(val / 60) + 'm';
+  return Math.round(val / 3600) + 'h';
 }
 
 export function rgbwHexToPreview(hex) {
   // Accepts #RRGGBB or #RRGGBBWW
-  if (!hex || typeof hex !== "string") return "#000";
+  if (!hex || typeof hex !== 'string') return '#000';
   if (hex.length === 9) {
     // #RRGGBBWW, use centralized logic
     const r = Number.parseInt(hex.slice(1, 3), 16);

@@ -1,6 +1,6 @@
 // WiFi setup page as Preact component (initial stub)
 
-import { useRef, useState } from "preact/hooks";
+import { useRef, useState } from 'preact/hooks';
 
 export function WifiSetup() {
   const [result, setResult] = useState(null);
@@ -8,34 +8,34 @@ export function WifiSetup() {
   const [loading, setLoading] = useState(false);
   const [ssidList, setSsidList] = useState([]);
   const [scanning, setScanning] = useState(false);
-  const [selectedSsid, setSelectedSsid] = useState("");
-  const [manualSsid, setManualSsid] = useState("");
+  const [selectedSsid, setSelectedSsid] = useState('');
+  const [manualSsid, setManualSsid] = useState('');
   const [showManual, setShowManual] = useState(false);
   const formRef = useRef(null);
   const handleScan = () => {
     setScanning(true);
     setError(null);
     const pollScan = () => {
-      fetch("/wifi/scan")
+      fetch('/wifi/scan')
         .then((res) => res.json())
         .then((data) => {
           if (Array.isArray(data)) {
             // backend returns array directly
             setSsidList({ ssids: data });
             setScanning(false);
-          } else if (data?.status === "scanning") {
+          } else if (data?.status === 'scanning') {
             // Still scanning, poll again
             setTimeout(pollScan, 1000);
           } else if (Array.isArray(data.ssids)) {
             setSsidList(data);
             setScanning(false);
           } else {
-            setError("No networks found");
+            setError('No networks found');
             setScanning(false);
           }
         })
         .catch((e) => {
-          setError("Failed to scan networks");
+          setError('Failed to scan networks');
           setScanning(false);
         });
     };
@@ -45,12 +45,12 @@ export function WifiSetup() {
   const handleSsidChange = (e) => {
     const value = e.target.value;
     setSelectedSsid(value);
-    if (value === "__other__") {
+    if (value === '__other__') {
       setShowManual(true);
-      setManualSsid("");
+      setManualSsid('');
     } else {
       setShowManual(false);
-      setManualSsid("");
+      setManualSsid('');
     }
   };
 
@@ -66,22 +66,22 @@ export function WifiSetup() {
     const form = formRef.current;
     const data = new URLSearchParams();
     const ssidToSend = showManual ? manualSsid : selectedSsid;
-    data.append("ssid", ssidToSend);
-    data.append("password", form.password.value);
+    data.append('ssid', ssidToSend);
+    data.append('password', form.password.value);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", form.action, true);
-    xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+    xhr.open('POST', form.action, true);
+    xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
     xhr.onload = function () {
       setLoading(false);
       if (xhr.status === 200) {
         setResult(xhr.responseText);
       } else {
-        setError("WiFi setup failed. Please try again.");
+        setError('WiFi setup failed. Please try again.');
       }
     };
     xhr.onerror = function () {
       setLoading(false);
-      setError("Network error. Please try again.");
+      setError('Network error. Please try again.');
     };
     xhr.send(data.toString());
   };
@@ -95,24 +95,24 @@ export function WifiSetup() {
     <div
       className="container"
       style={{
-        minHeight: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-start",
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
       }}
     >
       <section
         className="card"
-        style={{ maxWidth: 400, margin: "12px auto 0 auto" }}
+        style={{ maxWidth: 400, margin: '12px auto 0 auto' }}
       >
-        <h2 style={{ fontSize: "1.3em", marginBottom: 8, textAlign: "center" }}>
+        <h2 style={{ fontSize: '1.3em', marginBottom: 8, textAlign: 'center' }}>
           🐠 Aquarium Control
         </h2>
         <div
           style={{
             fontWeight: 500,
-            color: "var(--secondary-color)",
-            textAlign: "center",
+            color: 'var(--secondary-color)',
+            textAlign: 'center',
             marginBottom: 16,
           }}
         >
@@ -120,7 +120,7 @@ export function WifiSetup() {
         </div>
         <div
           className="instructions"
-          style={{ color: "var(--text-secondary)", marginBottom: 16 }}
+          style={{ color: 'var(--text-secondary)', marginBottom: 16 }}
         >
           Enter your WiFi details to connect.
         </div>
@@ -132,7 +132,7 @@ export function WifiSetup() {
           onSubmit={handleSubmit}
         >
           <label htmlFor="ssid">WiFi SSID</label>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <select
               className="text-input"
               name="ssid-select"
@@ -143,14 +143,14 @@ export function WifiSetup() {
               style={{ flex: 1 }}
             >
               <option value="" disabled>
-                {scanning ? "Scanning..." : "Select network"}
+                {scanning ? 'Scanning...' : 'Select network'}
               </option>
               {(Array.isArray(ssidList.ssids) ? ssidList.ssids : ssidList).map(
                 (ssid) => (
                   <option value={ssid} key={ssid}>
                     {ssid}
                   </option>
-                ),
+                )
               )}
               <option value="__other__">Other...</option>
             </select>
@@ -161,7 +161,7 @@ export function WifiSetup() {
               onClick={handleScan}
               disabled={scanning}
             >
-              {scanning ? "Scanning..." : "Scan Networks"}
+              {scanning ? 'Scanning...' : 'Scan Networks'}
             </button>
           </div>
           {showManual && (
@@ -193,22 +193,22 @@ export function WifiSetup() {
             disabled={loading}
             style={{ marginTop: 12 }}
           >
-            {loading ? "Connecting..." : "Connect"}
+            {loading ? 'Connecting...' : 'Connect'}
           </button>
         </form>
         {loading && (
-          <div className="spinner" style={{ margin: "1em auto 0 auto" }} />
+          <div className="spinner" style={{ margin: '1em auto 0 auto' }} />
         )}
         {error && (
           <div
-            style={{ color: "#ff4466", marginTop: "1em", textAlign: "center" }}
+            style={{ color: '#ff4466', marginTop: '1em', textAlign: 'center' }}
           >
             {error}
           </div>
         )}
         <div
           className="footer"
-          style={{ marginTop: 18, color: "#aaa", fontSize: "0.95em" }}
+          style={{ marginTop: 18, color: '#aaa', fontSize: '0.95em' }}
         >
           Aquarium LED Controller &copy; 2026
         </div>

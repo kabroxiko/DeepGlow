@@ -1,4 +1,4 @@
-import { steppedTransitionValue, formatTransitionTime } from "../util.js";
+import { steppedTransitionValue, formatTransitionTime } from '../util.js';
 
 export function TransitionSettings({ config, setConfig }) {
   return (
@@ -15,7 +15,7 @@ export function TransitionSettings({ config, setConfig }) {
             className="slider-input"
             value={(() => {
               const sec = Math.round(
-                Number(config?.transitionTimes?.powerOn) / 1000,
+                Number(config?.transitionTimes?.powerOn) / 1000
               );
               if (sec <= 59) return sec;
               if (sec < 3600) return 59 + Math.round(sec / 60);
@@ -33,7 +33,7 @@ export function TransitionSettings({ config, setConfig }) {
           />
           <span>
             {formatTransitionTime(
-              Math.round(Number(config?.transitionTimes?.powerOn) / 1000),
+              Math.round(Number(config?.transitionTimes?.powerOn) / 1000)
             )}
           </span>
         </div>
@@ -47,7 +47,7 @@ export function TransitionSettings({ config, setConfig }) {
             className="slider-input"
             value={(() => {
               const sec = Math.round(
-                Number(config?.transitionTimes?.schedule) / 1000,
+                Number(config?.transitionTimes?.schedule) / 1000
               );
               if (sec <= 59) return sec;
               if (sec < 3600) return 59 + Math.round(sec / 60);
@@ -65,7 +65,7 @@ export function TransitionSettings({ config, setConfig }) {
           />
           <span>
             {formatTransitionTime(
-              Math.round(Number(config?.transitionTimes?.schedule) / 1000),
+              Math.round(Number(config?.transitionTimes?.schedule) / 1000)
             )}
           </span>
         </div>
@@ -79,7 +79,7 @@ export function TransitionSettings({ config, setConfig }) {
             className="slider-input"
             value={(() => {
               const sec = Math.round(
-                Number(config?.transitionTimes?.manual) / 1000,
+                Number(config?.transitionTimes?.manual) / 1000
               );
               if (sec <= 59) return sec;
               if (sec < 3600) return 59 + Math.round(sec / 60);
@@ -97,7 +97,7 @@ export function TransitionSettings({ config, setConfig }) {
           />
           <span>
             {formatTransitionTime(
-              Math.round(Number(config?.transitionTimes?.manual) / 1000),
+              Math.round(Number(config?.transitionTimes?.manual) / 1000)
             )}
           </span>
         </div>
@@ -111,7 +111,7 @@ export function TransitionSettings({ config, setConfig }) {
             className="slider-input"
             value={(() => {
               const sec = Math.round(
-                Number(config?.transitionTimes?.effect) / 1000,
+                Number(config?.transitionTimes?.effect) / 1000
               );
               if (sec <= 59) return sec;
               if (sec < 3600) return 59 + Math.round(sec / 60);
@@ -129,7 +129,7 @@ export function TransitionSettings({ config, setConfig }) {
           />
           <span>
             {formatTransitionTime(
-              Math.round(Number(config?.transitionTimes?.effect) / 1000),
+              Math.round(Number(config?.transitionTimes?.effect) / 1000)
             )}
           </span>
         </div>

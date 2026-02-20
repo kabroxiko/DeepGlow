@@ -15,7 +15,9 @@ select,
   -webkit-appearance: none;
   appearance: none;
   box-shadow: 0 2px 8px var(--shadow);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   cursor: pointer;
   min-width: 120px;
   margin: 2px 0;
@@ -53,7 +55,11 @@ select {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--accent-color)
+  );
   cursor: pointer;
   box-shadow: 0 2px 8px var(--shadow);
 }
@@ -61,7 +67,11 @@ select {
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--primary-color), var(--accent-color));
+  background: linear-gradient(
+    135deg,
+    var(--primary-color),
+    var(--accent-color)
+  );
   cursor: pointer;
   box-shadow: 0 2px 8px var(--shadow);
   border: none;
@@ -102,7 +112,7 @@ select {
 }
 
 // Modern time input styling
-input[type="time"] {
+input[type='time'] {
   background: var(--bg-light);
   color: var(--text-primary);
   border: 1.5px solid var(--secondary-color);
@@ -110,21 +120,23 @@ input[type="time"] {
   padding: 8px 12px;
   font-size: 1.1em;
   box-shadow: 0 2px 8px var(--shadow);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   min-width: 100px;
   margin: 2px 0;
 }
-input[type="time"]:focus {
+input[type='time']:focus {
   border-color: var(--accent-color);
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-color);
 }
-input[type="time"]:hover {
+input[type='time']:hover {
   border-color: var(--primary-color);
 }
 
 // Modern number input styling (brightness)
-input[type="number"] {
+input[type='number'] {
   background: var(--bg-light);
   color: var(--text-primary);
   border: 1.5px solid var(--secondary-color);
@@ -132,16 +144,18 @@ input[type="number"] {
   padding: 8px 12px;
   font-size: 1.1em;
   box-shadow: 0 2px 8px var(--shadow);
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   min-width: 70px;
   margin: 2px 0;
 }
-input[type="number"]:focus {
+input[type='number']:focus {
   border-color: var(--accent-color);
   outline: none;
   box-shadow: 0 0 0 2px var(--accent-color);
 }
-input[type="number"]:hover {
+input[type='number']:hover {
   border-color: var(--primary-color);
 }
 
@@ -155,7 +169,9 @@ input[type="number"]:hover {
   background: var(--bg-light);
   cursor: pointer;
   box-sizing: border-box;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  transition:
+    border-color 0.2s,
+    box-shadow 0.2s;
   vertical-align: middle;
   position: relative;
 }

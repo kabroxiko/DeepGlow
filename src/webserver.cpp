@@ -5,9 +5,9 @@
 #include "inc/index_html.inc"
 // #include "inc/app_js.inc" // migrated to SPA, now included in index_js.inc
 // #include "inc/config_js.inc" // migrated to SPA, now included in index_js.inc
+#include "inc/index_js.inc"
 #include "inc/style_css.inc"
 #include "network.h"
-#include "inc/index_js.inc"
 
 #include <LittleFS.h>
 #include <Ticker.h>
@@ -20,13 +20,12 @@
 #endif
 
 #include "effects.h"
+#include "inc/version.inc"
 #include "ota.h"
 #include "presets.h"
 #include "state.h"
 #include "transition.h"
-#include "inc/version.inc"
 #include "webserver.h"
-
 
 // Global externs for transition state
 extern TransitionEngine transition;
@@ -198,25 +197,31 @@ void WebServerManager::update() {
   _ws->cleanupClients();
 
   // --- Periodic live LED data broadcast as binary blob ---
-  if (!liveLedTick) return;
+  if (!liveLedTick)
+    return;
   liveLedTick = false;
 
   // Suppress live LED broadcast if OTA is in progress
-  if (otaInProgress) return;
+  if (otaInProgress)
+    return;
 
   uint16_t n = _config->led.count;
   size_t wsCount = _ws->count();
 
   // No clients or no LEDs, nothing to broadcast
-  if (wsCount == 0 || n == 0) return;
+  if (wsCount == 0 || n == 0)
+    return;
 
   // If all clients are OTA-subscribed, skip live LED broadcast entirely
-  if (otaSubscribedClients.size() == wsCount) return;
+  if (otaSubscribedClients.size() == wsCount)
+    return;
 
-  // Only process clients that have completed handshake and are not OTA-subscribed
+  // Only process clients that have completed handshake and are not
+  // OTA-subscribed
   bool allReady = true;
   for (auto &c : _ws->getClients()) {
-    if (!wsClientReceivedFirstMsg.count(c.id()) || !wsClientReceivedFirstMsg[c.id()]) {
+    if (!wsClientReceivedFirstMsg.count(c.id()) ||
+        !wsClientReceivedFirstMsg[c.id()]) {
       continue; // Not handshaked, skip
     }
     if (!otaSubscribedClients.count(c.id()) && c.queueIsFull()) {
@@ -235,9 +240,8 @@ void WebServerManager::update() {
   }
   // Prepare LED frame buffer
   const std::vector<uint32_t> *src =
-      (g_outputFramePtr && g_outputFramePtr->size() >= n)
-          ? g_outputFramePtr
-          : nullptr;
+      (g_outputFramePtr && g_outputFramePtr->size() >= n) ? g_outputFramePtr
+                                                          : nullptr;
   std::vector<uint8_t> buf(n * 4, 0);
   if (src) {
     for (uint16_t i = 0; i < n; ++i) {
@@ -250,8 +254,11 @@ void WebServerManager::update() {
   }
   for (auto &c : _ws->getClients()) {
     // Only send to clients that have handshaked and are not OTA-subscribed
-    if (!wsClientReceivedFirstMsg.count(c.id()) || !wsClientReceivedFirstMsg[c.id()]) continue;
-    if (otaSubscribedClients.count(c.id())) continue;
+    if (!wsClientReceivedFirstMsg.count(c.id()) ||
+        !wsClientReceivedFirstMsg[c.id()])
+      continue;
+    if (otaSubscribedClients.count(c.id()))
+      continue;
     c.binary(buf.data(), buf.size());
   }
 }
@@ -278,12 +285,13 @@ void WebServerManager::setupWebSocket() {
     } else if (type == WS_EVT_DATA) {
       auto *info = (AwsFrameInfo *)arg;
       if (info && info->opcode == WS_TEXT && data && len > 0) {
-        #if defined(ESP8266)
+#if defined(ESP8266)
         String msg;
-        for (size_t i = 0; i < len; ++i) msg += (char)data[i];
-        #else
+        for (size_t i = 0; i < len; ++i)
+          msg += (char)data[i];
+#else
         String msg((const char *)data, len);
-        #endif
+#endif
         if (!wsClientReceivedFirstMsg[client->id()]) {
           // First message from client: handshake
           if (msg.indexOf("\"type\":\"ota_client\"") != -1) {
@@ -345,76 +353,90 @@ void WebServerManager::setupRoutes() {
                 request->send(resp);
               });
   // Update API endpoint: GET for remote manifest, POST for OTA update
-  _server->on("/api/update", HTTP_ANY,
-    [logRequest, this](AsyncWebServerRequest *request) {
-      logRequest(request);
-      if (request->method() == HTTP_GET) {
-        // Serve remote manifest (firmware version and metadata)
-        String manifestJson = fetchRemoteManifestJson();
-        if (manifestJson.length() == 0) {
-          AsyncWebServerResponse *resp = request->beginResponse(404, "application/json", "{\"error\":\"No release manifest found\"}");
+  _server->on(
+      "/api/update", HTTP_ANY,
+      [logRequest, this](AsyncWebServerRequest *request) {
+        logRequest(request);
+        if (request->method() == HTTP_GET) {
+          // Serve remote manifest (firmware version and metadata)
+          String manifestJson = fetchRemoteManifestJson();
+          if (manifestJson.length() == 0) {
+            AsyncWebServerResponse *resp = request->beginResponse(
+                404, "application/json",
+                "{\"error\":\"No release manifest found\"}");
+            for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+              resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+            resp->addHeader("Cache-Control",
+                            "no-store, no-cache, must-revalidate, "
+                            "proxy-revalidate, max-age=0");
+            resp->addHeader("Pragma", "no-cache");
+            request->send(resp);
+            return;
+          }
+          AsyncWebServerResponse *resp =
+              request->beginResponse(200, "application/json", manifestJson);
           for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
             resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-          resp->addHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
+          resp->addHeader("Cache-Control",
+                          "no-store, no-cache, must-revalidate, "
+                          "proxy-revalidate, max-age=0");
           resp->addHeader("Pragma", "no-cache");
           request->send(resp);
           return;
         }
-        AsyncWebServerResponse *resp = request->beginResponse(200, "application/json", manifestJson);
-        for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
-          resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-        resp->addHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0");
-        resp->addHeader("Pragma", "no-cache");
-        request->send(resp);
-        return;
-      }
-      if (request->method() == HTTP_POST) {
-        // Find the WebSocket client with the same IP as the HTTP request
-        IPAddress reqIp = request->client()->remoteIP();
-        for (auto &client : _ws->getClients()) {
-          if (client.remoteIP() == reqIp) {
-            pendingOtaClients.insert(client.id());
+        if (request->method() == HTTP_POST) {
+          // Find the WebSocket client with the same IP as the HTTP request
+          IPAddress reqIp = request->client()->remoteIP();
+          for (auto &client : _ws->getClients()) {
+            if (client.remoteIP() == reqIp) {
+              pendingOtaClients.insert(client.id());
+            }
           }
-        }
 #if defined(ESP32)
-        xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
+          xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1,
+                                  nullptr, 1);
 #endif
+          AsyncWebServerResponse *resp = request->beginResponse(
+              200, "application/json",
+              "{\"success\":true,\"message\":\"OTA update started in "
+              "background. Device will update and reboot.\"}");
+          for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+            resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+          request->send(resp);
+          return;
+        }
+        // Method not allowed
         AsyncWebServerResponse *resp = request->beginResponse(
-            200, "application/json",
-            "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
+            405, "application/json", "{\"error\":\"Method Not Allowed\"}");
         for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
           resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
         request->send(resp);
-        return;
-      }
-      // Method not allowed
-      AsyncWebServerResponse *resp = request->beginResponse(405, "application/json", "{\"error\":\"Method Not Allowed\"}");
-      for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
-        resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-      request->send(resp);
-    });
+      });
 
   // Update API endpoint: POST /api/update (OTA with .bin.gz support)
   _server->on("/api/update", HTTP_POST,
-    [logRequest, this](AsyncWebServerRequest *request) {
-      logRequest(request);
-      // Find the WebSocket client with the same IP as the HTTP request
-      IPAddress reqIp = request->client()->remoteIP();
-      for (auto &client : _ws->getClients()) {
-        if (client.remoteIP() == reqIp) {
-          pendingOtaClients.insert(client.id());
-        }
-      }
+              [logRequest, this](AsyncWebServerRequest *request) {
+                logRequest(request);
+                // Find the WebSocket client with the same IP as the HTTP
+                // request
+                IPAddress reqIp = request->client()->remoteIP();
+                for (auto &client : _ws->getClients()) {
+                  if (client.remoteIP() == reqIp) {
+                    pendingOtaClients.insert(client.id());
+                  }
+                }
 #if defined(ESP32)
-      xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
+                xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1,
+                                        nullptr, 1);
 #endif
-      AsyncWebServerResponse *resp = request->beginResponse(
-          200, "application/json",
-          "{\"success\":true,\"message\":\"OTA update started in background. Device will update and reboot.\"}");
-      for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
-        resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
-      request->send(resp);
-    });
+                AsyncWebServerResponse *resp = request->beginResponse(
+                    200, "application/json",
+                    "{\"success\":true,\"message\":\"OTA update started in "
+                    "background. Device will update and reboot.\"}");
+                for (size_t i = 0; i < CORS_HEADER_COUNT; ++i)
+                  resp->addHeader(CORS_HEADERS[i][0], CORS_HEADERS[i][1]);
+                request->send(resp);
+              });
 
   // System command API (reboot, update, etc.)
   _server->on("/api/command", HTTP_OPTIONS,
@@ -553,106 +575,120 @@ void WebServerManager::setupRoutes() {
 
   // Serve web assets from filesystem image
   // Serve static SPA assets
-  _server->on("/index.js", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
-    logRequest(request);
-    AsyncWebServerResponse *resp = request->beginResponse_P(200, "application/javascript", web_index_js, web_index_js_len);
-    resp->addHeader("Content-Encoding", "gzip");
-    request->send(resp);
-  });
-  _server->on("/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
-    logRequest(request);
-    AsyncWebServerResponse *resp = request->beginResponse_P(200, "text/css", web_style_css, web_style_css_len);
-    resp->addHeader("Content-Encoding", "gzip");
-    request->send(resp);
-  });
-  _server->on("/", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
-    logRequest(request);
-    AsyncWebServerResponse *resp = request->beginResponse_P(200, "text/html", web_index_html, web_index_html_len);
-    resp->addHeader("Content-Encoding", "gzip");
-    request->send(resp);
-  });
   _server->on(
-      "/index.html", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+      "/index.js", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
         logRequest(request);
-        AsyncWebServerResponse *resp = request->beginResponse_P(200, "text/html", web_index_html, web_index_html_len);
+        AsyncWebServerResponse *resp = request->beginResponse_P(
+            200, "application/javascript", web_index_js, web_index_js_len);
         resp->addHeader("Content-Encoding", "gzip");
         request->send(resp);
       });
+  _server->on("/style.css", HTTP_GET,
+              [logRequest](AsyncWebServerRequest *request) {
+                logRequest(request);
+                AsyncWebServerResponse *resp = request->beginResponse_P(
+                    200, "text/css", web_style_css, web_style_css_len);
+                resp->addHeader("Content-Encoding", "gzip");
+                request->send(resp);
+              });
+  _server->on("/", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+    logRequest(request);
+    AsyncWebServerResponse *resp = request->beginResponse_P(
+        200, "text/html", web_index_html, web_index_html_len);
+    resp->addHeader("Content-Encoding", "gzip");
+    request->send(resp);
+  });
+  _server->on("/index.html", HTTP_GET,
+              [logRequest](AsyncWebServerRequest *request) {
+                logRequest(request);
+                AsyncWebServerResponse *resp = request->beginResponse_P(
+                    200, "text/html", web_index_html, web_index_html_len);
+                resp->addHeader("Content-Encoding", "gzip");
+                request->send(resp);
+              });
   // Register WiFi endpoints directly
   // WiFi scan endpoint (returns SSID list as JSON, triggers scan)
-  _server->on("/wifi/scan", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
-    logRequest(request);
-    int scanStatus = WiFi.scanComplete();
-    if (scanStatus == -2) { // No scan started
-      WiFi.scanNetworks(true);
-      request->send(200, "application/json", "{\"status\":\"scanning\"}");
-    } else if (scanStatus == -1) { // Scan ongoing
-      request->send(200, "application/json", "{\"status\":\"scanning\"}");
-    } else if (scanStatus >= 0) { // Scan complete
-      String json = "[";
-      for (int i = 0; i < scanStatus; ++i) {
-        if (i > 0) json += ",";
-        json += "\"" + WiFi.SSID(i) + "\"";
-      }
-      json += "]";
-      WiFi.scanDelete();
-      request->send(200, "application/json", json);
-    } else {
-      request->send(500, "application/json", "{\"error\":\"scan error\"}");
-    }
-  });
+  _server->on(
+      "/wifi/scan", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+        logRequest(request);
+        int scanStatus = WiFi.scanComplete();
+        if (scanStatus == -2) { // No scan started
+          WiFi.scanNetworks(true);
+          request->send(200, "application/json", "{\"status\":\"scanning\"}");
+        } else if (scanStatus == -1) { // Scan ongoing
+          request->send(200, "application/json", "{\"status\":\"scanning\"}");
+        } else if (scanStatus >= 0) { // Scan complete
+          String json = "[";
+          for (int i = 0; i < scanStatus; ++i) {
+            if (i > 0)
+              json += ",";
+            json += "\"" + WiFi.SSID(i) + "\"";
+          }
+          json += "]";
+          WiFi.scanDelete();
+          request->send(200, "application/json", json);
+        } else {
+          request->send(500, "application/json", "{\"error\":\"scan error\"}");
+        }
+      });
   // POST handler for /wifi
-  _server->on("/wifi", HTTP_POST,
-    [this, logRequest](AsyncWebServerRequest *request) {
-      logRequest(request);
-      if (request->hasParam("ssid", true)) {
-        String ssid = urlDecode(request->getParam("ssid", true)->value());
-        String password = request->hasParam("password", true)
-          ? urlDecode(request->getParam("password", true)->value())
-          : "";
+  _server->on(
+      "/wifi", HTTP_POST,
+      [this, logRequest](AsyncWebServerRequest *request) {
+        logRequest(request);
+        if (request->hasParam("ssid", true)) {
+          String ssid = urlDecode(request->getParam("ssid", true)->value());
+          String password =
+              request->hasParam("password", true)
+                  ? urlDecode(request->getParam("password", true)->value())
+                  : "";
+          if (ssid.length() > 0) {
+            _config->network.ssid = ssid;
+            _config->network.password = password;
+            _config->save();
+            String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device "
+                          "will reboot if successful.</p></body></html>";
+            request->send(200, "text/html", html);
+            delay(1000);
+            ESP.restart();
+            return;
+          }
+          request->send_P(200, "text/html", web_index_html, web_index_html_len);
+        }
+      },
+      nullptr,
+      [this, logRequest](AsyncWebServerRequest *request, uint8_t *data,
+                         size_t len, size_t, size_t) {
+        logRequest(request);
+        String body;
+        for (size_t i = 0; i < len; ++i)
+          body += (char)data[i];
+        String ssid, password;
+        int ssidIdx = body.indexOf("ssid=");
+        int passIdx = body.indexOf("password=");
+        if (ssidIdx != -1) {
+          int amp = body.indexOf('&', ssidIdx);
+          ssid = urlDecode(
+              body.substring(ssidIdx + 5, amp == -1 ? body.length() : amp));
+        }
+        if (passIdx != -1) {
+          int amp = body.indexOf('&', passIdx);
+          password = urlDecode(
+              body.substring(passIdx + 9, amp == -1 ? body.length() : amp));
+        }
         if (ssid.length() > 0) {
           _config->network.ssid = ssid;
           _config->network.password = password;
           _config->save();
-          String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
+          String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device "
+                        "will reboot if successful.</p></body></html>";
           request->send(200, "text/html", html);
           delay(1000);
           ESP.restart();
           return;
         }
         request->send_P(200, "text/html", web_index_html, web_index_html_len);
-      }
-    },
-    nullptr,
-    [this, logRequest](AsyncWebServerRequest *request, uint8_t *data, size_t len, size_t, size_t) {
-      logRequest(request);
-      String body;
-      for (size_t i = 0; i < len; ++i)
-        body += (char)data[i];
-      String ssid, password;
-      int ssidIdx = body.indexOf("ssid=");
-      int passIdx = body.indexOf("password=");
-      if (ssidIdx != -1) {
-        int amp = body.indexOf('&', ssidIdx);
-        ssid = urlDecode(body.substring(ssidIdx + 5, amp == -1 ? body.length() : amp));
-      }
-      if (passIdx != -1) {
-        int amp = body.indexOf('&', passIdx);
-        password = urlDecode(body.substring(passIdx + 9, amp == -1 ? body.length() : amp));
-      }
-      if (ssid.length() > 0) {
-        _config->network.ssid = ssid;
-        _config->network.password = password;
-        _config->save();
-        String html = "<html><body><h2>Connecting to WiFi...</h2><p>Device will reboot if successful.</p></body></html>";
-        request->send(200, "text/html", html);
-        delay(1000);
-        ESP.restart();
-        return;
-      }
-      request->send_P(200, "text/html", web_index_html, web_index_html_len);
-    }
-  );
+      });
 
   // GET handler for /wifi
   _server->on("/wifi", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
@@ -667,15 +703,17 @@ void WebServerManager::setupRoutes() {
               });
 
   _server->on("/index.js", HTTP_GET,
-    [logRequest](AsyncWebServerRequest *request) {
-      logRequest(request);
-      request->send_P(200, "application/javascript", web_index_js, web_index_js_len);
-    });
+              [logRequest](AsyncWebServerRequest *request) {
+                logRequest(request);
+                request->send_P(200, "application/javascript", web_index_js,
+                                web_index_js_len);
+              });
   _server->on("/index.js", HTTP_GET,
-    [logRequest](AsyncWebServerRequest *request) {
-      logRequest(request);
-      request->send_P(200, "application/javascript", web_index_js, web_index_js_len);
-    });
+              [logRequest](AsyncWebServerRequest *request) {
+                logRequest(request);
+                request->send_P(200, "application/javascript", web_index_js,
+                                web_index_js_len);
+              });
   _server->on(
       "/config.html", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
         logRequest(request);
@@ -687,16 +725,16 @@ void WebServerManager::setupRoutes() {
                 request->send_P(200, "application/javascript", web_index_js,
                                 web_index_js_len);
               });
-  _server->on("/style.css", HTTP_GET,
-    [logRequest](AsyncWebServerRequest *request) {
-      logRequest(request);
-      request->send_P(200, "text/css", web_style_css, web_style_css_len);
-    });
-  _server->on("/style.css", HTTP_GET,
-    [logRequest](AsyncWebServerRequest *request) {
-      logRequest(request);
-      request->send_P(200, "text/css", web_style_css, web_style_css_len);
-    });
+  _server->on(
+      "/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+        logRequest(request);
+        request->send_P(200, "text/css", web_style_css, web_style_css_len);
+      });
+  _server->on(
+      "/style.css", HTTP_GET, [logRequest](AsyncWebServerRequest *request) {
+        logRequest(request);
+        request->send_P(200, "text/css", web_style_css, web_style_css_len);
+      });
 
   // State API
   _server->on("/api/state", HTTP_OPTIONS,
@@ -850,7 +888,6 @@ void WebServerManager::setupRoutes() {
           request->send(resp);
         }
       });
-
 
   _server->on("/api/timer", HTTP_OPTIONS,
               [logRequest](AsyncWebServerRequest *request) {
@@ -1127,7 +1164,6 @@ void WebServerManager::handleSetConfig(AsyncWebServerRequest *request,
   }
 }
 
-
 void WebServerManager::handleSetTimer(AsyncWebServerRequest *request,
                                       uint8_t *data, size_t len) {
   StaticJsonDocument<512> doc;
@@ -1288,7 +1324,8 @@ void WebServerManager::broadcastState() {
   if (_ws) {
     for (auto &client : _ws->getClients()) {
       // If client is OTA-subscribed, skip sending state updates
-      if (otaSubscribedClients.count(client.id())) continue;
+      if (otaSubscribedClients.count(client.id()))
+        continue;
       client.text(stateJSON);
     }
   }
@@ -1315,9 +1352,7 @@ void WebServerManager::onConfigChange(void (*callback)()) {
   _configCallback = callback;
 }
 // Call this when OTA finishes (success or error) to unsubscribe all OTA clients
-void WebServerManager::clearOtaSubscriptions() {
-  otaSubscribedClients.clear();
-}
+void WebServerManager::clearOtaSubscriptions() { otaSubscribedClients.clear(); }
 
 // Close all OTA WebSocket clients (disconnect them)
 void WebServerManager::closeOtaClients() {
