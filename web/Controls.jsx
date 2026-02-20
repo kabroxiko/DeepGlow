@@ -6,7 +6,6 @@ export function ColorPickers({ colors, sendState }) {
     <div className="color-pickers-row">
       {colors.map((color, idx) => {
         let hex = color.length === 9 ? color.slice(0, 7) : color;
-        let w = color.length === 9 ? color.slice(7, 9) : "";
         // For the swatch, use rgbwToDisplayColor; for the input, always use hex
         let swatchColor = hex;
         if (color.length === 9) {
