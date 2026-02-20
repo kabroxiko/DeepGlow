@@ -1,16 +1,16 @@
 // Config page as Preact component
-import { useState, useRef } from "preact/hooks";
-import { StatusBar } from "./StatusBar.jsx";
-import { getBaseUrl } from "./baseUrl.js";
-import { WiFiSettings } from "./Settings/WiFiSettings.jsx";
-import { LEDSettings } from "./Settings/LEDSettings.jsx";
-import { RelaySettings } from "./Settings/RelaySettings.jsx";
-import { SafetySettings } from "./Settings/SafetySettings.jsx";
-import { TransitionSettings } from "./Settings/TransitionSettings.jsx";
-import { LocationTimeSettings } from "./Settings/LocationTimeSettings.jsx";
-import { FirmwareUpdate } from "./Settings/FirmwareUpdate.jsx";
-import { DeviceActions } from "./Settings/DeviceActions.jsx";
-import { Schedule } from "./Settings/Schedule.jsx";
+import { useState, useRef } from 'preact/hooks';
+import { StatusBar } from './StatusBar.jsx';
+import { getBaseUrl } from './baseUrl.js';
+import { WiFiSettings } from './Settings/WiFiSettings.jsx';
+import { LEDSettings } from './Settings/LEDSettings.jsx';
+import { RelaySettings } from './Settings/RelaySettings.jsx';
+import { SafetySettings } from './Settings/SafetySettings.jsx';
+import { TransitionSettings } from './Settings/TransitionSettings.jsx';
+import { LocationTimeSettings } from './Settings/LocationTimeSettings.jsx';
+import { FirmwareUpdate } from './Settings/FirmwareUpdate.jsx';
+import { DeviceActions } from './Settings/DeviceActions.jsx';
+import { Schedule } from './Settings/Schedule.jsx';
 
 export function Config({
   config,
@@ -24,7 +24,7 @@ export function Config({
   setConfig,
   otaProgress,
 }) {
-  const [otaFileName, setOtaFileName] = useState("");
+  const [otaFileName, setOtaFileName] = useState('');
   const otaInputRef = useRef();
   // Local upload progress for manual upload only
   const [localOtaProgress, setLocalOtaProgress] = useState(-1); // -1: hidden, 0-100: progress
@@ -40,7 +40,7 @@ export function Config({
   // Patch setConfig so that if called directly (not via handleFieldChange), we still track changes
   const wrappedSetConfig = (updater) => {
     setConfig((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
+      const next = typeof updater === 'function' ? updater(prev) : updater;
       // Compare prev and next, add changed keys to modifiedConfig
       const changed = {};
       for (const k in next) {
@@ -68,7 +68,7 @@ export function Config({
         id="mainContainer"
         style={{
           display:
-            loaded.timezones && loaded.presets && loaded.config ? "" : "none",
+            loaded.timezones && loaded.presets && loaded.config ? '' : 'none',
         }}
       >
         <header class="header">
@@ -81,28 +81,25 @@ export function Config({
             className="btn btn-secondary"
             onClick={() => {
               const blob = new Blob([JSON.stringify(config, null, 2)], {
-                type: "application/json",
+                type: 'application/json',
               });
               const url = URL.createObjectURL(blob);
-              const a = document.createElement("a");
+              const a = document.createElement('a');
               a.href = url;
-              a.download = "config.json";
+              a.download = 'config.json';
               document.body.appendChild(a);
               a.click();
               setTimeout(() => {
                 a.remove();
                 URL.revokeObjectURL(url);
-                showToast("Config downloaded!", { type: "success" });
+                showToast('Config downloaded!', { type: 'success' });
               }, 100);
             }}
           >
             Download Config
           </button>
           {/* Upload Config */}
-          <label
-            className="btn btn-secondary"
-            htmlFor="upload-config-input"
-          >
+          <label className="btn btn-secondary" htmlFor="upload-config-input">
             Upload Config
           </label>
           <input
@@ -116,20 +113,20 @@ export function Config({
               try {
                 const text = await file.text();
                 const json = JSON.parse(text);
-                const response = await fetch(getBaseUrl() + "/api/config", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                const response = await fetch(getBaseUrl() + '/api/config', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(json),
                 });
-                if (!response.ok) throw new Error("Upload failed");
-                showToast("Config uploaded!", { type: "success" });
+                if (!response.ok) throw new Error('Upload failed');
+                showToast('Config uploaded!', { type: 'success' });
                 setTimeout(() => globalThis.location.reload(), 1200);
               } catch (err) {
-                showToast("Error uploading config: " + (err.message || err), {
-                  type: "error",
+                showToast('Error uploading config: ' + (err.message || err), {
+                  type: 'error',
                 });
               }
-              e.target.value = "";
+              e.target.value = '';
             }}
           />
           {/* Save Configuration */}
@@ -153,20 +150,20 @@ export function Config({
                   });
                   toSave.timers = sortedTimers;
                 }
-                const resp = await fetch(getBaseUrl() + "/api/config", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                const resp = await fetch(getBaseUrl() + '/api/config', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify(toSave),
                 });
-                if (!resp.ok) throw new Error("Save failed");
-                showToast("Configuration saved!", { type: "success" });
+                if (!resp.ok) throw new Error('Save failed');
+                showToast('Configuration saved!', { type: 'success' });
                 // Update local config state with sorted timers so UI reflects the change
                 if (sortedTimers) {
                   setConfig((prev) => ({ ...prev, timers: sortedTimers }));
                 }
                 resetModifiedConfig();
               } catch (err) {
-                showToast("Error saving config: " + err, { type: "error" });
+                showToast('Error saving config: ' + err, { type: 'error' });
               }
             }}
           >
@@ -215,16 +212,14 @@ export function Config({
             localOtaProgress={localOtaProgress}
             setLocalOtaProgress={setLocalOtaProgress}
           />
-          <DeviceActions
-            showToast={showToast}
-          />
+          <DeviceActions showToast={showToast} />
         </div>
         <Schedule
           config={config}
           setConfig={(updater) => {
             wrappedSetConfig((prev) => {
               const next =
-                typeof updater === "function" ? updater(prev) : updater;
+                typeof updater === 'function' ? updater(prev) : updater;
               // Use a functional update to avoid stale closure
               if (next.schedule !== prev.schedule) {
                 setModifiedConfig((prevMod) => ({
@@ -238,7 +233,7 @@ export function Config({
           presets={presets}
           sunTimes={sunTimes}
           onFieldChange={(key, value) => {
-            if (key === "schedule") {
+            if (key === 'schedule') {
               setModifiedConfig((prevMod) => ({ ...prevMod, schedule: value }));
             }
             handleFieldChange(key, value);

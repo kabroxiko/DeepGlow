@@ -1,14 +1,14 @@
-import { Graph } from "./Graph.jsx";
-import { Controls } from "./Controls.jsx";
-import { PresetsCard } from "./PresetsCard.jsx";
-import { LedBar } from "./LedBar.jsx";
-import { StatusBar } from "./StatusBar.jsx";
-import { getBaseUrl } from "./baseUrl.js";
+import { Graph } from './Graph.jsx';
+import { Controls } from './Controls.jsx';
+import { PresetsCard } from './PresetsCard.jsx';
+import { LedBar } from './LedBar.jsx';
+import { StatusBar } from './StatusBar.jsx';
+import { getBaseUrl } from './baseUrl.js';
 
 function ScheduleTable({ timers = [], presets = [], state }) {
   let nowMinutes = 0;
   if (state?.time && /^\d{2}:\d{2}:\d{2}$/.test(state.time)) {
-    const [h, m] = state.time.split(":").map(Number);
+    const [h, m] = state.time.split(':').map(Number);
     nowMinutes = h * 60 + m;
   } else {
     const now = new Date();
@@ -38,24 +38,24 @@ function ScheduleTable({ timers = [], presets = [], state }) {
         {timers.map((timer, idx) => {
           if (!timer.enabled && !timer.name && !timer.hour && !timer.minute)
             return null;
-          let timeStr = "--:--";
+          let timeStr = '--:--';
           if (
-            typeof timer.hour === "number" &&
-            typeof timer.minute === "number"
+            typeof timer.hour === 'number' &&
+            typeof timer.minute === 'number'
           ) {
-            timeStr = `${timer.hour.toString().padStart(2, "0")}:${timer.minute.toString().padStart(2, "0")}`;
+            timeStr = `${timer.hour.toString().padStart(2, '0')}:${timer.minute.toString().padStart(2, '0')}`;
           } else if (timer.time) {
             const d = new Date(timer.time);
             if (!Number.isNaN(d.getTime())) {
               timeStr = d.toLocaleTimeString([], {
-                hour: "2-digit",
-                minute: "2-digit",
+                hour: '2-digit',
+                minute: '2-digit',
               });
             }
           }
-          let presetStr = "--";
+          let presetStr = '--';
           if (
-            typeof timer.presetId === "number" &&
+            typeof timer.presetId === 'number' &&
             Array.isArray(presets) &&
             presets.length > 0
           ) {
@@ -72,15 +72,15 @@ function ScheduleTable({ timers = [], presets = [], state }) {
             <span className="timer-disabled">Disabled</span>
           );
           const brightStr =
-            typeof timer.brightness === "number"
+            typeof timer.brightness === 'number'
               ? `${timer.brightness}%`
-              : "--";
+              : '--';
           return (
             <tr
               key={
                 timer.id ?? `${timer.hour}-${timer.minute}-${timer.presetId}`
               }
-              className={idx === lastTimerIdx ? "active-timer-row" : ""}
+              className={idx === lastTimerIdx ? 'active-timer-row' : ''}
             >
               <td>{timeStr}</td>
               <td>{presetStr}</td>
@@ -107,9 +107,9 @@ export function Home({
   setActivePreset,
 }) {
   function applyPreset(presetId) {
-    fetch(getBaseUrl() + "/api/preset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    fetch(getBaseUrl() + '/api/preset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: presetId, apply: true }),
     }).then(() => setActivePreset?.(presetId));
   }
@@ -185,15 +185,15 @@ export function Home({
       <footer
         className="footer"
         style={{
-          textAlign: "center",
-          marginTop: "24px",
-          color: "#888",
-          fontSize: "0.95em",
+          textAlign: 'center',
+          marginTop: '24px',
+          color: '#888',
+          fontSize: '0.95em',
         }}
       >
         <span id="versionString">Version: {state.version}</span>
       </footer>
-      <div style={{ height: "60px" }}></div>
+      <div style={{ height: '60px' }}></div>
     </>
   );
 }

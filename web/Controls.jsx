@@ -1,4 +1,8 @@
-import { formatTransitionTime, steppedTransitionValue, rgbwToDisplayColor } from "./util.js";
+import {
+  formatTransitionTime,
+  steppedTransitionValue,
+  rgbwToDisplayColor,
+} from './util.js';
 
 export function ColorPickers({ colors, sendState }) {
   if (!colors) return null;
@@ -18,50 +22,50 @@ export function ColorPickers({ colors, sendState }) {
         }
         // Use a more unique key, e.g., color value plus index fallback
         return (
-          <div className="control-item" key={color + "-" + idx}>
+          <div className="control-item" key={color + '-' + idx}>
             <label
-              style={{ display: "flex", alignItems: "center", gap: "1px" }}
+              style={{ display: 'flex', alignItems: 'center', gap: '1px' }}
             >
               <span
-                style={{ width: "80px", fontWeight: 500, color: "#cfd8dc" }}
-              >{`${["Primary", "Secondary", "Tertiary"][idx]} Color`}</span>
+                style={{ width: '80px', fontWeight: 500, color: '#cfd8dc' }}
+              >{`${['Primary', 'Secondary', 'Tertiary'][idx]} Color`}</span>
               <div
-                style={{ position: "relative", width: "148px", height: "40px" }}
+                style={{ position: 'relative', width: '148px', height: '40px' }}
               >
                 <span
                   className="color-preview-swatch color-input-lookalike"
                   style={{
                     background: swatchColor,
-                    width: "100%",
-                    height: "100%",
-                    borderRadius: "8px",
-                    boxShadow: "0 0 6px #222",
-                    display: "block",
+                    width: '100%',
+                    height: '100%',
+                    borderRadius: '8px',
+                    boxShadow: '0 0 6px #222',
+                    display: 'block',
                   }}
                 ></span>
                 <input
                   type="color"
-                  aria-label={`${["Primary", "Secondary", "Tertiary"][idx]} Color`}
+                  aria-label={`${['Primary', 'Secondary', 'Tertiary'][idx]} Color`}
                   value={hex}
                   onChange={(e) => {
                     let newColors = [...colors];
                     let orig = newColors[idx];
-                    let w = orig.length === 9 ? orig.slice(7, 9) : "";
+                    let w = orig.length === 9 ? orig.slice(7, 9) : '';
                     newColors[idx] = e.target.value + w;
                     sendState({ params: { colors: newColors } });
                   }}
                   className="color-input color-picker-overlay"
                   style={{
                     opacity: 0,
-                    position: "absolute",
+                    position: 'absolute',
                     top: 0,
                     left: 0,
-                    width: "100%",
-                    height: "100%",
-                    cursor: "pointer",
+                    width: '100%',
+                    height: '100%',
+                    cursor: 'pointer',
                     margin: 0,
                     padding: 0,
-                    border: "none",
+                    border: 'none',
                   }}
                 />
               </div>
@@ -77,9 +81,9 @@ export function Controls({ state, effects, sendState }) {
   // Generic handler to avoid duplication for slider POST on release
   const sliderReleaseHandler = (extractValue, updateObj) => (e) => {
     sendState(
-      typeof updateObj === "function"
+      typeof updateObj === 'function'
         ? updateObj(extractValue(e))
-        : { [updateObj]: extractValue(e) },
+        : { [updateObj]: extractValue(e) }
     );
   };
 
@@ -93,13 +97,13 @@ export function Controls({ state, effects, sendState }) {
           <label className="switch" htmlFor="powerToggle">
             <span
               style={{
-                position: "absolute",
+                position: 'absolute',
                 width: 1,
                 height: 1,
                 padding: 0,
                 margin: -1,
-                overflow: "hidden",
-                clip: "rect(0,0,0,0)",
+                overflow: 'hidden',
+                clip: 'rect(0,0,0,0)',
                 border: 0,
               }}
             >
@@ -132,11 +136,11 @@ export function Controls({ state, effects, sendState }) {
           onInput={() => {}}
           onMouseUp={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
-            "brightness",
+            'brightness'
           )}
           onTouchEnd={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
-            "brightness",
+            'brightness'
           )}
         />
       </div>
@@ -146,9 +150,9 @@ export function Controls({ state, effects, sendState }) {
           <span>Transition Time</span>
           <span id="transitionValue">
             {formatTransitionTime(
-              typeof state.transitionTime === "number"
+              typeof state.transitionTime === 'number'
                 ? Math.round(state.transitionTime / 1000)
-                : 0,
+                : 0
             )}
           </span>
         </label>
@@ -167,16 +171,16 @@ export function Controls({ state, effects, sendState }) {
           className="slider-input"
           step="1"
           onInput={(e) => {
-            document.getElementById("transitionValue").textContent =
+            document.getElementById('transitionValue').textContent =
               formatTransitionTime(steppedTransitionValue(e.target.value));
           }}
           onMouseUp={sliderReleaseHandler(
             (e) => steppedTransitionValue(e.target.value) * 1000,
-            (v) => ({ transitionTime: v }),
+            (v) => ({ transitionTime: v })
           )}
           onTouchEnd={sliderReleaseHandler(
             (e) => steppedTransitionValue(e.target.value) * 1000,
-            (v) => ({ transitionTime: v }),
+            (v) => ({ transitionTime: v })
           )}
         />
       </div>
@@ -212,16 +216,16 @@ export function Controls({ state, effects, sendState }) {
           value={state.params?.speed}
           className="slider-input"
           onInput={(e) => {
-            document.getElementById("speedValue").textContent =
-              e.target.value + "%";
+            document.getElementById('speedValue').textContent =
+              e.target.value + '%';
           }}
           onMouseUp={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
-            (v) => ({ params: { speed: v } }),
+            (v) => ({ params: { speed: v } })
           )}
           onTouchEnd={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
-            (v) => ({ params: { speed: v } }),
+            (v) => ({ params: { speed: v } })
           )}
         />
       </div>
@@ -238,16 +242,16 @@ export function Controls({ state, effects, sendState }) {
           value={state.params?.intensity}
           className="slider-input"
           onInput={(e) => {
-            document.getElementById("intensityValue").textContent =
-              e.target.value + "%";
+            document.getElementById('intensityValue').textContent =
+              e.target.value + '%';
           }}
           onMouseUp={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
-            (v) => ({ params: { intensity: v } }),
+            (v) => ({ params: { intensity: v } })
           )}
           onTouchEnd={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value),
-            (v) => ({ params: { intensity: v } }),
+            (v) => ({ params: { intensity: v } })
           )}
         />
       </div>

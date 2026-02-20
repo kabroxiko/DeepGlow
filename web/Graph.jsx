@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "preact/hooks";
-import { rgbwHexToPreview } from "./util.js";
+import { useEffect, useRef } from 'preact/hooks';
+import { rgbwHexToPreview } from './util.js';
 
 // Helper to find the active timer for a given minute
 function findActiveTimer(minute, timers) {
@@ -8,8 +8,8 @@ function findActiveTimer(minute, timers) {
   for (const t of timers) {
     if (
       !t.enabled ||
-      typeof t.hour !== "number" ||
-      typeof t.minute !== "number"
+      typeof t.hour !== 'number' ||
+      typeof t.minute !== 'number'
     )
       continue;
     let tMin = t.hour * 60 + t.minute;
@@ -41,7 +41,7 @@ function getRampStepPoints(events, transitionDuration, minutesPerDay) {
       event.time,
       transitionDuration,
       minutesPerDay,
-      nextEvent.time,
+      nextEvent.time
     );
     const startBrightness = calcStartBrightness(
       event,
@@ -49,7 +49,7 @@ function getRampStepPoints(events, transitionDuration, minutesPerDay) {
       events,
       prevIdx,
       minutesPerDay,
-      transitionDuration,
+      transitionDuration
     );
     if (!points.length || points.at(-1).time !== event.time) {
       points.push({ time: event.time, brightness: startBrightness });
@@ -76,7 +76,7 @@ function calcStartBrightness(
   events,
   prevIdx,
   minutesPerDay,
-  transitionDuration,
+  transitionDuration
 ) {
   const tCurr = event.time;
   const tPrev = prevEvent.time;
@@ -107,7 +107,7 @@ function getBgColors(bgBlocks, timers, presets, rgbwHexToPreview) {
     const activeTimer = findActiveTimer(minute, timers);
     const preset = findPresetForTimer(activeTimer, presets);
     const primaryColor = preset?.params?.colors?.[0] ?? null;
-    return primaryColor ? rgbwHexToPreview(primaryColor) : "rgb(0,116,217)";
+    return primaryColor ? rgbwHexToPreview(primaryColor) : 'rgb(0,116,217)';
   });
 }
 
@@ -115,13 +115,13 @@ function buildFlatChartData(state) {
   const hours = Array.from({ length: 25 }, (_, h) => h);
   const flat = hours.map(() => state.brightness || 0);
   return {
-    labels: hours.map((h) => `${h.toString().padStart(2, "0")}:00`),
+    labels: hours.map((h) => `${h.toString().padStart(2, '0')}:00`),
     datasets: [
       {
-        label: "Brightness (%)",
+        label: 'Brightness (%)',
         data: flat,
-        borderColor: "#66ccff",
-        backgroundColor: "rgba(102,204,255,0.2)",
+        borderColor: '#66ccff',
+        backgroundColor: 'rgba(102,204,255,0.2)',
         fill: true,
         tension: 0,
         stepped: true,
@@ -136,7 +136,7 @@ function buildTimerChartData(
   minutesPerDay,
   timers,
   presets,
-  rgbwHexToPreview,
+  rgbwHexToPreview
 ) {
   let transitionDuration = config.transitionTimes.schedule / 1000 / 60;
   transitionDuration = Math.max(0.01, transitionDuration);
@@ -181,12 +181,12 @@ export function Graph({ state, timers, presets, config }) {
   const brightnessGraphRef = useRef(null);
   useEffect(() => {
     if (!brightnessGraphRef.current) return;
-    if (typeof config?.transitionTimes?.schedule !== "number") return;
+    if (typeof config?.transitionTimes?.schedule !== 'number') return;
 
     // Explicitly set canvas height and width to avoid Chart.js sizing bugs
-    brightnessGraphRef.current.style.height = "220px";
+    brightnessGraphRef.current.style.height = '220px';
     brightnessGraphRef.current.height = 220;
-    brightnessGraphRef.current.style.width = "100%";
+    brightnessGraphRef.current.style.width = '100%';
     brightnessGraphRef.current.width =
       brightnessGraphRef.current.offsetWidth || 600;
 
@@ -198,9 +198,9 @@ export function Graph({ state, timers, presets, config }) {
             .filter(
               (t) =>
                 t.enabled &&
-                typeof t.hour === "number" &&
-                typeof t.minute === "number" &&
-                typeof t.brightness === "number",
+                typeof t.hour === 'number' &&
+                typeof t.minute === 'number' &&
+                typeof t.brightness === 'number'
             )
             .map((t, idx) => ({
               time: t.hour * 60 + t.minute,
@@ -217,7 +217,7 @@ export function Graph({ state, timers, presets, config }) {
 
       // Chart.js plugin for vertical red line at actual time
       const actualTimeLinePlugin = {
-        id: "actualTimeLine",
+        id: 'actualTimeLine',
         afterDraw: (chart) => {
           const { ctx, chartArea, scales } = chart;
           if (!chartArea) return;
@@ -228,7 +228,7 @@ export function Graph({ state, timers, presets, config }) {
           ctx.moveTo(x, chartArea.top);
           ctx.lineTo(x, chartArea.bottom);
           ctx.lineWidth = 2;
-          ctx.strokeStyle = "red";
+          ctx.strokeStyle = 'red';
           ctx.globalAlpha = 0.9;
           ctx.stroke();
           ctx.setLineDash([]); // Reset to solid for other drawing
@@ -249,13 +249,13 @@ export function Graph({ state, timers, presets, config }) {
           scales: {
             x: {
               display: true,
-              title: { display: true, text: "Time (24h)" },
+              title: { display: true, text: 'Time (24h)' },
               min: 0,
               max: 24,
             },
             y: {
               display: true,
-              title: { display: true, text: "Brightness (%)" },
+              title: { display: true, text: 'Brightness (%)' },
               min: 0,
               max: 100,
             },
@@ -269,17 +269,17 @@ export function Graph({ state, timers, presets, config }) {
           minutesPerDay,
           timers,
           presets,
-          rgbwHexToPreview,
+          rgbwHexToPreview
         );
 
         const timeToLabel = (minute) => {
           const h = Math.floor(minute / 60);
-          return `${h.toString().padStart(2, "0")}` + "h";
+          return `${h.toString().padStart(2, '0')}` + 'h';
         };
         const bgBlocks = minutesArray;
 
         const colorBgPlugin = {
-          id: "colorBgByBlock",
+          id: 'colorBgByBlock',
           beforeDatasetsDraw: (chart) => {
             const { ctx, chartArea, scales } = chart;
             if (!chartArea) return;
@@ -302,7 +302,7 @@ export function Graph({ state, timers, presets, config }) {
                 x0,
                 chartArea.bottom,
                 x1,
-                chartArea.bottom,
+                chartArea.bottom
               );
               grad.addColorStop(0, bgColors[i - 1] || bgColors[i]);
               grad.addColorStop(1, bgColors[i]);
@@ -317,10 +317,10 @@ export function Graph({ state, timers, presets, config }) {
         chartData = {
           datasets: [
             {
-              label: "Brightness (%)",
+              label: 'Brightness (%)',
               data: pointsForChart,
-              borderColor: "#66ccff",
-              backgroundColor: "rgba(102,204,255,0.2)",
+              borderColor: '#66ccff',
+              backgroundColor: 'rgba(102,204,255,0.2)',
               fill: true,
               tension: 0,
               parsing: false, // Use x/y objects
@@ -335,13 +335,13 @@ export function Graph({ state, timers, presets, config }) {
           },
           elements: {
             line: { showLine: true },
-            point: { radius: 4, pointStyle: "circle" },
+            point: { radius: 4, pointStyle: 'circle' },
           },
           scales: {
             x: {
-              type: "linear",
+              type: 'linear',
               display: true,
-              title: { display: true, text: "Time (24h)" },
+              title: { display: true, text: 'Time (24h)' },
               min: 0,
               max: 1440,
               ticks: {
@@ -350,7 +350,7 @@ export function Graph({ state, timers, presets, config }) {
                   // Show label at each event/ramp point and on the hour
                   if (minutesArray.includes(value)) return timeToLabel(value);
                   if (value % 60 === 0) return timeToLabel(value);
-                  return "";
+                  return '';
                 },
               },
             },
@@ -360,7 +360,7 @@ export function Graph({ state, timers, presets, config }) {
               max: 100,
               title: {
                 display: true,
-                text: "Brightness (%)",
+                text: 'Brightness (%)',
               },
             },
           },
@@ -374,9 +374,9 @@ export function Graph({ state, timers, presets, config }) {
         brightnessGraphRef.current._chartInstance = null;
       }
       // Create new Chart.js instance
-      const ctx = brightnessGraphRef.current.getContext("2d");
+      const ctx = brightnessGraphRef.current.getContext('2d');
       brightnessGraphRef.current._chartInstance = new globalThis.Chart(ctx, {
-        type: "line",
+        type: 'line',
         data: chartData,
         options: chartOptions,
         plugins: chartPlugins,
@@ -385,8 +385,8 @@ export function Graph({ state, timers, presets, config }) {
 
     // If Chart.js is not loaded, load from CDN
     if (globalThis.Chart === undefined) {
-      const script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/chart.js';
       script.async = true;
       script.onload = renderChart;
       document.body.appendChild(script);
@@ -398,18 +398,18 @@ export function Graph({ state, timers, presets, config }) {
     function handleWindowFocus() {
       renderChart();
     }
-    globalThis.addEventListener("focus", handleWindowFocus);
+    globalThis.addEventListener('focus', handleWindowFocus);
 
     // Resize chart on window resize to fix tall/short bug
     function handleResize() {
       brightnessGraphRef.current?._chartInstance?.resize();
     }
-    globalThis.addEventListener("resize", handleResize);
+    globalThis.addEventListener('resize', handleResize);
 
     // Cleanup on unmount
     return () => {
-      globalThis.removeEventListener("resize", handleResize);
-      globalThis.removeEventListener("focus", handleWindowFocus);
+      globalThis.removeEventListener('resize', handleResize);
+      globalThis.removeEventListener('focus', handleWindowFocus);
       if (brightnessGraphRef.current?._chartInstance) {
         brightnessGraphRef.current._chartInstance.destroy();
         brightnessGraphRef.current._chartInstance = null;
@@ -423,11 +423,11 @@ export function Graph({ state, timers, presets, config }) {
       id="brightnessGraph"
       tabIndex={0}
       style={{
-        width: "100%",
-        maxWidth: "100%",
-        height: "220px",
-        marginTop: "16px",
-        outline: "none",
+        width: '100%',
+        maxWidth: '100%',
+        height: '220px',
+        marginTop: '16px',
+        outline: 'none',
       }}
     ></canvas>
   );

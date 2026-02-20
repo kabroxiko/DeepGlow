@@ -1,4 +1,4 @@
-import { steppedTransitionValue, formatTransitionTime } from "../util.js";
+import { steppedTransitionValue, formatTransitionTime } from '../util.js';
 
 export function SafetySettings({ config, setConfig }) {
   return (
@@ -33,7 +33,7 @@ export function SafetySettings({ config, setConfig }) {
             className="slider-input"
             value={(() => {
               const sec = Math.round(
-                Number(config?.safety?.minTransitionTime) / 1000,
+                Number(config?.safety?.minTransitionTime) / 1000
               );
               if (sec <= 59) return sec;
               if (sec < 3600) return 59 + Math.round(sec / 60);
@@ -52,7 +52,7 @@ export function SafetySettings({ config, setConfig }) {
           />
           <span>
             {formatTransitionTime(
-              Math.round(Number(config?.safety?.minTransitionTime) / 1000),
+              Math.round(Number(config?.safety?.minTransitionTime) / 1000)
             )}
           </span>
         </div>

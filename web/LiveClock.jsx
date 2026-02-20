@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "preact/hooks";
+import { useEffect, useRef } from 'preact/hooks';
 
 export function LiveClock() {
   const spanRef = useRef(null);
@@ -8,9 +8,9 @@ export function LiveClock() {
       if (spanRef.current) {
         const now = new Date();
         spanRef.current.textContent = now.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
         });
       }
     }

@@ -11,10 +11,10 @@
  * - Preset management
  */
 
-#include <Arduino.h>
-#include <memory>
 #include "network.h"
+#include <Arduino.h>
 #include <LittleFS.h>
+#include <memory>
 #define FILESYSTEM LittleFS
 #include <type_traits>
 
@@ -163,7 +163,8 @@ void setup() {
 
     // --- Apply transition if maxBrightness changed ---
     if (config.safety.maxBrightness != lastConfiguration.safety.maxBrightness) {
-      // If current brightness is above new max, transition down; otherwise, re-apply current brightness with transition
+      // If current brightness is above new max, transition down; otherwise,
+      // re-apply current brightness with transition
       uint8_t targetBrightness = state.brightness;
       if (state.brightness > config.safety.maxBrightness) {
         targetBrightness = config.safety.maxBrightness;

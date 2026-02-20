@@ -47,7 +47,7 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
                   time: { ...c.time, dstEnabled: e.target.checked },
                 }))
               }
-            />{" "}
+            />{' '}
             Summer Time (DST)
           </label>
         </div>
@@ -90,9 +90,9 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
       </div>
       <div
         style={{
-          display: "flex",
-          justifyContent: "flex-end",
-          marginTop: "0.5em",
+          display: 'flex',
+          justifyContent: 'flex-end',
+          marginTop: '0.5em',
         }}
       >
         <button
@@ -105,18 +105,18 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
             const left = window.screenX + (window.outerWidth - w) / 2;
             const top = window.screenY + (window.outerHeight - h) / 2;
             const popup = window.open(
-              "https://locate.wled.me",
-              "wled_gps",
-              `width=${w},height=${h},left=${left},top=${top},resizable,scrollbars`,
+              'https://locate.wled.me',
+              'wled_gps',
+              `width=${w},height=${h},left=${left},top=${top},resizable,scrollbars`
             );
             if (popup) popup.focus();
             function handleMessage(event) {
-              if (event.origin !== "https://locate.wled.me") return;
+              if (event.origin !== 'https://locate.wled.me') return;
               if (
                 event.data &&
-                typeof event.data === "object" &&
-                "lat" in event.data &&
-                "lon" in event.data
+                typeof event.data === 'object' &&
+                'lat' in event.data &&
+                'lon' in event.data
               ) {
                 setConfig((c) => ({
                   ...c,
@@ -127,10 +127,10 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
                   },
                 }));
                 if (popup && !popup.closed) popup.close();
-                window.removeEventListener("message", handleMessage);
+                window.removeEventListener('message', handleMessage);
               }
             }
-            window.addEventListener("message", handleMessage);
+            window.addEventListener('message', handleMessage);
           }}
         >
           Get from GPS
