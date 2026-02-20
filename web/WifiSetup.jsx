@@ -34,7 +34,7 @@ export function WifiSetup() {
             setScanning(false);
           }
         })
-        .catch((e) => {
+        .catch(() => {
           setError('Failed to scan networks');
           setScanning(false);
         });

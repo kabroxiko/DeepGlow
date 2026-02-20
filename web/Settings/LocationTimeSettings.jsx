@@ -32,7 +32,9 @@ export function LocationTimeSettings({ config, setConfig, timezones }) {
             }
           >
             {timezones.map((tz) => (
-              <option value={tz}>{tz}</option>
+              <option key={tz} value={tz}>
+                {tz}
+              </option>
             ))}
           </select>
         </div>

@@ -22,7 +22,7 @@ export function ColorPickers({ colors, sendState }) {
         }
         // Use a more unique key, e.g., color value plus index fallback
         return (
-          <div className="control-item" key={color + '-' + idx}>
+          <div className="control-item" key={`${color  }-${  idx}`}>
             <label
               style={{ display: 'flex', alignItems: 'center', gap: '1px' }}
             >
@@ -42,7 +42,7 @@ export function ColorPickers({ colors, sendState }) {
                     boxShadow: '0 0 6px #222',
                     display: 'block',
                   }}
-                ></span>
+                 />
                 <input
                   type="color"
                   aria-label={`${['Primary', 'Secondary', 'Tertiary'][idx]} Color`}
@@ -116,7 +116,7 @@ export function Controls({ state, effects, sendState }) {
               onChange={(e) => sendState({ power: e.target.checked })}
               aria-label="Power toggle"
             />
-            <span className="slider"></span>
+            <span className="slider" />
           </label>
         </div>
       </div>
@@ -135,11 +135,11 @@ export function Controls({ state, effects, sendState }) {
           className="slider-input"
           onInput={() => {}}
           onMouseUp={sliderReleaseHandler(
-            (e) => Number.parseInt(e.target.value),
+            (e) => Number.parseInt(e.target.value, 10),
             'brightness'
           )}
           onTouchEnd={sliderReleaseHandler(
-            (e) => Number.parseInt(e.target.value),
+            (e) => Number.parseInt(e.target.value, 10),
             'brightness'
           )}
         />
@@ -192,7 +192,7 @@ export function Controls({ state, effects, sendState }) {
           className="select-input"
           value={state.effect}
           onChange={(e) =>
-            sendState({ effect: Number.parseInt(e.target.value) })
+            sendState({ effect: Number.parseInt(e.target.value, 10) })
           }
         >
           {effects.map((effect) => (
@@ -217,14 +217,14 @@ export function Controls({ state, effects, sendState }) {
           className="slider-input"
           onInput={(e) => {
             document.getElementById('speedValue').textContent =
-              e.target.value + '%';
+              `${e.target.value  }%`;
           }}
           onMouseUp={sliderReleaseHandler(
-            (e) => Number.parseInt(e.target.value),
+            (e) => Number.parseInt(e.target.value, 10),
             (v) => ({ params: { speed: v } })
           )}
           onTouchEnd={sliderReleaseHandler(
-            (e) => Number.parseInt(e.target.value),
+            (e) => Number.parseInt(e.target.value, 10),
             (v) => ({ params: { speed: v } })
           )}
         />
@@ -243,14 +243,14 @@ export function Controls({ state, effects, sendState }) {
           className="slider-input"
           onInput={(e) => {
             document.getElementById('intensityValue').textContent =
-              e.target.value + '%';
+              `${e.target.value  }%`;
           }}
           onMouseUp={sliderReleaseHandler(
-            (e) => Number.parseInt(e.target.value),
+            (e) => Number.parseInt(e.target.value, 10),
             (v) => ({ params: { intensity: v } })
           )}
           onTouchEnd={sliderReleaseHandler(
-            (e) => Number.parseInt(e.target.value),
+            (e) => Number.parseInt(e.target.value, 10),
             (v) => ({ params: { intensity: v } })
           )}
         />

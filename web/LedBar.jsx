@@ -10,7 +10,7 @@ import {
  * Floating LED Bar Canvas
  * @param {import('preact').Ref<any>} ref
  */
-export const LedBar = forwardRef(function LedBar(_unused, ref) {
+export const LedBar = forwardRef((_unused, ref) => {
   // Internal buffer ref
   const bufferRef = useRef(null);
   const canvasRef = useRef(null);
@@ -98,7 +98,7 @@ export const LedBar = forwardRef(function LedBar(_unused, ref) {
           height: '32px',
           display: 'block',
         }}
-      ></canvas>
+       />
     </div>
   );
 });

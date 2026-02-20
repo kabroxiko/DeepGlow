@@ -19,5 +19,5 @@ export function LiveClock() {
     return () => clearInterval(interval);
   }, []);
 
-  return <span id="currentTime" ref={spanRef}></span>;
+  return <span id="currentTime" ref={spanRef} />;
 }

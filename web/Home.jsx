@@ -107,7 +107,7 @@ export function Home({
   setActivePreset,
 }) {
   function applyPreset(presetId) {
-    fetch(getBaseUrl() + '/api/preset', {
+    fetch(`${getBaseUrl()  }/api/preset`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: presetId, apply: true }),
@@ -193,7 +193,7 @@ export function Home({
       >
         <span id="versionString">Version: {state.version}</span>
       </footer>
-      <div style={{ height: '60px' }}></div>
+      <div style={{ height: '60px' }} />
     </>
   );
 }
