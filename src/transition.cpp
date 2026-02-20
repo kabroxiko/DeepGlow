@@ -42,23 +42,23 @@ void TransitionEngine::blendTransitionFrames(
   std::vector<uint32_t> nextFrame(count, 0);
   if (brightnessOnly) {
     auto colors = parse_colors_vec(pendingTransition.params.colors);
-    size_t colorCount = pendingTransition.params.colors.size() > 0
+    size_t nextColorCount = pendingTransition.params.colors.size() > 0
                             ? pendingTransition.params.colors.size()
                             : 1;
     uint8_t prevBrightness = _currentState.brightness;
     uint8_t nextBrightness = _targetState.brightness;
     renderEffectToBuffer(pendingTransition.effect, pendingTransition.params,
-                         prevFrame, count, colors, colorCount, prevBrightness);
+                         prevFrame, count, colors, nextColorCount,
+                         prevBrightness);
     renderEffectToBuffer(pendingTransition.effect, pendingTransition.params,
-                         nextFrame, count, colors, colorCount, nextBrightness);
+                         nextFrame, count, colors, nextColorCount,
+                         nextBrightness);
   } else {
     if (state.prevEffect == 0) {
       prevFrame = getPreviousFrame();
     } else {
       auto prevColors = parse_colors_vec(state.prevParams.colors);
-      size_t prevColorCount = state.prevParams.colors.size() > 0
-                                  ? state.prevParams.colors.size()
-                                  : 1;
+      size_t prevColorCount = state.prevParams.colors.size() > 0 ? state.prevParams.colors.size() : 1;
       uint8_t prevBrightness = _currentState.brightness;
       renderEffectToBuffer(state.prevEffect, state.prevParams, prevFrame, count,
                            prevColors, prevColorCount, prevBrightness);

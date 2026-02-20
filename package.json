@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "lint": "eslint web/**/*.jsx web/**/*.js"
   },
   "dependencies": {
     "@preact/preset-vite": "^2.10.3",

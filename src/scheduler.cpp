@@ -47,10 +47,11 @@ const Timer *Scheduler::getActiveTimer() {
 Scheduler::Scheduler(Configuration *config) {
   _config = config;
   int tzOffset = 0;
-  if (_config)
+  if (_config) {
     tzOffset = _config->getTimezoneOffsetSeconds();
-  _timeClient = new NTPClient(_ntpUDP, _config->time.ntpServer.c_str(),
-                              tzOffset, NTP_UPDATE_INTERVAL);
+    _timeClient = new NTPClient(_ntpUDP, _config->time.ntpServer.c_str(),
+                                tzOffset, NTP_UPDATE_INTERVAL);
+  }
 }
 
 void Scheduler::begin() {
@@ -333,7 +334,7 @@ int8_t Scheduler::getCurrentScheduledPreset() {
   int currentMinutes = timeToMinutes(getCurrentHour(), getCurrentMinute());
   int8_t mostRecentPreset = -1;
   int mostRecentMinutes = -1;
-  int minutesInDay = 24 * 60;
+  // int minutesInDay = 24 * 60;
   // Find the most recent timer that should have triggered (today)
   for (size_t i = 0; i < _config->timers.size(); i++) {
     if (!isTimerActive(_config->timers[i], 0))
