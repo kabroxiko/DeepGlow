@@ -7,7 +7,9 @@ import { getBaseUrl } from './baseUrl.js';
 
 function ScheduleTable({ timers = [], presets = [], state }) {
   let nowMinutes = 0;
-  if (state?.time && /^\d{2}:\d{2}:\d{2}$/.test(state.time)) {
+  if (state?.time === '--:--') {
+    nowMinutes = -1; // Use -1 to indicate unknown time
+  } else if (state?.time && /^\d{2}:\d{2}:\d{2}$/.test(state.time)) {
     const [h, m] = state.time.split(':').map(Number);
     nowMinutes = h * 60 + m;
   } else {
@@ -136,7 +138,7 @@ export function Home({
         {/* Header */}
         <header className="header">
           <h1>🐠 Aquarium Control</h1>
-          <StatusBar setTab={setTab} />
+          <StatusBar setTab={setTab} time={state && typeof state.time === 'string' ? state.time : '--:--'} />
         </header>
         {/* Quick Controls */}
         <section className="card">

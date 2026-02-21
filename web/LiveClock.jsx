@@ -1,23 +1,43 @@
-import { useEffect, useRef } from 'preact/hooks';
+import { useState, useEffect, useRef } from 'preact/hooks';
 
-export function LiveClock() {
-  const spanRef = useRef(null);
+export function LiveClock({ time }) {
+  const [displayedTime, setDisplayedTime] = useState('--:--');
+  const intervalRef = useRef(null);
 
   useEffect(() => {
+    console.log('LiveClock received time prop:', time);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (time === '--:--') {
+      setDisplayedTime('--:--');
+      return;
+    }
+    if (typeof time === 'string' && /^\d{2}:\d{2}(:\d{2})?$/.test(time)) {
+      setDisplayedTime(time);
+      return;
+    }
+    // Otherwise, show local time and update every second
     function update() {
-      if (spanRef.current) {
-        const now = new Date();
-        spanRef.current.textContent = now.toLocaleTimeString([], {
+      const now = new Date();
+      setDisplayedTime(
+        now.toLocaleTimeString([], {
           hour: '2-digit',
           minute: '2-digit',
           second: '2-digit',
-        });
-      }
+        })
+      );
     }
     update();
-    const interval = setInterval(update, 1000);
-    return () => clearInterval(interval);
-  }, []);
+    intervalRef.current = setInterval(update, 1000);
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [time]);
 
-  return <span id="currentTime" ref={spanRef} />;
+  return <span id="currentTime">{displayedTime}</span>;
 }

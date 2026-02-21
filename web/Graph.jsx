@@ -211,14 +211,20 @@ export function Graph({ state, timers, presets, config }) {
         : [];
 
       // Calculate actual time in minutes
-      const now = new Date();
-      const actualMinutes =
-        now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      let actualMinutes = null;
+      if (state?.time && state.time !== '--:--' && /^\d{2}:\d{2}(:\d{2})?$/.test(state.time)) {
+        const parts = state.time.split(':').map(Number);
+        actualMinutes = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
+      } else if (state?.time !== '--:--') {
+        const now = new Date();
+        actualMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+      }
 
       // Chart.js plugin for vertical red line at actual time
       const actualTimeLinePlugin = {
         id: 'actualTimeLine',
         afterDraw: (chart) => {
+          if (actualMinutes === null) return;
           const { ctx, chartArea, scales } = chart;
           if (!chartArea) return;
           const x = scales.x.getPixelForValue(actualMinutes);
