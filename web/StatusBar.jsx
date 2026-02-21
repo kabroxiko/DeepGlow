@@ -6,6 +6,7 @@ export function StatusBar({
   indicatorColor = 'var(--success)',
   showIndicator = true,
   children,
+  time,
 }) {
   const tab = useCurrentTab();
   const { label, svgPath, nextTab } = BUTTONS[tab] || {};
@@ -14,6 +15,7 @@ export function StatusBar({
       setTab(nextTab);
     }
   };
+  // Accept state/time as prop if passed via children or context
   return (
     <div className="status-bar">
       {showIndicator && (
@@ -25,7 +27,7 @@ export function StatusBar({
           ●
         </span>
       )}
-      <LiveClock />
+      <LiveClock time={time} />
       {children}
       <button
         type="button"
