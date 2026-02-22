@@ -1,38 +1,26 @@
-
 #ifndef NETWORK_H
 #define NETWORK_H
 
-// Core includes
-#include <Arduino.h>
-#ifdef ESP8266
-#include <ESP8266WiFi.h>
-#else
-#include <WiFi.h>
-#endif
 #include "config.h"
-#include "debug.h"
-#include <DNSServer.h>
-#include <ESPAsyncWebServer.h>
+#include "esp_wifi.h"
+#include "esp_netif.h"
+#include "esp_event.h"
+#include "esp_log.h"
+#include <string>
 
-// --- Network API ---
-
-// Setup WiFi and captive portal
+// Setup WiFi (STA+AP) and captive portal DNS task
 void networkSetup(Configuration &config);
 
-// Main loop handler for network/captive portal
+// Call in main loop - handles periodic STA reconnect
 void networkLoop(Configuration &config);
-// Processes captive portal DNS in AP or AP+STA mode
-void processCaptivePortalDNS();
 
-// Get current IP as string (AP or STA)
-String getCurrentIpString(const Configuration &config);
+// Returns true if STA interface has an IP
+bool networkIsStaConnected();
 
-// Setup web server WiFi/captive portal handlers
-void setupWiFiHandlers(AsyncWebServer *server, Configuration *config);
+// Returns true if currently in AP-only or AP fallback mode
+bool networkIsApMode();
 
-// Captive portal DNS control
-void startCaptivePortal(const IPAddress &apIP);
-void stopCaptivePortal();
-void handleCaptivePortalDns();
+// Returns current IP address as string (AP or STA)
+std::string getCurrentIpString(const Configuration &config);
 
 #endif // NETWORK_H

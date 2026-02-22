@@ -6,7 +6,7 @@
     "apPassword": ""
   },
   "led": {
-    "pin": 13,
+    "pin": 4,
     "count": 34,
     "type": "SK6812",
     "colorOrder": "GRB",

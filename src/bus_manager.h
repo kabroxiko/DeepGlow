@@ -1,6 +1,7 @@
 #pragma once
 #include "debug.h"
 #include <memory>
+#include <string>
 #include <numeric>
 #include <stdint.h>
 #include <vector>
@@ -41,7 +42,7 @@ public:
   void turnOffLEDs();
   BusNeoPixel *getNeoPixelBus();
   void addBus(std::unique_ptr<Bus> bus) { buses.push_back(std::move(bus)); }
-  void setupStrip(const String &type, const String &colorOrder, uint8_t pin,
+  void setupStrip(const std::string &type, const std::string &colorOrder, uint8_t pin,
                   uint16_t count);
   void cleanupStrip();
   void show() {

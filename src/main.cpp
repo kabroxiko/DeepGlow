@@ -12,12 +12,11 @@
  */
 
 #include "network.h"
-#include <Arduino.h>
-#include <LittleFS.h>
-#include <memory>
-#define FILESYSTEM LittleFS
-#include <type_traits>
-
+#include "esp_log.h"
+#include "nvs_flash.h"
+#include "driver/gpio.h"
+#include "esp_timer.h"
+#include <string.h>
 #include "bus_manager.h"
 #include "config.h"
 #include "debug.h"
@@ -28,7 +27,6 @@
 #include "state.h"
 #include "transition.h"
 #include "webserver.h"
-#include <Arduino.h>
 
 #include "display.h"
 #include "inc/version.inc"
@@ -68,51 +66,74 @@ void setupLEDs();
 void addBusToManager();
 void checkSchedule();
 void checkAndApplyScheduleAfterBoot();
+extern "C" void main_task(void *pvParameters);
 
-void setup() {
-  Serial.begin(SERIAL_BAUD);
+// ESP-IDF: Replace setup() with app_main()
+extern "C" void app_main() {
+  // app_main has a small stack — do nothing heavy here.
+  // Just delay for USB enumeration, then hand off to main_task.
+  vTaskDelay(pdMS_TO_TICKS(3000));
+  xTaskCreate(main_task, "main_task", 32768, NULL, 5, NULL);
+}
+
+void main_task(void *pvParameters) {
+  esp_log_level_set("main", ESP_LOG_INFO);
+  ESP_LOGI("main", "Aquarium LED Controller starting... stack=%u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+
+  // NVS must be initialized before WiFi
+  esp_err_t nvs_err = nvs_flash_init();
+  if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+    nvs_flash_erase();
+    nvs_err = nvs_flash_init();
+  }
+  ESP_ERROR_CHECK(nvs_err);
+
   webServerPtr = &webServer;
+  ESP_LOGI("main", "step: config.load");
+
   // Load configuration
   if (!config.load()) {
     config.setDefaults();
     config.save();
   }
   lastConfiguration = config;
+  ESP_LOGI("main", "step: presets");
 
   // Load presets
   if (!loadPresets(config.presets)) {
     debugPrintln("Failed to load presets");
     savePresets(config.presets);
   }
+  ESP_LOGI("main", "step: LEDs pin=%d count=%d type=%s order=%s",
+           config.led.pin, config.led.count,
+           config.led.type.c_str(), config.led.colorOrder.c_str());
 
-  // Initialize LEDs and BusManager
-  setupLEDs();
-  updatePixelCount();
-  busManager.turnOffLEDs();
+  // Guard: skip LED init if config is invalid
+  if (config.led.count > 0 && config.led.count <= 512 && config.led.pin < 22) {
+    setupLEDs();
+    updatePixelCount();
+    busManager.turnOffLEDs();
+  } else {
+    ESP_LOGW("main", "Skipping LED init: invalid config (count=%d pin=%d)", config.led.count, config.led.pin);
+  }
 
   // Initialize relay pin from config
-  pinMode(config.led.relayPin, OUTPUT);
-  digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
+  gpio_set_direction((gpio_num_t)config.led.relayPin, GPIO_MODE_OUTPUT);
+  gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 0 : 1);
 
   // Initialize transition engine brightness to default
   transition.forceCurrentBrightness(state.brightness);
+  ESP_LOGI("main", "step: network");
 
-  delay(1000);
-  debugPrintln();
-  debugPrintln("=================================");
-  debugPrintln("  Aquarium LED Controller");
-  debugPrintln("  Version: %s", FW_VERSION);
-  debugPrintln("=================================");
-
-  // List files in LittleFS for debugging
-  LittleFS.begin();
-
-  // Initialize display (test)
+  // Initialize display
+#ifdef DISPLAY_ENABLED
   setup_display();
+#endif
 
   // Connect to WiFi
   networkSetup(config);
-  delay(500);
+  vTaskDelay(pdMS_TO_TICKS(500));
+  ESP_LOGI("main", "step: webserver setup");
 
   // Setup web server callbacks
   webServer.onPowerChange(setPower);
@@ -122,10 +143,10 @@ void setup() {
     applyPreset(presetId, transition._targetState.brightness);
   });
   webServer.onConfigChange([]() {
-    pinMode(config.led.relayPin, OUTPUT);
-    digitalWrite(config.led.relayPin,
-                 state.power ? (config.led.relayActiveHigh ? HIGH : LOW)
-                             : (config.led.relayActiveHigh ? LOW : HIGH));
+    gpio_set_direction((gpio_num_t)config.led.relayPin, GPIO_MODE_OUTPUT);
+    gpio_set_level((gpio_num_t)config.led.relayPin,
+           state.power ? (config.led.relayActiveHigh ? 1 : 0)
+                 : (config.led.relayActiveHigh ? 0 : 1));
     bool locationChanged =
         config.time.latitude != lastConfiguration.time.latitude ||
         config.time.longitude != lastConfiguration.time.longitude;
@@ -163,8 +184,6 @@ void setup() {
 
     // --- Apply transition if maxBrightness changed ---
     if (config.safety.maxBrightness != lastConfiguration.safety.maxBrightness) {
-      // If current brightness is above new max, transition down; otherwise,
-      // re-apply current brightness with transition
       uint8_t targetBrightness = state.brightness;
       if (state.brightness > config.safety.maxBrightness) {
         targetBrightness = config.safety.maxBrightness;
@@ -179,90 +198,77 @@ void setup() {
   setupArduinoOTA(config.network.hostname.c_str());
 
   // Only wait for time sync if connected to WiFi (STA mode)
-  if (WiFi.getMode() == WIFI_STA && WiFi.isConnected()) {
-    debugPrintln("Waiting for time sync...");
+  bool wifi_sta_connected = networkIsStaConnected();
+  if (wifi_sta_connected) {
+    ESP_LOGI("main", "Waiting for time sync...");
     for (int i = 0; i < 30; i++) {
       scheduler.update();
       if (scheduler.isTimeValid()) {
-        debugPrintln("Time synchronized!");
+        ESP_LOGI("main", "Time synchronized!");
         break;
       }
-      delay(1000);
+      vTaskDelay(pdMS_TO_TICKS(1000));
     }
   } else {
-    debugPrintln("Skipping time sync (AP mode)");
-    // Scan for WiFi networks and print SSIDs in AP mode for captive portal
-    debugPrintln("Scanning for WiFi networks...");
-    int n = WiFi.scanNetworks();
-    if (n == 0) {
-      debugPrintln("No networks found");
-    } else {
-      debugPrintln("Networks found:");
-      for (int i = 0; i < n; ++i) {
-        debugPrint("  ");
-        debugPrintln(WiFi.SSID(i));
-      }
-    }
+    ESP_LOGI("main", "Skipping time sync (AP mode)");
   }
 
-  debugPrintln();
-  debugPrintln("System ready!");
-  debugPrint("IP Address: ");
-  debugPrintln(getCurrentIpString(config));
-  debugPrintln("=================================");
+  ESP_LOGI("main", "System ready!");
+  ESP_LOGI("main", "IP Address: %s", getCurrentIpString(config).c_str());
+  ESP_LOGI("main", "=================================");
 
   transition.forceCurrentBrightness(state.brightness);
   setEffect(state.effect, state.params);
   setBrightness(state.brightness);
   setPower(state.power);
-}
 
-void loop() {
-  // Prioritize OTA: if OTA is in progress, only handle OTA and show debug dots
-  if (otaInProgress) {
+  // --- Main loop ---
+  int lastCheckedMinute = -1;
+  uint64_t lastFrame = 0;
+  std::string lastPreset;
+  bool lastPower = false;
+  uint8_t lastBrightness = 0;
+  std::string lastIp;
+  while (true) {
+    if (otaInProgress) {
+      handleArduinoOTA();
+      vTaskDelay(pdMS_TO_TICKS(100));
+      continue;
+    }
+    if (scheduler.isTimeValid()) {
+      checkAndApplyScheduleAfterBoot();
+      int currentMinute = scheduler.getCurrentMinute();
+      if (currentMinute != lastCheckedMinute) {
+        checkSchedule();
+        lastCheckedMinute = currentMinute;
+      }
+    }
     handleArduinoOTA();
-    // Show debug dots handled in OTA progress callback
-    return;
-  }
-  // Only run schedule logic if time is valid
-  if (scheduler.isTimeValid()) {
-    checkAndApplyScheduleAfterBoot();
-    // Only check schedule on a new round minute
-    static int lastCheckedMinute = -1;
-    int currentMinute = scheduler.getCurrentMinute();
-    if (currentMinute != lastCheckedMinute) {
-      checkSchedule();
-      lastCheckedMinute = currentMinute;
+    scheduler.update();
+    webServer.update();
+    transition.update();
+    networkLoop(config);
+    uint64_t now = esp_timer_get_time() / 1000;
+    if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
+      lastFrame = now;
+      updateLEDs();
+      std::string presetName = "-";
+      if (state.preset < config.getPresetCount()) {
+        presetName = config.presets[state.preset].name;
+      }
+      std::string ipStr = getCurrentIpString(config);
+      if (presetName != lastPreset || state.power != lastPower ||
+          state.brightness != lastBrightness || ipStr != lastIp) {
+        #ifdef DISPLAY_ENABLED
+        display_status(presetName.c_str(), state.power, ipStr.c_str());
+        #endif
+        lastPreset = presetName;
+        lastPower = state.power;
+        lastBrightness = state.brightness;
+        lastIp = ipStr;
+      }
     }
-  }
-  handleArduinoOTA();
-  scheduler.update();
-  webServer.update();
-  transition.update();
-  networkLoop(config);
-  static uint32_t lastFrame = 0;
-  uint32_t now = millis();
-  if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
-    lastFrame = now;
-    updateLEDs();
-    // Only update display if status changes
-    static String lastPreset;
-    static bool lastPower = false;
-    static uint8_t lastBrightness = 0;
-    static String lastIp;
-    String presetName = "-";
-    if (state.preset < config.getPresetCount()) {
-      presetName = config.presets[state.preset].name;
-    }
-    String ipStr = getCurrentIpString(config);
-    if (presetName != lastPreset || state.power != lastPower ||
-        state.brightness != lastBrightness || ipStr != lastIp) {
-      display_status(presetName.c_str(), state.power, ipStr.c_str());
-      lastPreset = presetName;
-      lastPower = state.power;
-      lastBrightness = state.brightness;
-      lastIp = ipStr;
-    }
+    vTaskDelay(pdMS_TO_TICKS(10)); // Small delay to yield
   }
 }
 

@@ -1,8 +1,8 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <Arduino.h>
 #include <ArduinoJson.h>
+#include <string>
 #include <vector>
 
 // LED Configuration
@@ -32,8 +32,8 @@ enum TimerType { TIMER_REGULAR = 0, TIMER_SUNRISE = 1, TIMER_SUNSET = 2 };
 struct LEDConfig {
   uint8_t pin;
   uint16_t count;
-  String type;
-  String colorOrder;
+  std::string type;
+  std::string colorOrder;
   int relayPin;
   bool relayActiveHigh; // true: HIGH=on, false: LOW=on
 };
@@ -64,24 +64,24 @@ struct SafetyConfig {
 };
 
 struct NetworkConfig {
-  String hostname;
-  String apPassword;
-  String ssid;
-  String password;
+  std::string hostname;
+  std::string apPassword;
+  std::string ssid;
+  std::string password;
 };
 
 struct TimeConfig {
-  String ntpServer;
-  String timezone; // IANA timezone string, e.g. "America/Los_Angeles"
+  std::string ntpServer;
+  std::string timezone; // IANA timezone string, e.g. "America/Los_Angeles"
   double latitude;
   double longitude;
   bool dstEnabled;
 };
 
 struct EffectParams {
-  uint8_t speed = 255; // internal (1–255)
+  uint8_t speed = 255; // internal (1-255)
   uint8_t intensity = 128;
-  std::vector<String> colors = {"#000000", "#000000"};
+  std::vector<std::string> colors = {"#000000", "#000000"};
   bool reverse = false;
 };
 
@@ -101,7 +101,7 @@ struct Timer {
 
 struct Preset {
   uint8_t id = 0;
-  String name = "";
+  std::string name = "";
   uint8_t effect = 0;
   EffectParams params;
   bool enabled = true;
@@ -127,13 +127,13 @@ public:
   void setDefaults();
 
   // Serialize config to JSON string for API
-  String toJsonString();
+  std::string toJsonString();
 
   // GPS and timezone helpers
   void updateLocationFromGPS(float lat, float lon, bool valid);
   int getTimezoneOffsetSeconds(); // Returns offset in seconds for current
                                   // timezone
-  std::vector<String> getSupportedTimezones();
+  std::vector<std::string> getSupportedTimezones();
 
   bool saveToFile(const char *path, const JsonDocument &doc);
   bool loadFromFile(const char *path, JsonDocument &doc); // <-- move to public

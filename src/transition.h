@@ -4,7 +4,6 @@
 #include "config.h"
 #include "debug.h"
 #include "state.h"
-#include <Arduino.h>
 
 class TransitionEngine {
 public:

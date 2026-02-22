@@ -1,572 +1,414 @@
 #define DEEPGLOW_REPO_URL "https://github.com/kabroxiko/DeepGlow"
-#include <Arduino.h>
-#include <ESPAsyncWebServer.h>
-#include <LittleFS.h>
-#include <WiFiClientSecure.h>
 
-#ifdef ESP32
-#include "esp_task_wdt.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include <ArduinoOTA.h>
-#include <HTTPClient.h>
-#include <Update.h>
-#else
-#include <ESP8266HTTPClient.h>
-#include <Updater.h>
-#endif
-#include "webserver.h"
-
-#include "config.h"
 #include "ota.h"
+#include "debug.h"
+#include "webserver.h"
+#include "config.h"
 #include "scheduler.h"
 #include "transition.h"
-#include "webserver.h"
 
-#include <ESP32-targz.h>
+#include "esp_log.h"
+#include "esp_ota_ops.h"
+#include "esp_http_client.h"
+#include "esp_crt_bundle.h"
+#include "esp_task_wdt.h"
+#include "esp_timer.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_littlefs.h"
+#include <sys/stat.h>
+#include <stdio.h>
+#include <string.h>
+#include <string>
+#if defined(ESP_IDF_VERSION_MAJOR)
+#include <ArduinoJson.h>
+#endif
+#include "uzlib.h"
 
-// Forward declaration for OTA status broadcast
-static void broadcastOtaStatus(const String &status, const String &msg,
-                               int progress);
+static const char *TAG = "ota";
 
-extern WebServerManager *webServerPtr; // Must be set to the global instance
+extern WebServerManager *webServerPtr;
 
 volatile bool otaInProgress = false;
-volatile bool otaRequested = false;
-// Global flag for OTA ACK handshake
+volatile bool otaRequested  = false;
 volatile bool otaAckReceived = false;
 
-// Fetch the latest manifest JSON from the remote repository (returns empty
-// string on failure)
-String fetchRemoteManifestJson() {
-  const char *manifestUrl =
-      DEEPGLOW_REPO_URL "/releases/latest/download/manifest.json";
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-  http.begin(client, manifestUrl);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    http.end();
-    return "";
-  }
-  String payload = http.getString();
-  http.end();
-  return payload;
-}
-
-void setupArduinoOTA(const char *hostname) {
-#ifdef ESP32
-  ArduinoOTA.setHostname(hostname);
-  ArduinoOTA.onStart([]() { otaInProgress = true; });
-  ArduinoOTA.onEnd([]() { otaInProgress = false; });
-  ArduinoOTA.onError([](ota_error_t error) { otaInProgress = false; });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {});
-  ArduinoOTA.begin();
-#endif
-}
-
-void handleArduinoOTA() {
-#ifdef ESP32
-  ArduinoOTA.handle();
-#endif
-}
-
-// Write callback for decompressed data (main-loop safe)
-// Track last progress globally for finalization
-static size_t totalBytesWritten = 0;
-static bool updateStarted = false;
-static int otaContentLength = 0; // Add static variable for content length
-static bool gzWriteCallback(unsigned char *buff, size_t buffsize) {
-  if (!updateStarted) {
-    if (!Update.begin((ESP.getFreeSketchSpace() - 0x1000) & 0xFFFFF000)) {
-      return false;
-    }
-    updateStarted = true;
-  }
-  size_t written = Update.write(buff, buffsize);
-  if (written == buffsize) {
-    totalBytesWritten += written;
-    // OTA progress: totalBytesWritten vs estimated decompressed size
-    size_t estimatedTotal = otaContentLength * 1.5;
-    int progress = 0;
-    if (estimatedTotal > 0) {
-      progress = (totalBytesWritten * 100) / estimatedTotal;
-      if (progress > 100)
-        progress = 100;
-    }
-    static int lastProgressPercent = -1;
-    if (progress != lastProgressPercent) {
-      broadcastOtaStatus("progress", String(totalBytesWritten), progress);
-      lastProgressPercent = progress;
-    }
-    static uint8_t dotCount = 0;
-    if (++dotCount >= 8) {
-      debugPrint(".");
-      dotCount = 0;
-    }
-#ifdef ESP32
-    esp_task_wdt_reset();
-#endif
-    yield();
-    return true;
-  } else {
-    return false;
-  }
-}
-
-// Fetch the latest firmware URL for this environment from GitHub
-String getLatestFirmwareUrl(String &latestVersion) {
-  // Download manifest.json from the latest release
-  const char *manifestUrl =
-      DEEPGLOW_REPO_URL "/releases/latest/download/manifest.json";
-  WiFiClientSecure client;
-  client.setInsecure();
-  HTTPClient http;
-  http.begin(client, manifestUrl);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    http.end();
-    latestVersion = "";
-    return "";
-  }
-  String payload = http.getString();
-  http.end();
-  DynamicJsonDocument doc(2048); // Manifest is small
-  DeserializationError err = deserializeJson(doc, payload);
-  if (err) {
-    latestVersion = "";
-    return "";
-  }
-  // Manifest is an array of objects: [{ type, env, version, url }]
-  const char *targetEnv = OTA_ENV;
-  for (JsonVariant entry : doc.as<JsonArray>()) {
-    String env = entry["env"].as<String>();
-    if (env == targetEnv) {
-      latestVersion = entry["version"].as<String>();
-      String firmwareUrl = entry["url"].as<String>();
-      if (firmwareUrl.length() == 0) {
-        return "";
-      }
-      return firmwareUrl;
-    }
-  }
-  latestVersion = "";
-  return "";
-}
-
-// Perform OTA update from the latest GitHub release for this environment
-
-// Helper: Broadcast OTA status if webServerPtr is set
-static void broadcastOtaStatus(const String &status, const String &msg,
-                               int progress) {
-  // Debug: Print all OTA status broadcasts
-  if (progress >= 0) {
-    debugPrintln("[OTA][broadcast] status=%s, msg=%s, progress=%d",
-                 status.c_str(), msg.c_str(), progress);
-  } else {
-    debugPrintln("[OTA][broadcast] status=%s, msg=%s", status.c_str(),
-                 msg.c_str());
-  }
-  if (webServerPtr) {
+// ── OTA status broadcast ───────────────────────────────────────────────────────
+static void broadcastOtaStatus(const std::string &status,
+                                const std::string &msg, int progress) {
     if (progress >= 0)
-      webServerPtr->broadcastOtaStatus(status, msg, progress);
+        ESP_LOGI(TAG, "OTA status=%s msg=%s progress=%d",
+                 status.c_str(), msg.c_str(), progress);
     else
-      webServerPtr->broadcastOtaStatus(status, msg);
-  }
-}
+        ESP_LOGI(TAG, "OTA status=%s msg=%s", status.c_str(), msg.c_str());
 
-// Helper: Download firmware and return HTTPClient and stream pointer
-static bool downloadFirmware(const String &firmwareUrl, HTTPClient &http,
-                             WiFiClientSecure &client, int &contentLength,
-                             String &errorOut) {
-  client.setInsecure();
-  client.setTimeout(30);
-  http.begin(client, firmwareUrl);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
-  http.setUserAgent("ESP32-OTA-Updater");
-  int httpCode = http.GET();
-  if (httpCode != HTTP_CODE_OK) {
-    errorOut = String("HTTP error code: ") + httpCode;
-    http.end();
-    return false;
-  }
-  contentLength = http.getSize();
-  if (contentLength <= 0) {
-    errorOut = "Invalid content length";
-    http.end();
-    return false;
-  }
-  return true;
-}
-
-// Helper: Decompress and update firmware
-static bool decompressAndUpdate(WiFiClient *stream, int contentLength,
-                                String &errorOut) {
-  GzUnpacker *GZUnpacker = new GzUnpacker();
-  totalBytesWritten = 0;
-  updateStarted = false;
-  otaContentLength = contentLength; // Set static variable for use in callback
-  GZUnpacker->setStreamWriter(gzWriteCallback);
-  bool success = GZUnpacker->gzStreamExpander(stream, contentLength);
-  delete GZUnpacker;
-  if (!success) {
-    errorOut = "Decompression failed!";
-    if (updateStarted) {
-#ifdef ESP32
-      Update.abort();
-#else
-      Update.end(false);
-#endif
+    if (webServerPtr) {
+        if (progress >= 0)
+            webServerPtr->broadcastOtaStatus(status, msg, progress);
+        else
+            webServerPtr->broadcastOtaStatus(status, msg);
     }
-    return false;
-  }
-  if (!updateStarted) {
-    errorOut = "Update never started - no data written";
-    return false;
-  }
-  return true;
 }
 
-// Helper: Finalize update and check result
+// ── No-op stubs for ArduinoOTA compatibility ───────────────────────────────────
+void setupArduinoOTA(const char * /* hostname */) {}
+void handleArduinoOTA() {}
 
-static bool finalizeUpdate(String &errorOut) {
-  bool endResult = Update.end(true);
-  int errCode = Update.getError();
-  String errMsg;
-#ifdef ESP32
-  errMsg = Update.errorString();
-#else
-  errMsg = Update.getErrorString();
-#endif
-  if (endResult) {
-    if (Update.isFinished()) {
-      return true;
-    } else {
-      errorOut = "Update not finished properly";
-      return false;
+// ── HTTPS helper: fetch URL into a std::string ─────────────────────────────────
+static std::string httpsGet(const char *url) {
+    std::string result;
+    esp_http_client_config_t cfg = {};
+    cfg.url    = url;
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.method = HTTP_METHOD_GET;
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client) return result;
+
+    if (esp_http_client_open(client, 0) != ESP_OK) {
+        esp_http_client_cleanup(client);
+        return result;
     }
-  } else {
-    // If error code is 0 (No Error), retry once
-    if (errCode == 0) {
-      endResult = Update.end(true);
-      errCode = Update.getError();
-#ifdef ESP32
-      errMsg = Update.errorString();
-#else
-      errMsg = Update.getErrorString();
-#endif
-      if (endResult && Update.isFinished()) {
-        return true;
-      }
+    int64_t clen = esp_http_client_fetch_headers(client);
+    int code = esp_http_client_get_status_code(client);
+    if (code == 200 && clen > 0) {
+        result.resize((size_t)clen, '\0');
+        int got = esp_http_client_read(client, &result[0], (int)clen);
+        if (got < 0) result.clear();
+        else         result.resize((size_t)got);
     }
-    errorOut = String("Update error: ") + errCode + " (" + errMsg + ")";
-    return false;
-  }
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+    return result;
 }
 
-bool performGzOtaUpdate(String &errorOut) {
-  otaInProgress = true;
-  totalBytesWritten = 0;
-  updateStarted = false;
+// ── Manifest helpers ───────────────────────────────────────────────────────────
+std::string fetchRemoteManifestJson() {
+    const char *url = DEEPGLOW_REPO_URL "/releases/latest/download/manifest.json";
+    return httpsGet(url);
+}
 
-  broadcastOtaStatus("start", "OTA update started", -1);
+std::string getLatestFirmwareUrl(std::string &latestVersion) {
+    std::string payload = fetchRemoteManifestJson();
+    if (payload.empty()) { latestVersion = ""; return ""; }
 
-  String latestVersion;
-  String firmwareUrl = getLatestFirmwareUrl(latestVersion);
-  if (firmwareUrl.isEmpty()) {
-    errorOut = "Could not determine latest firmware URL.";
+    #if defined(ESP_IDF_VERSION_MAJOR)
+        DynamicJsonDocument doc(2048);
+        if (deserializeJson(doc, payload)) { latestVersion = ""; return ""; }
+
+        const char *targetEnv = OTA_ENV;
+        for (JsonVariant entry : doc.as<JsonArray>()) {
+            if (strcmp(entry["env"] | "", targetEnv) == 0) {
+                latestVersion = entry["version"] | "";
+                std::string url  = entry["url"] | "";
+                return url;
+            }
+        }
+        latestVersion = "";
+        return "";
+    #else
+        // Arduino: manual JSON parsing (assumes manifest.json is a flat array of objects)
+        latestVersion = "";
+        std::string url = "";
+        size_t pos = 0;
+        const std::string envKey = "\"env\":\"";
+        const std::string versionKey = "\"version\":\"";
+        const std::string urlKey = "\"url\":\"";
+        while ((pos = payload.find(envKey, pos)) != std::string::npos) {
+            size_t envStart = pos + envKey.length();
+            size_t envEnd = payload.find("\"", envStart);
+            std::string envVal = payload.substr(envStart, envEnd - envStart);
+            if (envVal == OTA_ENV) {
+                // Find version
+                size_t versionPos = payload.find(versionKey, envEnd);
+                if (versionPos != std::string::npos) {
+                    size_t versionStart = versionPos + versionKey.length();
+                    size_t versionEnd = payload.find("\"", versionStart);
+                    latestVersion = payload.substr(versionStart, versionEnd - versionStart);
+                }
+                // Find url
+                size_t urlPos = payload.find(urlKey, envEnd);
+                if (urlPos != std::string::npos) {
+                    size_t urlStart = urlPos + urlKey.length();
+                    size_t urlEnd = payload.find("\"", urlStart);
+                    url = payload.substr(urlStart, urlEnd - urlStart);
+                }
+                return url;
+            }
+            pos = envEnd;
+        }
+        return "";
+    #endif
+}
+
+// ── gz write callback – uses esp_ota_ops ──────────────────────────────────────
+static esp_ota_handle_t     s_ota_handle    = 0;
+static const esp_partition_t *s_ota_part    = nullptr;
+static bool                 s_ota_started   = false;
+static size_t               s_ota_written   = 0;
+static int                  s_ota_total_est = 0;
+
+static bool gzWriteCallback(unsigned char *buff, size_t buffsize) {
+    if (!s_ota_started) {
+        s_ota_part = esp_ota_get_next_update_partition(NULL);
+        if (!s_ota_part) {
+            ESP_LOGE(TAG, "No OTA partition");
+            return false;
+        }
+        if (esp_ota_begin(s_ota_part, OTA_WITH_SEQUENTIAL_WRITES, &s_ota_handle) != ESP_OK) {
+            ESP_LOGE(TAG, "esp_ota_begin failed");
+            return false;
+        }
+        s_ota_started = true;
+        s_ota_written = 0;
+    }
+    if (esp_ota_write(s_ota_handle, buff, buffsize) != ESP_OK) return false;
+    s_ota_written += buffsize;
+    if (s_ota_total_est > 0) {
+        int pct = (int)(s_ota_written * 100 / (size_t)s_ota_total_est);
+        if (pct > 100) pct = 100;
+        static int lastPct = -1;
+        if (pct != lastPct) { broadcastOtaStatus("progress", "", pct); lastPct = pct; }
+    }
+    esp_task_wdt_reset();
+    return true;
+}
+
+// ── Remote gz OTA ──────────────────────────────────────────────────────────────
+bool performGzOtaUpdate(std::string &errorOut) {
+    otaInProgress = true;
+    s_ota_started = false;
+    s_ota_written = 0;
+
+    broadcastOtaStatus("start", "OTA update started", -1);
+
+    std::string latestVersion;
+    std::string firmwareUrl = getLatestFirmwareUrl(latestVersion);
+    if (firmwareUrl.empty()) {
+        errorOut = "Could not get firmware URL";
+        otaInProgress = false;
+        broadcastOtaStatus("error", errorOut, -1);
+        return false;
+    }
+    ESP_LOGI(TAG, "Firmware URL: %s", firmwareUrl.c_str());
+
+    // Download firmware blob into memory (up to 2 MB)
+    esp_http_client_config_t cfg = {};
+    cfg.url               = firmwareUrl.c_str();
+    cfg.crt_bundle_attach = esp_crt_bundle_attach;
+    cfg.method            = HTTP_METHOD_GET;
+    cfg.timeout_ms        = 30000;
+    cfg.buffer_size       = 4096;
+
+    esp_http_client_handle_t client = esp_http_client_init(&cfg);
+    if (!client) { otaInProgress = false; errorOut = "http init failed"; broadcastOtaStatus("error", errorOut, -1); return false; }
+
+    if (esp_http_client_open(client, 0) != ESP_OK) {
+        esp_http_client_cleanup(client);
+        otaInProgress = false; errorOut = "http open failed"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    int64_t clen = esp_http_client_fetch_headers(client);
+    int code     = esp_http_client_get_status_code(client);
+    if (code != 200 || clen <= 0) {
+        esp_http_client_close(client); esp_http_client_cleanup(client);
+        otaInProgress = false; errorOut = "HTTP error " + std::to_string(code);
+        broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    s_ota_total_est = (int)(clen * 3 / 2); // estimate decompressed size
+
+    // Decompress streaming directly through GzUnpacker
+    // We need a File-like object; save to temp file on flash first
+    const char *tmpPath = "/data/ota_tmp.bin.gz";
+    FILE *fout = fopen(tmpPath, "wb");
+    if (!fout) {
+        esp_http_client_close(client); esp_http_client_cleanup(client);
+        otaInProgress = false; errorOut = "tmpfile open failed"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    char buf[2048];
+    int  rd;
+    while ((rd = esp_http_client_read(client, buf, sizeof(buf))) > 0) {
+        fwrite(buf, 1, rd, fout);
+    }
+    fclose(fout);
+    esp_http_client_close(client);
+    esp_http_client_cleanup(client);
+
+    // Decompress the .bin.gz using uzlib and write chunks via OTA callback
+    s_ota_started = false; s_ota_written = 0;
+    FILE *fin = fopen(tmpPath, "rb");
+    if (!fin) {
+        otaInProgress = false; errorOut = "tmpfile reopen failed"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    fseek(fin, 0, SEEK_END);
+    long fsz = ftell(fin);
+    fseek(fin, 0, SEEK_SET);
+    uint8_t *gz_buf = (uint8_t *)malloc(fsz);
+    bool ok = false;
+    if (!gz_buf) {
+        fclose(fin);
+        otaInProgress = false; errorOut = "malloc failed for gz buffer"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    fread(gz_buf, 1, fsz, fin);
+    fclose(fin);
+
+    // Allocate a dictionary buffer (32 KB) for uzlib sliding window
+    unsigned int dictSize = 32768;
+    unsigned char *dict = (unsigned char *)malloc(dictSize);
+    if (!dict) {
+        free(gz_buf); remove(tmpPath);
+        otaInProgress = false; errorOut = "malloc failed for dict"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+
+    TINF_DATA d = {};
+    uzlib_init();
+    d.source       = gz_buf;
+    d.source_limit = gz_buf + fsz;
+
+    // Parse the gzip header
+    if (uzlib_gzip_parse_header(&d) != TINF_OK) {
+        free(gz_buf); free(dict); remove(tmpPath);
+        otaInProgress = false; errorOut = "gzip header parse failed"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    uzlib_uncompress_init(&d, dict, dictSize);
+
+    // Decompress in 4 KB chunks and write to OTA
+    const size_t OUT_CHUNK = 4096;
+    uint8_t *outbuf = (uint8_t *)malloc(OUT_CHUNK);
+    if (!outbuf) {
+        free(gz_buf); free(dict); remove(tmpPath);
+        otaInProgress = false; errorOut = "malloc outbuf failed"; broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    ok = true;
+    int ret = TINF_OK;
+    while (ret == TINF_OK) {
+        d.dest          = outbuf;
+        d.destStart     = outbuf;
+        d.destSize      = (unsigned int)OUT_CHUNK;
+        d.destRemaining = (unsigned int)OUT_CHUNK;
+        ret = uzlib_uncompress_chksum(&d);
+        size_t produced = (size_t)(d.dest - outbuf);
+        if (produced > 0) {
+            if (!gzWriteCallback(outbuf, produced)) {
+                ok = false;
+                if (errorOut.empty()) errorOut = "OTA write failed";
+                break;
+            }
+        }
+        if (ret == TINF_DONE) break;
+        if (ret < 0) { ok = false; errorOut = "gzip decompress error"; break; }
+    }
+    free(outbuf); free(dict); free(gz_buf);
+    remove(tmpPath);
+
+    if (!ok || !s_ota_started) {
+        if (s_ota_started) esp_ota_abort(s_ota_handle);
+        otaInProgress = false;
+        if (errorOut.empty()) errorOut = "gz decompression/flash failed";
+        broadcastOtaStatus("error", errorOut, -1);
+        return false;
+    }
+
+    if (esp_ota_end(s_ota_handle) != ESP_OK) {
+        otaInProgress = false; errorOut = "esp_ota_end failed";
+        broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+    if (esp_ota_set_boot_partition(s_ota_part) != ESP_OK) {
+        otaInProgress = false; errorOut = "set_boot_partition failed";
+        broadcastOtaStatus("error", errorOut, -1); return false;
+    }
+
     otaInProgress = false;
-    broadcastOtaStatus("error", errorOut, -1);
-    return false;
-  }
-
-  // TODO: Compare latestVersion to current version, skip if not newer
-
-  WiFiClientSecure client;
-  HTTPClient http;
-  int contentLength = 0;
-  if (!downloadFirmware(firmwareUrl, http, client, contentLength, errorOut)) {
-    otaInProgress = false;
-    broadcastOtaStatus("error", errorOut, -1);
-    return false;
-  }
-
-  WiFiClient *stream = http.getStreamPtr();
-  bool ok = decompressAndUpdate(stream, contentLength, errorOut);
-  http.end();
-  ok = finalizeUpdate(errorOut);
-  otaInProgress = false;
-  if (ok) {
-    // Always send a final 100% progress update before success
-    broadcastOtaStatus("progress", String(totalBytesWritten), 100);
+    broadcastOtaStatus("progress", "", 100);
     broadcastOtaStatus("success", "OTA update successful", -1);
     return true;
-  } else {
-    // Always broadcast the real error message
-    String errMsg =
-        errorOut.length() > 0 ? errorOut : "OTA failed: unknown error";
-    broadcastOtaStatus("error", errMsg, -1);
-    return false;
-  }
 }
 
-// OTA direct POST handler (moved from webserver.cpp)
+// ── Local firmware upload handler (esp_http_server) ───────────────────────────
+esp_err_t handleOtaUpload(httpd_req_t *req) {
+    otaInProgress = true;
+    broadcastOtaStatus("start", "Local OTA upload started", -1);
 
-// Helper: Respond with error and return
-static void otaRespondError(AsyncWebServerRequest *request, const String &msg) {
-  auto resp = request->beginResponse(500, "application/json",
-                                     String("{\"error\":\"") + msg + "\"}");
-  request->send(resp);
+    esp_ota_handle_t       ota_handle = 0;
+    const esp_partition_t *ota_part   = esp_ota_get_next_update_partition(NULL);
+    if (!ota_part) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No OTA partition");
+        otaInProgress = false; return ESP_FAIL;
+    }
+    if (esp_ota_begin(ota_part, OTA_WITH_SEQUENTIAL_WRITES, &ota_handle) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "ota_begin failed");
+        otaInProgress = false; return ESP_FAIL;
+    }
+
+    int total = req->content_len;
+    int remaining = total;
+    char buf[2048];
+    int written_total = 0;
+
+    while (remaining > 0) {
+        int recv = httpd_req_recv(req, buf, MIN((int)sizeof(buf), remaining));
+        if (recv <= 0) {
+            if (recv == HTTPD_SOCK_ERR_TIMEOUT) continue;
+            esp_ota_abort(ota_handle);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Receive error");
+            otaInProgress = false; return ESP_FAIL;
+        }
+        if (esp_ota_write(ota_handle, (const void *)buf, recv) != ESP_OK) {
+            esp_ota_abort(ota_handle);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "ota_write error");
+            otaInProgress = false; return ESP_FAIL;
+        }
+        written_total += recv;
+        remaining    -= recv;
+        if (total > 0) {
+            int pct = written_total * 100 / total;
+            static int lastPct = -1;
+            if (pct != lastPct) { broadcastOtaStatus("progress", "", pct); lastPct = pct; }
+        }
+        esp_task_wdt_reset();
+    }
+
+    if (esp_ota_end(ota_handle) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "ota_end failed");
+        otaInProgress = false; return ESP_FAIL;
+    }
+    if (esp_ota_set_boot_partition(ota_part) != ESP_OK) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "set_boot failed");
+        otaInProgress = false; return ESP_FAIL;
+    }
+
+    otaInProgress = false;
+    broadcastOtaStatus("progress", "", 100);
+    broadcastOtaStatus("success", "OTA successful – rebooting", -1);
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, "{\"success\":true,\"message\":\"Rebooting\"}");
+
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_restart();
+    return ESP_OK;
 }
 
-// Helper: Begin OTA upload (index==0)
-static bool otaBeginUpload(AsyncWebServerRequest *request, unsigned char *data,
-                           unsigned int len, unsigned int total, File &gzFile,
-                           bool &isGz, size_t &uploaded,
-                           unsigned int &lastDot) {
-  otaInProgress = true;
-  debugPrintln("[OTA] Begin upload");
-  LittleFS.end();
-  if (!LittleFS.begin()) {
-    debugPrintln("[OTA] LittleFS mount failed");
-    otaRespondError(request, "LittleFS mount failed");
-    return false;
-  }
-  LittleFS.remove("/ota_upload.bin.gz");
-  isGz = (len >= 2 && data[0] == 0x1F && data[1] == 0x8B);
-  uploaded = 0;
-  if (isGz) {
-    debugPrintln("[OTA] Detected gzipped upload");
-    if (!LittleFS.begin()) {
-      debugPrintln("[OTA] LittleFS mount failed (gz)");
-      otaRespondError(request, "LittleFS mount failed");
-      return false;
-    }
-    gzFile = LittleFS.open("/ota_upload.bin.gz", "w+");
-    if (!gzFile) {
-      debugPrintln("[OTA] Failed to open file for writing");
-      otaRespondError(request, "Failed to open file for writing");
-      return false;
-    }
-  } else {
-#if defined(ESP32)
-    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) {
-#elif defined(ESP8266)
-    if (!Update.begin(total)) {
-#endif
-      debugPrintln("[OTA] Update.begin failed");
-      otaRespondError(request, "Update.begin failed");
-      return false;
-    }
-    debugPrintln("[OTA] Update.begin succeeded");
-    lastDot = 0;
-  }
-  return true;
-}
-
-// Helper: Write OTA upload chunk
-static bool otaWriteChunk(AsyncWebServerRequest *request, unsigned char *data,
-                          unsigned int len, bool isGz, File &gzFile,
-                          size_t &uploaded, unsigned int total,
-                          unsigned int index, unsigned int &lastDot) {
-  if (isGz) {
-    if (!gzFile || gzFile.write(data, len) != len) {
-      debugPrintln("[OTA] File write error (gz)");
-      otaRespondError(request, "File write error");
-      return false;
-    }
-    uploaded += len;
-    if (uploaded % 65536 < len) {
-      debugPrint(".");
-    }
-  } else {
-    size_t written = Update.write(data, len);
-    if (written != len) {
-      debugPrintln("[OTA] Update.write error");
-      debugPrint("[OTA] Tried to write: ");
-      debugPrint(len);
-      debugPrint(", actually wrote: ");
-      debugPrintln(written);
-      otaRespondError(request, "Update write error");
-      return false;
-    }
-    if (total > 0) {
-      unsigned int dot = ((index + len) * 100) / total;
-      if (dot != lastDot) {
-        debugPrint(".");
-        lastDot = dot;
-      }
-    }
-  }
-  return true;
-}
-
-// Helper: Finalize OTA upload
-
-// Helper: Decompress and flash uploaded gz file, returns true on success,
-// errorMsg set on failure
-static bool decompressAndFlashUploadedGz(File &inFile, String &errorMsg) {
-  GzUnpacker *GZUnpacker = new GzUnpacker();
-  totalBytesWritten = 0;
-  updateStarted = false;
-  GZUnpacker->setStreamWriter(gzWriteCallback);
-  GZUnpacker->setGzProgressCallback([](uint8_t progress) {
-    if (webServerPtr)
-      webServerPtr->broadcastOtaStatus("progress", "Decompressing", progress);
-  });
-  bool ok = GZUnpacker->gzStreamExpander(&inFile, inFile.size());
-  delete GZUnpacker;
-  if (!ok) {
-    errorMsg = "Decompression or flash failed";
-    return false;
-  } else if (!updateStarted) {
-    errorMsg = "Update never started - no data written";
-    return false;
-  } else if (!Update.end(true)) {
-#ifdef ESP32
-    errorMsg = String("Update error: ") + Update.getError() + " (" +
-               Update.errorString() + ")";
-#else
-    errorMsg = String("Update error: ") + Update.getError() + " (" +
-               Update.getErrorString() + ")";
-#endif
-    return false;
-  } else if (!Update.isFinished()) {
-    errorMsg = "Update not finished properly";
-    return false;
-  }
-  return true;
-}
-
-static void otaFinalizeUpload(AsyncWebServerRequest *request, bool isGz,
-                              File &gzFile, unsigned int &lastDot) {
-  if (lastDot != 0)
-    debugPrintln("");
-  lastDot = 0;
-  AsyncWebServerResponse *resp = nullptr;
-  bool ok = false;
-  String errorMsg;
-  debugPrintln("[OTA] Finalizing upload");
-  if (isGz && gzFile) {
-    gzFile.close();
-    File inFile = LittleFS.open("/ota_upload.bin.gz", "r");
-    if (!inFile) {
-      errorMsg = "Failed to open uploaded gz file";
-      debugPrintln("[OTA] " + errorMsg);
-      broadcastOtaStatus("error", errorMsg, -1);
-      otaRespondError(request, errorMsg);
-      return;
-    }
-    ok = decompressAndFlashUploadedGz(inFile, errorMsg);
-    inFile.close();
-    LittleFS.remove("/ota_upload.bin.gz");
-    if (!ok) {
-      debugPrintln("[OTA] decompressAndFlashUploadedGz failed: " + errorMsg);
-      broadcastOtaStatus("error", errorMsg, -1);
-    }
-  } else {
-    ok = Update.end(true);
-    if (!ok) {
-#ifdef ESP32
-      errorMsg = String("Update error: ") + Update.getError() + " (" +
-                 Update.errorString() + ")";
-#else
-      errorMsg = String("Update error: ") + Update.getError() + " (" +
-                 Update.getErrorString() + ")";
-#endif
-      debugPrintln("[OTA] " + errorMsg);
-      broadcastOtaStatus("error", errorMsg, -1);
-    } else if (!Update.isFinished()) {
-      errorMsg = "Update not finished properly";
-      ok = false;
-      debugPrintln("[OTA] " + errorMsg);
-      broadcastOtaStatus("error", errorMsg, -1);
-    }
-  }
-  otaInProgress = false;
-  if (ok) {
-    // Always send a final 100% progress update before success
-    broadcastOtaStatus("progress", String(totalBytesWritten), 100);
-    broadcastOtaStatus("success", "OTA update successful", -1);
-    resp =
-        request->beginResponse(200, "application/json",
-                               "{\"success\":true,\"message\":\"Rebooting\"}");
-  } else {
-    String errJson = String("{\"error\":\"") + errorMsg + "\"}";
-    debugPrintln("[OTA] OTA failed: " + errorMsg);
-    broadcastOtaStatus(
-        "error", errorMsg.length() > 0 ? errorMsg : "OTA failed: unknown error",
-        -1);
-    resp = request->beginResponse(500, "application/json", errJson);
-  }
-  for (size_t i = 0; i < 3; ++i)
-    resp->addHeader("Access-Control-Allow-Origin", "*");
-  request->send(resp);
-  if (ok) {
-    request->onDisconnect([]() {
-      delay(100);
-      ESP.restart();
-    });
-  }
-}
-
-void handleOTAUpdate(AsyncWebServerRequest *request, unsigned char *data,
-                     unsigned int len, unsigned int index, unsigned int total) {
-  static unsigned int lastDot = 0;
-  static File gzFile;
-  static bool isGz = false;
-  static size_t uploaded = 0;
-  if (index == 0) {
-    if (!otaBeginUpload(request, data, len, total, gzFile, isGz, uploaded,
-                        lastDot))
-      return;
-  }
-  if (!otaWriteChunk(request, data, len, isGz, gzFile, uploaded, total, index,
-                     lastDot))
-    return;
-  if (index + len == total) {
-    otaFinalizeUpload(request, isGz, gzFile, lastDot);
-  }
-}
-
-#ifdef ESP32
+// ── otaTask: called from webserver when remote OTA is requested ────────────────
 extern "C" void otaTask(void *parameter) {
-  String error;
-  bool ok = performGzOtaUpdate(error);
-  if (ok) {
-    // Wait for OTA ACK from any OTA client, or timeout (max 3s)
-    otaAckReceived = false;
-    unsigned long waitStart = millis();
-    while (millis() - waitStart < 3000) {
-      if (otaAckReceived)
-        break;
-      yield();
-      delay(10);
+    std::string error;
+    bool ok = performGzOtaUpdate(error);
+    if (ok) {
+        otaAckReceived = false;
+        uint64_t start = esp_timer_get_time() / 1000ULL;
+        while ((esp_timer_get_time() / 1000ULL - start) < 3000) {
+            if (otaAckReceived) break;
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        if (webServerPtr) webServerPtr->closeOtaClients();
+        start = esp_timer_get_time() / 1000ULL;
+        while ((esp_timer_get_time() / 1000ULL - start) < 2000) {
+            if (webServerPtr && webServerPtr->otaClientsConnected() == 0) break;
+            vTaskDelay(pdMS_TO_TICKS(10));
+        }
+        esp_restart();
+    } else {
+        ESP_LOGE(TAG, "OTA failed: %s", error.c_str());
+        broadcastOtaStatus("error", error.empty() ? "OTA failed" : error, -1);
     }
-    if (webServerPtr) {
-      webServerPtr->closeOtaClients();
-    }
-    // Wait for clients to disconnect or timeout (max 2s)
-    waitStart = millis();
-    while (millis() - waitStart < 2000) {
-      if (webServerPtr && webServerPtr->otaClientsConnected() == 0)
-        break;
-      yield();
-      delay(10);
-    }
-    debugPrintln("[OTA Task] Rebooting now...");
-    ESP.restart();
-    delay(5000);
-    *((volatile int *)0) = 0; // Force a crash/reboot
-  } else {
-    debugPrint("[OTA Task] OTA update failed: ");
-    debugPrintln(error);
-    broadcastOtaStatus(
-        "error", error.length() > 0 ? error : "OTA failed: unknown error", -1);
-  }
-  vTaskDelete(NULL);
+    vTaskDelete(NULL);
 }
-#endif

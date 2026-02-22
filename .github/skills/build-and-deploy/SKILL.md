@@ -13,12 +13,13 @@ This skill outlines the common tasks for building and deploying the project.
 
 ### Building the Firmware
 
-*   **Command:** `platformio run -e <environment_name>`
-*   **Example:** To build for the primary ESP32 debug environment, run:
-    ```bash
-    platformio run -e esp32d_debug
-    ```
-*   You can also use the "Build for esp32d_debug" task available in the workspace.
+*   **Command:** `source .venv/bin/activate && platformio run -e esp32c6_debug`
+*   **Example:** To build for the primary ESP32-C6 debug environment, run:
+  ```bash
+  source .venv/bin/activate && platformio run -e esp32c6_debug
+  ```
+*   Always activate the Python virtual environment before building.
+*   You can also use the "Build for esp32c6_debug" task available in the workspace.
 
 ### Building the Web Interface
 
