@@ -7,42 +7,60 @@ metadata:
   version: "2.0"
 ---
 
-## Agentic Firmware Development Protocol
 
-As an AI assistant, your task is to modify the C++ firmware located in the `src/` directory. Follow this protocol to ensure changes are implemented correctly and safely.
+## Agentic Firmware Development Protocol (ESP-IDF)
 
-### Step 1: Understand the Request & The Frontend Contract
+As an AI assistant, your task is to modify the C++ firmware in the `src/` directory using the ESP-IDF framework. Follow this protocol to ensure changes are robust, compatible, and maintainable.
 
-1.  **Clarify the Goal:** What specific changes are needed for the firmware?
-    *   Is it adding a new effect?
-    *   Is it changing a configuration option?
-    *   Is it fixing a bug?
-2.  **Check the Frontend Contract:** If the change affects the web UI, you **must** understand the frontend's needs.
-    *   **Read the relevant React components in `web/`:** Check what WebSocket messages the UI sends and what data it expects to receive.
-    *   **If the change will break the UI, you must create a plan to update both.** Use the `project-overview` skill to formulate a multi-step plan.
+### Step 1: Analyze the Request & UI Contract
 
-### Step 2: Modify the Firmware Code
+1. **Clarify the Goal:**
+    - What feature, fix, or refactor is required?
+    - Does it affect APIs, configuration, or hardware?
+2. **Check the Web UI Contract:**
+    - If the change impacts the web UI, review the relevant React components in `web/`.
+    - Identify WebSocket/HTTP API messages and expected data structures.
+    - If breaking changes are needed, plan coordinated updates for both firmware and UI.
 
-1.  Identify the relevant C++ files in the `src/` directory that need to be modified.
-    *   For new effects, edit `effects.h` and `effects.cpp`.
-    *   For persistent settings, edit `config.h` and `config.cpp`.
-    *   For real-time state, edit `state.h` and `state.cpp`.
-    *   For API communication, edit `webserver.cpp`.
-2.  Apply the necessary code changes.
-3.  Follow existing coding style and be mindful of the memory constraints of embedded devices.
+### Step 2: Plan and Apply ESP-IDF Code Changes
 
-### Step 3: Verify the Build
+1. **Identify Relevant Files:**
+    - For new effects: `effects.h`, `effects.cpp`
+    - For persistent settings: `config.h`, `config.cpp`
+    - For runtime state: `state.h`, `state.cpp`
+    - For networking: `network.h`, `network.cpp`
+    - For web/API: `webserver.cpp`, `webserver.h`
+    - For OTA: `ota.cpp`, `ota.h`
+2. **Use ESP-IDF APIs:**
+    - Replace all Arduino APIs with ESP-IDF equivalents (e.g., `esp_wifi`, `esp_littlefs`, `esp_log`, FreeRTOS, etc).
+    - Use event-driven and task-based patterns as required by ESP-IDF.
+    - Update CMakeLists.txt and sdkconfig if new components or features are added.
+3. **Follow Coding Standards:**
+    - Use ESP-IDF logging (`ESP_LOGI`, `ESP_LOGE`, etc).
+    - Mind memory and concurrency constraints.
 
-1.  After making changes, it is crucial to ensure the firmware still compiles.
-2.  Execute a build command. You can use a specific environment or the default.
-    ```bash
-    platformio run -e esp32d_debug
-    ```
-3.  Analyze the output for any compiler errors or warnings. If there are errors, you must fix them before proceeding.
+### Step 3: Build, Flash, and Monitor
 
-### Step 4: Inform the User of Completion
+1. **Build the Firmware:**
+    - Run: `idf.py build`
+2. **Flash to Device:**
+    - Connect the device via USB.
+    - Run: `idf.py -p <PORT> flash` (replace `<PORT>` with your serial port, e.g., `/dev/tty.usbserial-xxxx`)
+3. **Monitor Serial Output:**
+    - Run: `idf.py -p <PORT> monitor`
+4. **Fix Build Errors:**
+    - If errors occur, review and correct code or configuration.
 
-1.  Once the code is modified and verified to build successfully, your task is complete.
-2.  Summarize the changes you made to the firmware.
-3.  Advise the user that they can now upload the new firmware to their device using the command:
-    `platformio run -e esp32d_debug --target upload`
+### Step 4: Summarize and Advise
+
+1. **Summarize Changes:**
+    - Briefly describe what was changed in the firmware and why.
+2. **Next Steps:**
+    - Advise the user to test the firmware on hardware.
+    - If the web UI was affected, summarize required UI changes.
+
+---
+**Note:**
+- Always use ESP-IDF APIs and patterns. Do not use Arduino APIs.
+- Keep CMakeLists.txt and sdkconfig in sync with code changes.
+- If adding new features, update documentation as needed.

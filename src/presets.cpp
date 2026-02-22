@@ -1,24 +1,30 @@
 #include "presets.h"
 #include "inc/presets_json.inc"
 #include <ArduinoJson.h>
-#include <LittleFS.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_littlefs.h"
+#include "esp_log.h"
+#include <sys/stat.h>
+#include <stdio.h>
+#include <string.h>
+#include <string>
 
-#define FILESYSTEM LittleFS
+#define PRESET_MOUNT_POINT "/data"
 #define PRESET_FILE "/presets.json"
 
 // Utility to ensure filesystem is mounted
 static bool ensureFilesystemMounted() {
-  static bool mounted = false;
-  if (!mounted) {
-    if (!FILESYSTEM.begin()) {
-      if (!FILESYSTEM.format()) {
-        return false;
-      }
-      if (!FILESYSTEM.begin()) {
-        return false;
-      }
-    }
-    mounted = true;
+  if (esp_littlefs_mounted("spiffs")) return true;
+  esp_vfs_littlefs_conf_t conf = {};
+  conf.base_path = PRESET_MOUNT_POINT;
+  conf.partition_label = "spiffs";
+  conf.format_if_mount_failed = true;
+  conf.dont_mount = false;
+  esp_err_t ret = esp_vfs_littlefs_register(&conf);
+  if (ret != ESP_OK) {
+    ESP_LOGE("presets", "LittleFS mount failed: %s", esp_err_to_name(ret));
+    return false;
   }
   return true;
 }
@@ -26,8 +32,10 @@ static bool ensureFilesystemMounted() {
 void resetPresetsFile() {
   if (!ensureFilesystemMounted())
     return;
-  if (FILESYSTEM.exists(PRESET_FILE)) {
-    FILESYSTEM.remove(PRESET_FILE);
+  char path[64];
+  snprintf(path, sizeof(path), "%s%s", PRESET_MOUNT_POINT, PRESET_FILE);
+  if (access(path, F_OK) == 0) {
+    remove(path);
   }
 }
 
@@ -35,15 +43,27 @@ bool loadPresets(std::vector<Preset> &presets) {
   // Delete presets file before loading (force regeneration)
   resetPresetsFile();
 
+  if (!ensureFilesystemMounted()) {
+    ESP_LOGW("presets", "Filesystem not available, loading from embedded asset");
+  }
   size_t capacity = 8192;
   DynamicJsonDocument doc(capacity);
 
   bool loaded = false;
-  File file = FILESYSTEM.open(PRESET_FILE, "r");
-  if (file && deserializeJson(doc, file) == DeserializationError::Ok &&
-      doc.containsKey("presets")) {
-    loaded = true;
-    file.close();
+  char path[64];
+  snprintf(path, sizeof(path), "%s%s", PRESET_MOUNT_POINT, PRESET_FILE);
+  FILE *file = ensureFilesystemMounted() ? fopen(path, "r") : nullptr;
+  if (file) {
+    fseek(file, 0, SEEK_END);
+    long fsize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    std::string content(fsize, '\0');
+    fread(&content[0], 1, fsize, file);
+    fclose(file);
+    DeserializationError err = deserializeJson(doc, content.c_str(), fsize);
+    if (!err && doc.containsKey("presets")) {
+      loaded = true;
+    }
   } else {
     // Load from embedded asset if file missing or invalid
     DeserializationError err =
@@ -77,7 +97,7 @@ bool loadPresets(std::vector<Preset> &presets) {
         JsonArray colorsArr = paramsObj["colors"].as<JsonArray>();
         for (JsonVariant v : colorsArr) {
           if (v.is<const char *>()) {
-            p.params.colors.push_back(String(v.as<const char *>()));
+            p.params.colors.push_back(std::string(v.as<const char *>()));
           }
         }
       }
@@ -112,12 +132,15 @@ bool savePresets(const std::vector<Preset> &presets) {
 
   if (!ensureFilesystemMounted())
     return false;
-  File file = FILESYSTEM.open(PRESET_FILE, "w");
-  if (!file)
-    return false;
-  size_t written = serializeJson(doc, file);
-  file.flush();
-  file.close();
-  delay(10);
+  char path[64];
+  snprintf(path, sizeof(path), "%s%s", PRESET_MOUNT_POINT, PRESET_FILE);
+  FILE *fp = fopen(path, "w");
+  if (!fp) return false;
+  std::string out;
+  size_t written = serializeJson(doc, out);
+  fwrite(out.c_str(), 1, out.length(), fp);
+  fflush(fp);
+  fclose(fp);
+  vTaskDelay(pdMS_TO_TICKS(10));
   return written > 0;
 }

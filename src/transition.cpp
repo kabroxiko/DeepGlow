@@ -3,7 +3,7 @@
 #include "colors.h"
 #include "effects.h"
 #include "state.h"
-#include <Arduino.h>
+#include "esp_timer.h"
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
@@ -29,7 +29,7 @@ void TransitionEngine::blendTransitionFrames(
     const PendingTransitionState &pendingTransition, const SystemState &state,
     std::vector<uint32_t> &outFrame) {
   size_t count = outFrame.size();
-  float progress = float(millis() - getStartTime()) / float(getDuration());
+  float progress = float((uint32_t)(esp_timer_get_time() / 1000ULL) - getStartTime()) / float(getDuration());
   if (progress > 1.0f)
     progress = 1.0f;
   progress = progress * progress * (3.0f - 2.0f * progress); // smoothstep
@@ -87,7 +87,7 @@ void TransitionEngine::startTransition(const TransitionState &targetState,
   _pendingBrightnessTransition = false;
   _startState = _currentState;
   _targetState = targetState;
-  _startTime = millis();
+  _startTime = (uint32_t)(esp_timer_get_time() / 1000ULL);
   _duration = duration;
   _active = true;
   // If current colors vector is empty or size mismatch, initialize
@@ -116,7 +116,7 @@ void TransitionEngine::update() {
     return;
   }
 
-  uint32_t elapsed = millis() - _startTime;
+  uint32_t elapsed = (uint32_t)(esp_timer_get_time() / 1000ULL) - _startTime;
   if (elapsed >= _duration) {
     _currentState = _targetState;
     _active = false;

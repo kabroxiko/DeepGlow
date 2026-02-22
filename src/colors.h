@@ -1,10 +1,10 @@
 #pragma once
-#include <WString.h>
 #include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <string>
 #include <vector>
 
 // Packing/unpacking
@@ -48,10 +48,10 @@ inline uint32_t parse_hex_rgbw(const char *hexstr) {
 
 // Helper to convert color hex strings to array
 inline std::array<uint32_t, 8>
-parse_colors_vec(const std::vector<String> &colorsVec) {
+parse_colors_vec(const std::vector<std::string> &colorsVec) {
   std::array<uint32_t, 8> colors = {0};
   for (size_t i = 0; i < colorsVec.size() && i < 8; ++i) {
-    const String &hex = colorsVec[i];
+    const std::string &hex = colorsVec[i];
     colors[i] =
         (uint32_t)strtoul(hex.c_str() + (hex[0] == '#' ? 1 : 0), nullptr, 16);
   }

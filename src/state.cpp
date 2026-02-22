@@ -5,6 +5,8 @@
 #include "effects.h"
 #include "transition.h"
 #include "webserver.h"
+#include "driver/gpio.h"
+#include <inttypes.h>
 #include <stdint.h>
 
 // --- Global variables ---
@@ -34,10 +36,10 @@ void setUserColor(const uint32_t *newColor, size_t count);
 void updateLEDs();
 
 // --- Static/internal helpers ---
-static bool hasValidPresetColors(const std::vector<String> &presetColorsVec);
+static bool hasValidPresetColors(const std::vector<std::string> &presetColorsVec);
 static void captureCurrentBusFrame(std::vector<uint32_t> &frame);
 static void
-fillArrayFromPresetColors(const std::vector<String> &presetColorsVec,
+fillArrayFromPresetColors(const std::vector<std::string> &presetColorsVec,
                           std::array<uint32_t, 8> &arr);
 static void setPendingTransitionFromPreset(const Preset &preset, size_t n);
 static void captureCurrentFrameForTransition();
@@ -53,7 +55,7 @@ static void handleAnimation(size_t count,
 // --- Implementation ---
 
 // Static/internal helpers
-static bool hasValidPresetColors(const std::vector<String> &presetColorsVec) {
+static bool hasValidPresetColors(const std::vector<std::string> &presetColorsVec) {
   for (const auto &hex : presetColorsVec) {
     if (parse_hex_rgbw(hex.c_str()) == 0x00000000)
       return false;
@@ -68,7 +70,7 @@ static void captureCurrentBusFrame(std::vector<uint32_t> &frame) {
   }
 }
 static void
-fillArrayFromPresetColors(const std::vector<String> &presetColorsVec,
+fillArrayFromPresetColors(const std::vector<std::string> &presetColorsVec,
                           std::array<uint32_t, 8> &arr) {
   size_t n = presetColorsVec.size();
   for (size_t i = 0; i < n && i < 8; ++i) {
@@ -84,8 +86,8 @@ static void setPendingTransitionFromPreset(const Preset &preset, size_t n) {
   pendingTransition.params.colors.clear();
   for (size_t i = 0; i < n; ++i) {
     char hex[11];
-    snprintf(hex, sizeof(hex), "#%08X", color[i]);
-    pendingTransition.params.colors.push_back(String(hex));
+    snprintf(hex, sizeof(hex), "#%08" PRIX32, (uint32_t)color[i]);
+    pendingTransition.params.colors.push_back(std::string(hex));
   }
   pendingTransition.preset = preset.id;
 }
@@ -118,7 +120,7 @@ static void commitPendingTransition() {
   setEffect(state.effect, state.params);
   transition.clearFrames();
 }
-static void renderAnimationFrame(size_t count, uint8_t brightness) {
+static void __attribute__((unused)) renderAnimationFrame(size_t count, uint8_t brightness) {
   std::vector<uint32_t> animFrame(count, 0);
   auto animColors = parse_colors_vec(state.params.colors);
   size_t animColorCount =
@@ -131,7 +133,7 @@ static void handlePowerOff() {
   busManager.turnOffLEDs();
   state.inTransition = false;
   state.brightness = 0;
-  digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? LOW : HIGH);
+  gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 0 : 1);
   static std::vector<uint32_t> g_lastOutputFrame;
   g_lastOutputFrame.clear();
   g_outputFramePtr = &g_lastOutputFrame;
@@ -155,7 +157,7 @@ static void handleAnimation(size_t count,
   renderFrameToBus(animFrame);
   g_lastOutputFrame = animFrame;
   if (state.power) {
-    digitalWrite(config.led.relayPin, config.led.relayActiveHigh ? HIGH : LOW);
+    gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 1 : 0);
   }
 }
 
@@ -217,9 +219,9 @@ void setPower(bool power) {
     return;
   }
   state.power = power;
-  digitalWrite(config.led.relayPin,
-               power ? (config.led.relayActiveHigh ? HIGH : LOW)
-                     : (config.led.relayActiveHigh ? LOW : HIGH));
+    gpio_set_level((gpio_num_t)config.led.relayPin,
+               power ? (config.led.relayActiveHigh ? 1 : 0)
+                     : (config.led.relayActiveHigh ? 0 : 1));
   uint8_t targetBrightness = power ? state.brightness : 0;
   // Use powerOn transition time for power changes
   state.transitionTime = config.transitionTimes.powerOn;
@@ -260,8 +262,8 @@ void setEffect(uint8_t effect, const EffectParams &params) {
   size_t n = colorCount;
   for (size_t i = 0; i < n; ++i) {
     char hex[11];
-    snprintf(hex, sizeof(hex), "#%08X", color[i]);
-    state.params.colors.push_back(String(hex));
+    snprintf(hex, sizeof(hex), "#%08" PRIX32, (uint32_t)color[i]);
+    state.params.colors.push_back(std::string(hex));
   }
 
   BusNeoPixel *neo = busManager.getNeoPixelBus();
@@ -276,8 +278,8 @@ void setUserColor(const uint32_t *newColor, size_t count) {
   state.params.colors.clear();
   for (size_t i = 0; i < 8; ++i) {
     char hex[11];
-    snprintf(hex, sizeof(hex), "#%08X", color[i]);
-    state.params.colors.push_back(String(hex));
+    snprintf(hex, sizeof(hex), "#%08" PRIX32, (uint32_t)color[i]);
+    state.params.colors.push_back(std::string(hex));
   }
   // Use effect transition time for color/effect changes
   state.transitionTime = config.transitionTimes.manual;

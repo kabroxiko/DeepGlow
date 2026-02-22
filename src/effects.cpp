@@ -3,6 +3,7 @@
 #include "colors.h"
 #include "state.h"
 #include "transition.h"
+#include "esp_timer.h"
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -82,7 +83,7 @@ void effect_sunrise() {
   if (blendBuffer.size() != g_ledCount)
     blendBuffer.assign(g_ledCount, stops[0]);
   // Timing and speed
-  uint32_t now = millis();
+  uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
   uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
   uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
   // Intensity modifier: scale blendSpeed
@@ -129,7 +130,7 @@ void effect_sunset() {
         (uint32_t)strtoul(cstr + (cstr[0] == '#' ? 1 : 0), nullptr, 16));
   }
   // Calculate counter based on speed
-  uint32_t now = millis();
+  uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
   uint8_t speed = state.params.speed > 0 ? state.params.speed : 50;
   uint8_t intensity = state.params.intensity > 0 ? state.params.intensity : 255;
   uint32_t counter = 0;
@@ -198,7 +199,7 @@ void effect_moonlight() {
   // Highlight color: brighter blue/cyan
   uint8_t highR = 40, highG = 120, highB = 255, highW = 0;
 
-  uint32_t now = millis();
+  uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
   // Map speed param (1-255) to a practical, visible range
   uint8_t userSpeed = state.params.speed > 0 ? state.params.speed : 30;
   // At speed=1: 1 cycle per 8s; at speed=255: 1 cycle per 1s
@@ -273,7 +274,7 @@ void effect_lightning() {
     return (rngSeed & 0xFFFFFF) / float(0xFFFFFF);
   };
 
-  uint32_t now = millis();
+  uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
   // Use preset colors: first is base, last is flash, middle (if present) is
   // highlight
   uint8_t baseR = 0, baseG = 0, baseB = 0, baseW = 0;
@@ -326,7 +327,7 @@ void effect_lightning() {
         0.5f + 0.5f * (intensity / 255.0f); // max intensity 0.5-1.0
     flashIntensity = minFlash + (maxFlash - minFlash) * randf();
     // Pick a random set of LEDs for the flash
-    flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
+    flashLen = std::max((uint32_t)1, (uint32_t)(1 + randf() * (g_ledCount - 1)));
     flashStart = (uint32_t)(randf() * g_ledCount);
     lastFlash = now;
   }
@@ -343,7 +344,7 @@ void effect_lightning() {
         float minFlash = 0.1f + 0.7f * (intensity / 255.0f);
         float maxFlash = 0.5f + 0.5f * (intensity / 255.0f);
         flashIntensity = minFlash + (maxFlash - minFlash) * randf();
-        flashLen = std::max(1U, (uint32_t)(1 + randf() * (g_ledCount - 1)));
+        flashLen = std::max((uint32_t)1, (uint32_t)(1 + randf() * (g_ledCount - 1)));
         flashStart = (uint32_t)(randf() * g_ledCount);
       } else {
         inBurst = false;
