@@ -17,6 +17,7 @@ struct SystemState {
 };
 
 extern SystemState state;
+extern bool g_bootComplete; // true after full init, guards saveLastState calls
 void applyPreset(uint8_t presetId, uint8_t brightness);
 void setPower(bool power);
 void setBrightness(uint8_t brightness);

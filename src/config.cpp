@@ -9,7 +9,6 @@ using std::vector;
 #if defined(ESP_IDF_VERSION_MAJOR)
 #include <ArduinoJson.h>
 #endif
-#include "esp_littlefs.h"
 #include "esp_log.h"
 #include <sys/stat.h>
 #include <stdio.h>
@@ -20,19 +19,34 @@ using std::vector;
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#if defined(ARDUINO)
+#include <LittleFS.h>
+#else
+#include "esp_littlefs.h"
+#endif
+
 static const char *TAG = "config";
 
-// LittleFS VFS base path
+// LittleFS VFS base path (ESP-IDF VFS prefix, unused on Arduino)
 #define FS_BASE "/data"
 
 static bool s_fs_mounted = false;
 
 static bool ensureFilesystemMounted() {
+  if (s_fs_mounted) return true;
+#if defined(ARDUINO)
+  if (!LittleFS.begin(true)) {
+    Serial.println("[config] LittleFS mount failed (Arduino)");
+    return false;
+  }
+  Serial.println("[config] LittleFS mounted (Arduino)");
+  s_fs_mounted = true;
+  return true;
+#else
   if (esp_littlefs_mounted("spiffs")) {
     s_fs_mounted = true;
     return true;
   }
-  if (s_fs_mounted) return true;
   esp_vfs_littlefs_conf_t conf = {};
   conf.base_path = FS_BASE;
   conf.partition_label = "spiffs";
@@ -45,6 +59,7 @@ static bool ensureFilesystemMounted() {
   }
   s_fs_mounted = true;
   return true;
+#endif
 }
 
 static std::string fsPath(const char *path) {
@@ -172,6 +187,18 @@ void mergeJson(JsonVariant dst, JsonVariantConst src) {
 // Loads config file and converts percent to hex for internal use
 bool Configuration::loadFromFile(const char *path, JsonDocument &doc) {
   if (!ensureFilesystemMounted()) return false;
+#if defined(ARDUINO)
+  File f = LittleFS.open(path, "r");
+  if (!f) {
+    Serial.printf("[config] loadFromFile: cannot open %s\n", path);
+    return false;
+  }
+  String content = f.readString();
+  f.close();
+  Serial.printf("[config] loadFromFile: read %d bytes from %s\n", content.length(), path);
+  DeserializationError error = deserializeJson(doc, content.c_str());
+  return !error;
+#else
   std::string fp = fsPath(path);
   FILE *f = fopen(fp.c_str(), "r");
   if (!f) return false;
@@ -186,11 +213,23 @@ bool Configuration::loadFromFile(const char *path, JsonDocument &doc) {
   buf[sz] = '\0';
   DeserializationError error = deserializeJson(doc, buf.data());
   return !error;
+#endif
 }
 
 // Saves config file, converting hex to percent for human-readable storage
 bool Configuration::saveToFile(const char *path, const JsonDocument &doc) {
   if (!ensureFilesystemMounted()) return false;
+#if defined(ARDUINO)
+  File f = LittleFS.open(path, "w", true);
+  if (!f) {
+    Serial.printf("[config] saveToFile: cannot open %s for write\n", path);
+    return false;
+  }
+  size_t written = serializeJson(doc, f);
+  f.flush();
+  f.close();
+  return written > 0;
+#else
   std::string fp = fsPath(path);
   FILE *f = fopen(fp.c_str(), "w");
   if (!f) return false;
@@ -201,6 +240,7 @@ bool Configuration::saveToFile(const char *path, const JsonDocument &doc) {
   fclose(f);
   vTaskDelay(pdMS_TO_TICKS(10));
   return written > 0;
+#endif
 }
 
 bool Configuration::load() {
@@ -221,7 +261,7 @@ bool Configuration::load() {
     updated = true;
   } else {
     // Deep merge: fill missing/null fields from defaults
-    mergeJson(doc, defaultsDoc);
+    mergeJson(doc.as<JsonVariant>(), defaultsDoc.as<JsonVariantConst>());
     saveToFile(CONFIG_FILE, doc);
     updated = true;
   }
@@ -511,4 +551,36 @@ std::vector<std::string> Configuration::getSupportedTimezones() {
     }
   }
   return timezones;
+}
+
+// ── Last-state persistence ────────────────────────────────────────────────────
+// Saves {preset, brightness (0-100%), power} to STATE_FILE so the device can
+// restore its previous visual state after a reboot.
+bool Configuration::saveLastState(uint8_t preset, uint8_t brightness, bool power) {
+#ifdef ARDUINO
+  StaticJsonDocument<128> doc;
+  doc["preset"]     = preset;
+  doc["brightness"] = hexToPercent(brightness); // store as 0-100 %
+  doc["power"]      = power;
+  return saveToFile(STATE_FILE, doc);
+#else
+  (void)preset; (void)brightness; (void)power;
+  return false;
+#endif
+}
+
+bool Configuration::loadLastState(uint8_t &preset, uint8_t &brightness, bool &power) {
+#ifdef ARDUINO
+  StaticJsonDocument<128> doc;
+  if (!loadFromFile(STATE_FILE, doc)) return false;
+  if (!doc.containsKey("preset") || !doc.containsKey("brightness") || !doc.containsKey("power"))
+    return false;
+  preset     = doc["preset"]     | 0;
+  brightness = percentToHex((uint8_t)(doc["brightness"] | 0));
+  power      = doc["power"]      | false;
+  return true;
+#else
+  (void)preset; (void)brightness; (void)power;
+  return false;
+#endif
 }

@@ -1,9 +1,11 @@
 /**
- * Minimal SPI.h compatibility stub for ESP-IDF builds.
- * Satisfies NeoPixelBus SPI method headers without linking real SPI.
- * SPI-based LED methods (DotStar) are never instantiated in this project.
+ * SPI.h shim:
+ *  - ESP-IDF builds: minimal stub (no real SPI driver needed).
+ *  - Arduino builds: transparently forward to the framework's real SPI.h.
  */
 #pragma once
+
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -23,6 +25,9 @@ public:
 
 class SPIClass {
 public:
+    SPIClass() {}
+    SPIClass(int) {}   // HSPI/FSPI constants
+    SPIClass(uint8_t) {}
     void begin(int = -1, int = -1, int = -1, int = -1) {}
     void end() {}
     void beginTransaction(const SPISettings &) {}
@@ -32,3 +37,8 @@ public:
 };
 
 extern SPIClass SPI;
+
+#else
+// Arduino: use the real framework SPI.h (next one found in include path)
+#include_next <SPI.h>
+#endif

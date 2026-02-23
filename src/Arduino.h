@@ -1,8 +1,11 @@
 /**
- * Minimal Arduino compatibility header for ESP-IDF builds.
- * Provides just enough to compile NeoPixelBus (RMT methods only).
+ * Arduino.h shim:
+ *  - ESP-IDF builds: minimal stub so NeoPixelBus and friends compile.
+ *  - Arduino builds: transparently forward to the framework's real Arduino.h.
  */
 #pragma once
+
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
 
 #include <stdint.h>
 #include <stddef.h>
@@ -230,6 +233,10 @@ public:
 #ifndef ESP32
 #define ESP32
 #endif
-#ifndef ARDUINO
-#define ARDUINO 10815
-#endif
+// NOTE: do NOT define ARDUINO here - that macro is reserved for the real
+// Arduino framework and is used by platform guards throughout the project.
+
+#else
+// Arduino: forward to the real framework Arduino.h
+#include_next <Arduino.h>
+#endif // ESP_PLATFORM && !ARDUINO

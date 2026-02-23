@@ -23,6 +23,9 @@
 #include "esp_wifi.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#ifdef ARDUINO
+#include <WiFi.h>
+#endif
 
 #include <ArduinoJson.h>
 #include <string>
@@ -32,6 +35,14 @@
 #include <algorithm>
 
 static const char *TAG = "webserver";
+
+// On Arduino ESP32, ESP_LOGI routes through esp-idf UART buffers that don't
+// synchronise with the Arduino Serial monitor. Use Serial.printf directly.
+#ifdef ARDUINO
+  #define LOG_REQ(req) Serial.printf("[webserver] %s\n", (req)->uri)
+#else
+  #define LOG_REQ(req) ESP_LOGI(TAG, "%s", (req)->uri)
+#endif
 
 extern TransitionEngine transition;
 extern SystemState       state;
@@ -380,7 +391,7 @@ void WebServerManager::setupRoutes() {
 
 // OPTIONS preflight
 esp_err_t WebServerManager::hOptions(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hOptions called: %s", req->uri);
+    LOG_REQ(req);
     setCors(req);
     httpd_resp_set_status(req, "204 No Content");
     httpd_resp_send(req, NULL, 0);
@@ -398,7 +409,7 @@ esp_err_t WebServerManager::hNotFound(httpd_req_t *req, httpd_err_code_t err) {
 
 // /api/version
 esp_err_t WebServerManager::hVersion(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hVersion called: %s", req->uri);
+    LOG_REQ(req);
     setCors(req);
     httpd_resp_set_type(req, "application/json");
     std::string json = std::string("{\"version\":\"") + FW_VERSION + "\"}";
@@ -406,26 +417,27 @@ esp_err_t WebServerManager::hVersion(httpd_req_t *req) {
     return ESP_OK;
 }
 
-// /api/update GET  → return manifest JSON
+// /api/update GET  → return manifest JSON (always 200; "latest" is null if unreachable)
 esp_err_t WebServerManager::hUpdateGet(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hUpdateGet called: %s", req->uri);
+    LOG_REQ(req);
     setCors(req);
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
-    std::string manifest = fetchRemoteManifestJson();
-    if (manifest.empty()) {
-        httpd_resp_set_status(req, "404 Not Found");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"No release manifest found\"}");
-        return ESP_OK;
-    }
     httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, manifest.c_str(), manifest.size());
+    std::string manifest = fetchRemoteManifestJson();
+    if (!manifest.empty()) {
+        // Wrap in object: {"current":"...","latest":[...]}
+        std::string resp = "{\"current\":\"" + std::string(FW_VERSION) + "\",\"latest\":" + manifest + "}";
+        httpd_resp_send(req, resp.c_str(), resp.size());
+    } else {
+        std::string resp = "{\"current\":\"" + std::string(FW_VERSION) + "\",\"latest\":null,\"error\":\"Could not reach update server\"}";
+        httpd_resp_send(req, resp.c_str(), resp.size());
+    }
     return ESP_OK;
 }
 
 // /api/update POST  → start remote OTA task
 esp_err_t WebServerManager::hUpdatePost(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hUpdatePost called: %s", req->uri);
+    LOG_REQ(req);
     setCors(req);
     xTaskCreatePinnedToCore(otaTask, "otaTask", 16384, nullptr, 1, nullptr, 1);
     httpd_resp_set_type(req, "application/json");
@@ -435,7 +447,7 @@ esp_err_t WebServerManager::hUpdatePost(httpd_req_t *req) {
 
 // /api/command POST
 esp_err_t WebServerManager::hCommand(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hCommand called: %s", req->uri);
+    LOG_REQ(req);
     setCors(req);
     std::string body = readBody(req);
     StaticJsonDocument<128> doc;
@@ -458,13 +470,13 @@ esp_err_t WebServerManager::hCommand(httpd_req_t *req) {
 
 // /ota POST – local firmware upload
 esp_err_t WebServerManager::hOtaUpload(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hOtaUpload called: %s", req->uri);
+    LOG_REQ(req);
     return handleOtaUpload(req);
 }
 
 // Captive portal redirects
 esp_err_t WebServerManager::hCaptive(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hCaptive called: %s", req->uri);
+    LOG_REQ(req);
     httpd_resp_set_status(req, "302 Found");
     httpd_resp_set_hdr(req, "Location", "/wifi");
     httpd_resp_send(req, NULL, 0);
@@ -473,7 +485,7 @@ esp_err_t WebServerManager::hCaptive(httpd_req_t *req) {
 
 // 204 No Content (favicon, wpad, etc.)
 esp_err_t WebServerManager::hNoContent(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hNoContent called: %s", req->uri);
+    LOG_REQ(req);
     httpd_resp_set_status(req, "204 No Content");
     httpd_resp_send(req, NULL, 0);
     return ESP_OK;
@@ -481,7 +493,7 @@ esp_err_t WebServerManager::hNoContent(httpd_req_t *req) {
 
 // /index.js
 esp_err_t WebServerManager::hIndexJs(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hIndexJs called: %s", req->uri);
+    LOG_REQ(req);
     httpd_resp_set_type(req, "application/javascript");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_send(req, (const char*)web_index_js, web_index_js_len);
@@ -490,7 +502,7 @@ esp_err_t WebServerManager::hIndexJs(httpd_req_t *req) {
 
 // /style.css
 esp_err_t WebServerManager::hStyleCss(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hStyleCss called: %s", req->uri);
+    LOG_REQ(req);
     httpd_resp_set_type(req, "text/css");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_send(req, (const char*)web_style_css, web_style_css_len);
@@ -499,7 +511,7 @@ esp_err_t WebServerManager::hStyleCss(httpd_req_t *req) {
 
 // / and /index.html
 esp_err_t WebServerManager::hRoot(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hRoot called: %s", req->uri);
+    LOG_REQ(req);
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_send(req, (const char*)web_index_html, web_index_html_len);
@@ -508,7 +520,7 @@ esp_err_t WebServerManager::hRoot(httpd_req_t *req) {
 
 // /wifi GET
 esp_err_t WebServerManager::hWifiGet(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hWifiGet called: %s", req->uri);
+    LOG_REQ(req);
     httpd_resp_set_type(req, "text/html");
     httpd_resp_set_hdr(req, "Content-Encoding", "gzip");
     httpd_resp_send(req, (const char*)web_index_html, web_index_html_len);
@@ -517,10 +529,42 @@ esp_err_t WebServerManager::hWifiGet(httpd_req_t *req) {
 
 // /wifi/scan GET  – uses blocking scan (httpd handler has own task stack)
 esp_err_t WebServerManager::hWifiScan(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hWifiScan called: %s", req->uri);
+    LOG_REQ(req);
     setCors(req);
     httpd_resp_set_type(req, "application/json");
 
+#ifdef ARDUINO
+    // On Arduino the WiFi stack is managed by WiFi.h — use its scan API
+    // Switch to APSTA so STA can scan while AP stays up
+    wifi_mode_t mode = WIFI_MODE_NULL;
+    esp_wifi_get_mode(&mode);
+    if (mode == WIFI_MODE_AP) {
+        WiFi.mode(WIFI_AP_STA);
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+    int n = WiFi.scanNetworks(/*async=*/false, /*show_hidden=*/false);
+    Serial.printf("[webserver] wifi scan found %d APs\n", n);
+    if (n <= 0) {
+        httpd_resp_sendstr(req, "[]");
+        return ESP_OK;
+    }
+    std::string json = "[";
+    for (int i = 0; i < n; i++) {
+        if (i > 0) json += ",";
+        json += "\"";
+        String ssid = WiFi.SSID(i);
+        for (int j = 0; j < (int)ssid.length(); j++) {
+            char ch = ssid[j];
+            if (ch == '"') json += "\\\"";
+            else           json += ch;
+        }
+        json += "\"";
+        Serial.printf("[webserver] AP[%d] SSID=%s\n", i, ssid.c_str());
+    }
+    json += "]";
+    WiFi.scanDelete();
+    httpd_resp_send(req, json.c_str(), json.size());
+#else
     wifi_mode_t mode = WIFI_MODE_NULL;
     esp_wifi_get_mode(&mode);
     if (mode != WIFI_MODE_STA && mode != WIFI_MODE_APSTA) {
@@ -531,7 +575,6 @@ esp_err_t WebServerManager::hWifiScan(httpd_req_t *req) {
         ESP_LOGI(TAG, "hWifiScan: WiFi mode is %s, proceeding with scan", mode == WIFI_MODE_STA ? "STA" : "APSTA");
     }
     wifi_scan_config_t sc = {};
-    // blocking=true: waits up to ~2 s for scan to complete
     esp_err_t rc = esp_wifi_scan_start(&sc, true);
     if (rc != ESP_OK) {
         ESP_LOGE(TAG, "hWifiScan: scan failed, rc=%d", rc);
@@ -552,7 +595,6 @@ esp_err_t WebServerManager::hWifiScan(httpd_req_t *req) {
     for (uint16_t i = 0; i < num; i++) {
         if (i > 0) json += ",";
         json += "\"";
-        // escape double quotes in SSID just in case
         for (int j = 0; recs[i].ssid[j] && j < 32; j++) {
             char ch = (char)recs[i].ssid[j];
             if (ch == '"') json += "\\\"";
@@ -564,12 +606,13 @@ esp_err_t WebServerManager::hWifiScan(httpd_req_t *req) {
     json += "]";
     free(recs);
     httpd_resp_send(req, json.c_str(), json.size());
+#endif
     return ESP_OK;
 }
 
 // /wifi POST
 esp_err_t WebServerManager::hWifiPost(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hWifiPost called: %s", req->uri);
+    LOG_REQ(req);
     WebServerManager *mgr = fromReq(req);
     std::string body = readBody(req);
     ESP_LOGI(TAG, "hWifiPost body: %s", body.c_str());
@@ -606,7 +649,7 @@ esp_err_t WebServerManager::hWifiPost(httpd_req_t *req) {
 
 // /api/state GET
 esp_err_t WebServerManager::hStateGet(httpd_req_t *req) {
-    ESP_LOGI(TAG, "hStateGet called: %s", req->uri);
+    LOG_REQ(req);
     WebServerManager *mgr = fromReq(req);
     setCors(req);
     httpd_resp_set_type(req, "application/json");

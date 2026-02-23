@@ -1,4 +1,4 @@
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
 
 #include "neo_rmt.h"
 #include <stdlib.h>
@@ -161,4 +161,4 @@ void NeoRmtStrip::GetPixelBytes(uint16_t index, uint8_t *bytes) const
     memcpy(bytes, _pixels + index * _bytesPerPixel, _bytesPerPixel);
 }
 
-#endif // ESP_PLATFORM
+#endif // ESP_PLATFORM && !ARDUINO

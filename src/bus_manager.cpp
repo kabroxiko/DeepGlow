@@ -2,10 +2,11 @@
 #include "colors.h"
 #include <strings.h>
 
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
 #include "neo_rmt.h"
 #else
 #include <NeoPixelBus.h>
+#include <Arduino.h>  // for Serial
 #endif
 
 BusNeoPixel *BusManager::getNeoPixelBus() {
@@ -24,7 +25,7 @@ void BusManager::turnOffLEDs() {
     return;
   uint16_t count = neo->getLength();
 
-#ifdef ESP_PLATFORM
+ #if defined(ESP_PLATFORM) && !defined(ARDUINO)
   auto *s = static_cast<NeoRmtStrip *>(neo->getStrip());
   const uint8_t zeros[4] = {0, 0, 0, 0};
   for (uint16_t i = 0; i < count; i++)
@@ -50,7 +51,7 @@ void BusManager::turnOffLEDs() {
 void BusNeoPixel::show() {
   if (!_strip) return;
 
-#ifdef ESP_PLATFORM
+ #if defined(ESP_PLATFORM) && !defined(ARDUINO)
   static_cast<NeoRmtStrip *>(_strip)->Show();
 #else
   switch (_type) {
@@ -85,7 +86,7 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
   if (!_strip) return;
   uint8_t r, g, b, w;
 
-#ifdef ESP_PLATFORM
+ #if defined(ESP_PLATFORM) && !defined(ARDUINO)
   auto *s = static_cast<NeoRmtStrip *>(_strip);
   if (_type == BusNeoPixelType::SK6812) {
     unpack_rgbw(color, r, g, b, w);
@@ -130,7 +131,7 @@ void BusNeoPixel::setPixelColor(uint16_t pix, uint32_t color) {
 uint32_t BusNeoPixel::getPixelColor(uint16_t pix) const {
   if (!_strip) return 0;
 
-#ifdef ESP_PLATFORM
+ #if defined(ESP_PLATFORM) && !defined(ARDUINO)
   auto *s = static_cast<NeoRmtStrip *>(_strip);
   uint8_t bytes[4] = {0, 0, 0, 0};
   s->GetPixelBytes(pix, bytes);
@@ -171,7 +172,7 @@ void BusManager::cleanupStrip() {
     BusNeoPixel *neo = static_cast<BusNeoPixel *>(buses.front().get());
     if (neo) {
       void *s = neo->getStrip();
-#ifdef ESP_PLATFORM
+ #if defined(ESP_PLATFORM) && !defined(ARDUINO)
       delete static_cast<NeoRmtStrip *>(s);
 #else
       BusNeoPixelType t = neo->getType();
@@ -198,7 +199,7 @@ void BusManager::setupStrip(const std::string &type, const std::string &colorOrd
                  ? BusNeoPixelType::WS2812B_RGB
                  : BusNeoPixelType::WS2812B_GRB);
 
-#ifdef ESP_PLATFORM
+ #if defined(ESP_PLATFORM) && !defined(ARDUINO)
   bool rgbw = (ledType == BusNeoPixelType::SK6812);
   ESP_LOGI("bus", "setupStrip: using NeoRmtStrip pin=%d count=%d rgbw=%d", pin, count, (int)rgbw);
   auto *s = new NeoRmtStrip(count, pin, rgbw);
@@ -210,10 +211,20 @@ void BusManager::setupStrip(const std::string &type, const std::string &colorOrd
   addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(s, count, ledType)));
 
 #else
+  Serial.printf("[bus] setupStrip: type=%s pin=%d count=%d\n",
+                type.c_str(), pin, count);
   void *strip = nullptr;
   if (ledType == BusNeoPixelType::SK6812) {
     auto *s = new NeoPixelBus<NeoRgbwFeature, NeoSk6812Method>(count, pin);
-    s->Begin(); s->Show(); strip = s;
+    s->Begin();
+    // Hardware smoke-test: flash first pixel white briefly
+    s->SetPixelColor(0, RgbwColor(0, 0, 0, 128));
+    s->Show();
+    delay(500);
+    s->SetPixelColor(0, RgbwColor(0, 0, 0, 0));
+    s->Show();
+    Serial.printf("[bus] SK6812 flash test done (pin=%d)\n", pin);
+    strip = s;
   } else if (ledType == BusNeoPixelType::WS2812B_RGB) {
     auto *s = new NeoPixelBus<NeoRgbFeature, NeoWs2812xMethod>(count, pin);
     s->Begin(); s->Show(); strip = s;
@@ -221,6 +232,7 @@ void BusManager::setupStrip(const std::string &type, const std::string &colorOrd
     auto *s = new NeoPixelBus<NeoGrbFeature, NeoWs2812xMethod>(count, pin);
     s->Begin(); s->Show(); strip = s;
   }
+  Serial.printf("[bus] setupStrip done, strip=%p\n", strip);
   addBus(std::unique_ptr<BusNeoPixel>(new BusNeoPixel(strip, count, ledType)));
 #endif
 }

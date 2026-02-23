@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef ESP_PLATFORM
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
 
 #include <stdint.h>
 #include "driver/rmt_tx.h"
@@ -42,6 +42,22 @@ private:
 
     rmt_channel_handle_t _chan;
     rmt_encoder_handle_t _bytesEncoder;
+};
+
+#else
+
+#include <Arduino.h>
+// Arduino stub for NeoRmtStrip (not used)
+class NeoRmtStrip {
+public:
+    NeoRmtStrip(uint16_t, uint8_t, bool) {}
+    ~NeoRmtStrip() {}
+    bool Begin() { return false; }
+    void Show() {}
+    void SetPixelBytes(uint16_t, const uint8_t *) {}
+    void GetPixelBytes(uint16_t, uint8_t *) const {}
+    uint16_t PixelCount() const { return 0; }
+    uint8_t BytesPerPixel() const { return 0; }
 };
 
 #endif // ESP_PLATFORM

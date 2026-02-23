@@ -212,6 +212,7 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
   state.power = true;
   state.inTransition = true;
   state.preset = preset.id;
+  if (g_bootComplete) config.saveLastState(state.preset, state.brightness, state.power);
   webServer.broadcastState();
 }
 void setPower(bool power) {
@@ -236,11 +237,16 @@ void setPower(bool power) {
     transition.startTransition({targetBrightness, curColors},
                                state.transitionTime);
   }
+  // Save state: always save on power-off (preserves last brightness);
+  // on power-on only save if brightness is non-zero (avoids saving black state)
+  if (g_bootComplete && (!power || state.brightness > 0))
+    config.saveLastState(state.preset, state.brightness, state.power);
   webServer.broadcastState();
 }
 void setBrightness(uint8_t brightness) {
   webServer.applyBrightnessLimit(brightness);
   state.brightness = brightness;
+  if (g_bootComplete) config.saveLastState(state.preset, state.brightness, state.power);
   state.transitionTime = config.transitionTimes.manual;
   webServer.applyTransitionTimeLimit(state.transitionTime);
   uint8_t current = transition._currentState.brightness;

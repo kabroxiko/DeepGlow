@@ -67,6 +67,7 @@ export function App() {
             setTimeout(() => globalThis.location.reload(), 7000);
           } else if (data.status === 'error') {
             showToast(`OTA update failed: ${  data.message}`, { type: 'error' });
+            setOtaProgress(-2); // sentinel: hides progress bar + re-triggers dismiss effect in FirmwareUpdate
           }
         }
       },

@@ -1,6 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#ifdef ARDUINO
+#include <Arduino.h>
+#endif
 #include <ArduinoJson.h>
 #include <string>
 #include <vector>
@@ -20,6 +23,7 @@
 // File Paths
 #define CONFIG_FILE "/config.json"
 #define PRESET_FILE "/presets.json"
+#define STATE_FILE  "/state.json"
 
 // Limits
 
@@ -140,6 +144,10 @@ public:
 
   // Partial update from JSON (only update fields present)
   void partialUpdate(const JsonObject &update);
+
+  // Last-state persistence: save/restore power, brightness, preset across reboots
+  bool saveLastState(uint8_t preset, uint8_t brightness, bool power);
+  bool loadLastState(uint8_t &preset, uint8_t &brightness, bool &power);
 
   // Helper to load timers from a JsonArray
   void loadTimersFromJson(JsonArray timersArray);

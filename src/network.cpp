@@ -1,5 +1,183 @@
 #include "network.h"
 #include "debug.h"
+#include <string>
+
+#if defined(ARDUINO)
+// ═══════════════════════════════════════════════════════════════════════════════
+//  Arduino WiFi implementation (WiFi.h)
+// ═══════════════════════════════════════════════════════════════════════════════
+#include <WiFi.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "esp_log.h"
+#include "lwip/sockets.h"
+#include "lwip/netdb.h"
+#include "esp_timer.h"
+
+static const char *TAG = "network";
+
+static volatile bool s_sta_connected = false;
+static volatile bool s_ap_mode       = false;
+static uint32_t      s_ap_ip         = 0;
+
+// ── Captive-portal DNS task (same as ESP-IDF path) ────────────────────────────
+static void dns_task(void *arg) {
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    if (sock < 0) { vTaskDelete(nullptr); return; }
+    struct sockaddr_in sa = {};
+    sa.sin_family      = AF_INET;
+    sa.sin_addr.s_addr = INADDR_ANY;
+    sa.sin_port        = htons(53);
+    bind(sock, (struct sockaddr *)&sa, sizeof(sa));
+    uint8_t buf[512];
+    struct sockaddr_in cli = {};
+    socklen_t cli_len = sizeof(cli);
+    while (true) {
+        int len = recvfrom(sock, buf, sizeof(buf), 0, (struct sockaddr *)&cli, &cli_len);
+        if (len < 12) continue;
+        uint8_t resp[512];
+        memcpy(resp, buf, len);
+        resp[2] = 0x84; resp[3] = 0x00;
+        resp[4] = 0x00; resp[5] = 0x01;
+        resp[6] = 0x00; resp[7] = 0x01;
+        resp[8] = 0x00; resp[9] = 0x00;
+        resp[10] = 0x00; resp[11] = 0x00;
+        int pos = len;
+        resp[pos++] = 0xC0; resp[pos++] = 0x0C;
+        resp[pos++] = 0x00; resp[pos++] = 0x01;
+        resp[pos++] = 0x00; resp[pos++] = 0x01;
+        resp[pos++] = 0x00; resp[pos++] = 0x00;
+        resp[pos++] = 0x00; resp[pos++] = 0x3C;
+        resp[pos++] = 0x00; resp[pos++] = 0x04;
+        uint8_t *ip_bytes = (uint8_t *)&s_ap_ip;
+        resp[pos++] = ip_bytes[0]; resp[pos++] = ip_bytes[1];
+        resp[pos++] = ip_bytes[2]; resp[pos++] = ip_bytes[3];
+        sendto(sock, resp, pos, 0, (struct sockaddr *)&cli, cli_len);
+    }
+}
+
+static void startAP(const std::string &ssid, const std::string &password) {
+    ESP_LOGI(TAG, "Starting AP: %s", ssid.c_str());
+    WiFi.mode(WIFI_AP);
+    if (password.size() >= 8) {
+        WiFi.softAP(ssid.c_str(), password.c_str());
+    } else {
+        WiFi.softAP(ssid.c_str());
+    }
+    s_ap_ip = (uint32_t)WiFi.softAPIP();
+    s_ap_mode = true;
+    xTaskCreate(dns_task, "dns_task", 4096, nullptr, 5, nullptr);
+}
+
+void networkSetup(Configuration &config) {
+    const std::string &ssid     = config.network.ssid;
+    const std::string &password = config.network.password;
+    const std::string &apPass   = config.network.apPassword;
+    const std::string &hostname = config.network.hostname;
+
+    WiFi.setHostname(hostname.c_str());
+
+    // Register event callbacks
+    WiFi.onEvent([](WiFiEvent_t event) {
+        switch (event) {
+        case ARDUINO_EVENT_WIFI_STA_CONNECTED:
+            ESP_LOGI(TAG, "STA connected");
+            break;
+        case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+            ESP_LOGI(TAG, "Got IP: %s", WiFi.localIP().toString().c_str());
+            s_sta_connected = true;
+            break;
+        case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+            s_sta_connected = false;
+            ESP_LOGW(TAG, "STA disconnected");
+            break;
+        default:
+            break;
+        }
+    });
+
+    if (ssid.empty()) {
+        ESP_LOGI(TAG, "No STA credentials, starting AP: %s", hostname.c_str());
+        startAP(hostname, apPass);
+        return;
+    }
+
+    ESP_LOGI(TAG, "STA credentials found, connecting to: %s", ssid.c_str());
+    WiFi.mode(WIFI_STA);
+    WiFi.begin(ssid.c_str(), password.c_str());
+
+    // Wait up to 30 s for connection
+    const int MAX_WAIT_MS    = 10000;
+    const int MAX_CYCLES     = 3;
+    for (int cycle = 0; cycle < MAX_CYCLES && !s_sta_connected; cycle++) {
+        int waited = 0;
+        while (!s_sta_connected && waited < MAX_WAIT_MS) {
+            vTaskDelay(pdMS_TO_TICKS(200));
+            waited += 200;
+        }
+        if (!s_sta_connected && cycle + 1 < MAX_CYCLES) {
+            ESP_LOGW(TAG, "STA connect attempt %d failed, retrying...", cycle + 1);
+            WiFi.disconnect();
+            WiFi.begin(ssid.c_str(), password.c_str());
+        }
+    }
+
+    if (!s_sta_connected) {
+        ESP_LOGW(TAG, "STA failed after retries, activating captive portal AP");
+        WiFi.disconnect(true);
+        startAP(hostname, apPass);
+    }
+}
+
+void networkLoop(Configuration &config) {
+    static uint32_t lastCheck         = 0;
+    static int      reconnectAttempts = 0;
+    const  uint32_t CHECK_INTERVAL    = 10000;
+
+    if (s_ap_mode && s_sta_connected) {
+        s_ap_mode = false;
+        ESP_LOGI(TAG, "STA connected, disabling AP");
+        WiFi.softAPdisconnect(true);
+        WiFi.mode(WIFI_STA);
+        s_ap_ip = 0;
+    }
+
+    if (!s_ap_mode && !config.network.ssid.empty()) {
+        uint32_t now = (uint32_t)(esp_timer_get_time() / 1000ULL);
+        if (!s_sta_connected && (now - lastCheck) > CHECK_INTERVAL) {
+            lastCheck = now;
+            reconnectAttempts++;
+            ESP_LOGW(TAG, "Reconnect attempt %d", reconnectAttempts);
+            WiFi.reconnect();
+            if (reconnectAttempts >= 5) {
+                ESP_LOGW(TAG, "Too many failures, switching to AP mode");
+                reconnectAttempts = 0;
+                WiFi.disconnect(true);
+                startAP(config.network.hostname, config.network.apPassword);
+            }
+        } else if (s_sta_connected) {
+            reconnectAttempts = 0;
+        }
+    }
+}
+
+bool networkIsStaConnected() { return s_sta_connected; }
+bool networkIsApMode()       { return s_ap_mode; }
+
+std::string getCurrentIpString(const Configuration &config) {
+    if (s_sta_connected) {
+        return WiFi.localIP().toString().c_str();
+    }
+    if (s_ap_mode) {
+        return WiFi.softAPIP().toString().c_str();
+    }
+    return "0.0.0.0";
+}
+
+#else
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ESP-IDF implementation (unchanged)
+// ═══════════════════════════════════════════════════════════════════════════════
 #include "esp_timer.h"
 #include "esp_wifi.h"
 #include "esp_netif.h"
@@ -266,3 +444,5 @@ std::string getCurrentIpString(const Configuration &config) {
     }
     return "0.0.0.0";
 }
+
+#endif // ARDUINO

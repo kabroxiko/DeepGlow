@@ -51,6 +51,7 @@ void *strip = nullptr;
 // Timing
 uint32_t lastStateSave = 0;
 uint32_t lastUpdate = 0;
+bool g_bootComplete = false;
 
 // Track last timers for schedule update
 std::vector<Timer> lastTimers;
@@ -69,14 +70,40 @@ void checkAndApplyScheduleAfterBoot();
 extern "C" void main_task(void *pvParameters);
 
 // ESP-IDF: Replace setup() with app_main()
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
 extern "C" void app_main() {
   // app_main has a small stack — do nothing heavy here.
   // Just delay for USB enumeration, then hand off to main_task.
   vTaskDelay(pdMS_TO_TICKS(3000));
   xTaskCreate(main_task, "main_task", 32768, NULL, 5, NULL);
 }
+#else
+// Arduino: setup() / loop() entry points
+void setup() {
+  Serial.begin(115200);
+  delay(200); // brief settle so USB CDC is ready
+  esp_log_level_set("*", ESP_LOG_VERBOSE); // enable ESP_LOGI/LOGD for all tags
+  Serial.println("[setup] starting main_task");
+  // Spin up main_task on a large stack; FreeRTOS is always active on Arduino ESP32
+  xTaskCreate(main_task, "main_task", 32768, NULL, 5, NULL);
+}
+void loop() {
+  vTaskDelay(pdMS_TO_TICKS(1000)); // yield; real work happens in main_task
+}
+#endif
 
 void main_task(void *pvParameters) {
+// On Arduino ESP_LOGI routes via esp-idf log buffers which may not appear in
+// the Arduino serial monitor — emit to Serial directly as well.
+#ifdef ARDUINO
+  #define STEP(msg) do { ESP_LOGI("main", msg); Serial.println("[main_task] " msg); } while(0)
+#else
+  #define STEP(msg) ESP_LOGI("main", msg)
+#endif
+
+  STEP("entered");
+
+#if defined(ESP_PLATFORM) && !defined(ARDUINO)
   esp_log_level_set("main", ESP_LOG_INFO);
   ESP_LOGI("main", "Aquarium LED Controller starting... stack=%u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
 
@@ -87,9 +114,14 @@ void main_task(void *pvParameters) {
     nvs_err = nvs_flash_init();
   }
   ESP_ERROR_CHECK(nvs_err);
+#else
+  // Arduino already initializes NVS before setup() — skip nvs_flash_init
+  STEP("skipped nvs_flash_init (Arduino handles it)");
+#endif
 
+  STEP("step: webServerPtr");
   webServerPtr = &webServer;
-  ESP_LOGI("main", "step: config.load");
+  STEP("step: config.load");
 
   // Load configuration
   if (!config.load()) {
@@ -97,7 +129,16 @@ void main_task(void *pvParameters) {
     config.save();
   }
   lastConfiguration = config;
-  ESP_LOGI("main", "step: presets");
+  ESP_LOGI("main", "config: hostname=%s ssid=%s pin=%d count=%d type=%s maxBrightness=%d%% minTransition=%dms",
+           config.network.hostname.c_str(), config.network.ssid.c_str(),
+           config.led.pin, config.led.count, config.led.type.c_str(),
+           hexToPercent(config.safety.maxBrightness), config.safety.minTransitionTime);
+#ifdef ARDUINO
+  Serial.printf("[main_task] config: hostname=%s ssid=%s pin=%d count=%d type=%s\n",
+                config.network.hostname.c_str(), config.network.ssid.c_str(),
+                config.led.pin, config.led.count, config.led.type.c_str());
+#endif
+  STEP("step: presets");
 
   // Load presets
   if (!loadPresets(config.presets)) {
@@ -107,6 +148,9 @@ void main_task(void *pvParameters) {
   ESP_LOGI("main", "step: LEDs pin=%d count=%d type=%s order=%s",
            config.led.pin, config.led.count,
            config.led.type.c_str(), config.led.colorOrder.c_str());
+#ifdef ARDUINO
+  Serial.printf("[main_task] step: LEDs pin=%d count=%d\n", config.led.pin, config.led.count);
+#endif
 
   // Guard: skip LED init if config is invalid
   if (config.led.count > 0 && config.led.count <= 512 && config.led.pin < 22) {
@@ -118,12 +162,14 @@ void main_task(void *pvParameters) {
   }
 
   // Initialize relay pin from config
+  STEP("step: relay gpio");
   gpio_set_direction((gpio_num_t)config.led.relayPin, GPIO_MODE_OUTPUT);
   gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 0 : 1);
 
   // Initialize transition engine brightness to default
+  STEP("step: transition");
   transition.forceCurrentBrightness(state.brightness);
-  ESP_LOGI("main", "step: network");
+  STEP("step: network");
 
   // Initialize display
 #ifdef DISPLAY_ENABLED
@@ -131,9 +177,10 @@ void main_task(void *pvParameters) {
 #endif
 
   // Connect to WiFi
+  STEP("step: networkSetup");
   networkSetup(config);
   vTaskDelay(pdMS_TO_TICKS(500));
-  ESP_LOGI("main", "step: webserver setup");
+  STEP("step: webserver setup");
 
   // Setup web server callbacks
   webServer.onPowerChange(setPower);
@@ -194,7 +241,9 @@ void main_task(void *pvParameters) {
   });
 
   webServer.begin();
+  STEP("step: webserver.begin done");
   scheduler.begin();
+  STEP("step: scheduler.begin done");
   setupArduinoOTA(config.network.hostname.c_str());
 
   // Only wait for time sync if connected to WiFi (STA mode)
@@ -221,6 +270,26 @@ void main_task(void *pvParameters) {
   setEffect(state.effect, state.params);
   setBrightness(state.brightness);
   setPower(state.power);
+
+  // Restore last state (preset + brightness + power) saved before previous reboot
+  {
+    uint8_t lastPresetId = 0, lastBrightness = 0;
+    bool lastPower = false;
+    if (config.loadLastState(lastPresetId, lastBrightness, lastPower)) {
+      ESP_LOGI("main", "Restoring last state: preset=%d brightness=%d power=%s",
+               lastPresetId, lastBrightness, lastPower ? "on" : "off");
+#ifdef ARDUINO
+      Serial.printf("[main_task] restoring last state: preset=%d bri=%d power=%s\n",
+                    lastPresetId, lastBrightness, lastPower ? "on" : "off");
+#endif
+      if (lastPower && lastBrightness > 0) {
+        applyPreset(lastPresetId, lastBrightness);
+      }
+    } else {
+      ESP_LOGI("main", "No saved state found, starting with defaults");
+    }
+  }
+  g_bootComplete = true; // Now safe to persist state changes
 
   // --- Main loop ---
   int lastCheckedMinute = -1;

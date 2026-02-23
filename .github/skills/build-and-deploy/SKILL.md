@@ -13,13 +13,50 @@ This skill outlines the common tasks for building and deploying the project.
 
 ### Building the Firmware
 
-*   **Command:** `source .venv/bin/activate && platformio run -e esp32c6_debug`
-*   **Example:** To build for the primary ESP32-C6 debug environment, run:
-  ```bash
-  source .venv/bin/activate && platformio run -e esp32c6_debug
-  ```
+### Supported Targets
+
+This project supports two main firmware targets:
+
+- **ESP32-C6 (ESP-IDF):** For modern ESP32-C6 boards using the ESP-IDF framework.
+- **ESP32D (Arduino):** For classic ESP32 boards using the Arduino framework.
+
+### Building the Firmware
+
+*   **ESP32-C6 (ESP-IDF):**
+  *   Command: `source .venv/bin/activate && platformio run -e esp32c6_debug`
+  *   Example:
+    ```bash
+    source .venv/bin/activate && platformio run -e esp32c6_debug
+    ```
+  *   Use the "Build for esp32c6_debug" task for debug builds.
+
+*   **ESP32D (Arduino):**
+  *   Command: `source .venv/bin/activate && platformio run -e esp32d_debug`
+  *   Example:
+    ```bash
+    source .venv/bin/activate && platformio run -e esp32d_debug
+    ```
+  *   Use the "Build for esp32d_debug" task for debug builds.
+
 *   Always activate the Python virtual environment before building.
-*   You can also use the "Build for esp32c6_debug" task available in the workspace.
+
+### Uploading Firmware
+
+*   **ESP32D (Arduino):**
+  *   Command: `source .venv/bin/activate && platformio run -e esp32d_debug -t upload`
+  *   Example:
+    ```bash
+    source .venv/bin/activate && platformio run -e esp32d_debug -t upload
+    ```
+  *   Use the "Upload for esp32d_debug" task to flash the device.
+
+*   **ESP32-C6 (ESP-IDF):**
+  *   Command: `source .venv/bin/activate && platformio run -e esp32c6_debug -t upload`
+  *   Example:
+    ```bash
+    source .venv/bin/activate && platformio run -e esp32c6_debug -t upload
+    ```
+  *   Use the "Upload for esp32c6_debug" task to flash the device.
 
 ### Building the Web Interface
 
