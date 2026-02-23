@@ -66,6 +66,20 @@ static void setCors(httpd_req_t *req) {
     httpd_resp_set_hdr(req, "Access-Control-Allow-Headers", "Content-Type");
 }
 
+// ── Send JSON response (CORS + content-type + body) ───────────────────────────
+static void sendJson(httpd_req_t *req, const std::string &json) {
+    setCors(req);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_send(req, json.c_str(), json.size());
+}
+
+// ── Send JSON error response ──────────────────────────────────────────────────
+static void sendError(httpd_req_t *req, const char *status, const char *body) {
+    httpd_resp_set_status(req, status);
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_sendstr(req, body);
+}
+
 // ── Read full request body ────────────────────────────────────────────────────
 static std::string readBody(httpd_req_t *req) {
     if (req->content_len == 0) return "";
@@ -651,11 +665,9 @@ esp_err_t WebServerManager::hWifiPost(httpd_req_t *req) {
 esp_err_t WebServerManager::hStateGet(httpd_req_t *req) {
     LOG_REQ(req);
     WebServerManager *mgr = fromReq(req);
-    setCors(req);
-    httpd_resp_set_type(req, "application/json");
     std::string json = mgr->getStateJSON();
     ESP_LOGI(TAG, "hStateGet response: %s", json.c_str());
-    httpd_resp_send(req, json.c_str(), json.size());
+    sendJson(req, json);
     return ESP_OK;
 }
 
@@ -670,19 +682,15 @@ esp_err_t WebServerManager::hStatePost(httpd_req_t *req) {
 esp_err_t WebServerManager::hEffects(httpd_req_t *req) {
     WebServerManager *mgr = fromReq(req);
     if (!effectsCacheReady) mgr->buildEffectsCache();
-    setCors(req);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, cachedEffectsJson.c_str(), cachedEffectsJson.size());
+    sendJson(req, cachedEffectsJson);
     return ESP_OK;
 }
 
 // /api/presets GET
 esp_err_t WebServerManager::hPresetsGet(httpd_req_t *req) {
     WebServerManager *mgr = fromReq(req);
-    setCors(req);
-    httpd_resp_set_type(req, "application/json");
     std::string json = mgr->getPresetsJSON();
-    httpd_resp_send(req, json.c_str(), json.size());
+    sendJson(req, json);
     return ESP_OK;
 }
 
@@ -696,10 +704,8 @@ esp_err_t WebServerManager::hPresetPost(httpd_req_t *req) {
 // /api/config GET
 esp_err_t WebServerManager::hConfigGet(httpd_req_t *req) {
     WebServerManager *mgr = fromReq(req);
-    setCors(req);
-    httpd_resp_set_type(req, "application/json");
     std::string json = mgr->_config->toJsonString();
-    httpd_resp_send(req, json.c_str(), json.size());
+    sendJson(req, json);
     return ESP_OK;
 }
 
@@ -737,15 +743,13 @@ esp_err_t WebServerManager::hTimerPost(httpd_req_t *req) {
 // /api/timezones GET
 esp_err_t WebServerManager::hTimezones(httpd_req_t *req) {
     WebServerManager *mgr = fromReq(req);
-    setCors(req);
     std::vector<std::string> tzList = mgr->_config->getSupportedTimezones();
     StaticJsonDocument<2048> doc;
     JsonArray arr = doc.to<JsonArray>();
     for (const auto &tz : tzList) arr.add(tz.c_str());
     std::string json;
     serializeJson(arr, json);
-    httpd_resp_set_type(req, "application/json");
-    httpd_resp_send(req, json.c_str(), json.size());
+    sendJson(req, json);
     return ESP_OK;
 }
 
@@ -756,9 +760,7 @@ void WebServerManager::handleSetState(httpd_req_t *req) {
     std::string body = readBody(req);
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, body)) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid JSON\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Invalid JSON\"}");
         return;
     }
 
@@ -820,10 +822,8 @@ void WebServerManager::handleSetState(httpd_req_t *req) {
 }
 
 void WebServerManager::handleGetPresets(httpd_req_t *req) {
-    setCors(req);
-    httpd_resp_set_type(req, "application/json");
     std::string json = getPresetsJSON();
-    httpd_resp_send(req, json.c_str(), json.size());
+    sendJson(req, json);
 }
 
 void WebServerManager::handleSetPreset(httpd_req_t *req) {
@@ -831,24 +831,18 @@ void WebServerManager::handleSetPreset(httpd_req_t *req) {
     std::string body = readBody(req);
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, body)) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid JSON\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Invalid JSON\"}");
         return;
     }
     if (!doc.containsKey("id")) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Missing preset ID\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Missing preset ID\"}");
         return;
     }
     int reqId = doc["id"].as<int>();
     auto it = std::find_if(_config->presets.begin(), _config->presets.end(),
                            [reqId](const Preset &p) { return p.id == reqId; });
     if (it == _config->presets.end()) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid preset ID\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Invalid preset ID\"}");
         return;
     }
     if (doc.containsKey("apply") && doc["apply"]) {
@@ -882,9 +876,7 @@ void WebServerManager::handleSetConfig(httpd_req_t *req) {
     std::string body = readBody(req);
     DynamicJsonDocument doc(4096);
     if (deserializeJson(doc, body)) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid JSON\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Invalid JSON\"}");
         return;
     }
     if (doc.containsKey("network")) {
@@ -911,16 +903,12 @@ void WebServerManager::handleSetTimer(httpd_req_t *req) {
     std::string body = readBody(req);
     StaticJsonDocument<512> doc;
     if (deserializeJson(doc, body)) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid JSON\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Invalid JSON\"}");
         return;
     }
     uint8_t timerId = doc["id"];
     if (timerId >= _config->timers.size()) {
-        httpd_resp_set_status(req, "400 Bad Request");
-        httpd_resp_set_type(req, "application/json");
-        httpd_resp_sendstr(req, "{\"error\":\"Invalid timer ID\"}");
+        sendError(req, "400 Bad Request", "{\"error\":\"Invalid timer ID\"}");
         return;
     }
     _config->timers[timerId].enabled  = doc["enabled"];

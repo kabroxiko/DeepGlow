@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { Fragment } from 'preact';
-import { getBaseUrl } from '../baseUrl.js';
+import { apiUrl } from '../baseUrl.js';
 import { Modal } from '../Modal.jsx';
 
 export function FirmwareUpdate({
@@ -31,7 +31,7 @@ export function FirmwareUpdate({
     let toastId = null;
     try {
       toastId = showToast('Checking for latest version...', { type: 'info' });
-      const resp = await fetch(`${getBaseUrl()  }/api/update`);
+      const resp = await fetch(apiUrl('/api/update'));
       if (!resp.ok) throw new Error('Could not fetch update info');
       const data = await resp.json();
       // New envelope: { current: "...", latest: [...] | null, error: "..." }
@@ -71,7 +71,7 @@ export function FirmwareUpdate({
     setInstalling(true);
     try {
       // Actually trigger the install (same as before)
-      const resp = await fetch(`${getBaseUrl()  }/api/update`, {
+      const resp = await fetch(apiUrl('/api/update'), {
         method: 'POST',
       });
       const result = await resp.json();
@@ -162,7 +162,7 @@ export function FirmwareUpdate({
             try {
               setLocalOtaProgress(0);
               const xhr = new XMLHttpRequest();
-              xhr.open('POST', `${getBaseUrl()  }/ota`, true);
+              xhr.open('POST', apiUrl('/ota'), true);
               xhr.setRequestHeader('Accept', 'application/json');
               xhr.upload.onprogress = function (evt) {
                 if (evt.lengthComputable) {

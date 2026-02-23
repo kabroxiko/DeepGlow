@@ -58,7 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        env: [esp32, esp32d, esp8266, athom]
+        env: [esp32d_debug, esp32c6_debug]
     outputs:
       envs: ${{ toJson(matrix.env) }}
     steps:

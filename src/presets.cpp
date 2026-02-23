@@ -5,6 +5,26 @@
 
 static const char *TAG = "presets";
 
+// ── Shared preset deserialization (used by both Arduino and ESP-IDF paths) ────
+static Preset presetFromJson(JsonObject presetObj, size_t defaultId) {
+  Preset p;
+  p.id      = presetObj["id"] | (int)defaultId;
+  p.name    = presetObj["name"] | "";
+  p.effect  = presetObj["effect"] | 0;
+  p.enabled = presetObj["enabled"] | true;
+  if (presetObj.containsKey("params")) {
+    JsonObject paramsObj = presetObj["params"];
+    p.params.speed     = paramsObj["speed"].isNull()     ? percentToHex(100) : percentToHex((uint8_t)paramsObj["speed"]);
+    p.params.intensity = paramsObj["intensity"].isNull() ? percentToHex(50)  : percentToHex((uint8_t)paramsObj["intensity"]);
+    p.params.colors.clear();
+    if (paramsObj.containsKey("colors")) {
+      for (JsonVariant v : paramsObj["colors"].as<JsonArray>())
+        if (v.is<const char *>()) p.params.colors.push_back(std::string(v.as<const char *>()));
+    }
+  }
+  return p;
+}
+
 #ifdef ARDUINO
 #include <LittleFS.h>
 #define PRESET_FILE "/presets.json"
@@ -37,25 +57,8 @@ bool loadPresets(std::vector<Preset> &presets) {
 
   JsonArray presetsArray = doc["presets"];
   presets.clear();
-  for (size_t i = 0; i < presetsArray.size(); i++) {
-    JsonObject presetObj = presetsArray[i];
-    Preset p;
-    p.id      = presetObj["id"] | i;
-    p.name    = presetObj["name"] | "";
-    p.effect  = presetObj["effect"] | 0;
-    p.enabled = presetObj["enabled"] | true;
-    if (presetObj.containsKey("params")) {
-      JsonObject paramsObj = presetObj["params"];
-      p.params.speed     = paramsObj["speed"].isNull()     ? percentToHex(100) : percentToHex((uint8_t)paramsObj["speed"]);
-      p.params.intensity = paramsObj["intensity"].isNull() ? percentToHex(50)  : percentToHex((uint8_t)paramsObj["intensity"]);
-      p.params.colors.clear();
-      if (paramsObj.containsKey("colors")) {
-        for (JsonVariant v : paramsObj["colors"].as<JsonArray>())
-          if (v.is<const char *>()) p.params.colors.push_back(std::string(v.as<const char *>()));
-      }
-    }
-    presets.push_back(p);
-  }
+  for (size_t i = 0; i < presetsArray.size(); i++)
+    presets.push_back(presetFromJson(presetsArray[i], i));
   ESP_LOGI(TAG, "loaded %d presets", (int)presets.size());
   return true;
 }
@@ -148,25 +151,8 @@ bool loadPresets(std::vector<Preset> &presets) {
 
   JsonArray presetsArray = doc["presets"];
   presets.clear();
-  for (size_t i = 0; i < presetsArray.size(); i++) {
-    JsonObject presetObj = presetsArray[i];
-    Preset p;
-    p.id      = presetObj["id"] | i;
-    p.name    = presetObj["name"] | "";
-    p.effect  = presetObj["effect"] | 0;
-    p.enabled = presetObj["enabled"] | true;
-    if (presetObj.containsKey("params")) {
-      JsonObject paramsObj = presetObj["params"];
-      p.params.speed     = paramsObj["speed"].isNull()     ? percentToHex(100) : percentToHex((uint8_t)paramsObj["speed"]);
-      p.params.intensity = paramsObj["intensity"].isNull() ? percentToHex(50)  : percentToHex((uint8_t)paramsObj["intensity"]);
-      p.params.colors.clear();
-      if (paramsObj.containsKey("colors")) {
-        for (JsonVariant v : paramsObj["colors"].as<JsonArray>())
-          if (v.is<const char *>()) p.params.colors.push_back(std::string(v.as<const char *>()));
-      }
-    }
-    presets.push_back(p);
-  }
+  for (size_t i = 0; i < presetsArray.size(); i++)
+    presets.push_back(presetFromJson(presetsArray[i], i));
   ESP_LOGI(TAG, "loaded %d presets", (int)presets.size());
   return true;
 }
