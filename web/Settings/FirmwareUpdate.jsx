@@ -279,11 +279,8 @@ export function FirmwareUpdate({
           // Show progress bar if either progress is >= 0
           const showProgress = localOtaProgress >= 0 || otaProgress >= 0;
           if (!showProgress) return null;
-          // Prefer localOtaProgress if it's uploading, else use otaProgress
-          let progress = otaProgress;
-          if (localOtaProgress >= 0 && localOtaProgress < 100) {
-            progress = localOtaProgress;
-          }
+          // localOtaProgress takes priority whenever it is valid (>= 0)
+          const progress = localOtaProgress >= 0 ? localOtaProgress : otaProgress;
           const isUploading = progress < 100;
           const progressText = isUploading
             ? `Uploading... ${progress}%`

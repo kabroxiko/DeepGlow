@@ -132,51 +132,48 @@ void Scheduler::calculateSunTimes() {
     _sunsetMinutes  = calculateSunsetMinutes();
 }
 
-int Scheduler::calculateSunriseMinutes() {
-    float lat = (float)(_config->time.latitude * M_PI / 180.0);
+// ── Shared sun-angle helper ──────────────────────────────────────────────────
+// Computes sunrise (isSunrise=true) or sunset (isSunrise=false) as minutes
+// from midnight, given a latitude in degrees.
+static int calcSunMinutes(float latDeg, bool isSunrise) {
+    float lat = latDeg * (float)M_PI / 180.0f;
     int dayOfYear = (int)((getEpochTime() / 86400) % 365);
     float dec = 0.409f * sinf(2.0f * (float)M_PI / 365.0f * dayOfYear - 1.39f);
     float cosHA = -tanf(lat) * tanf(dec);
     if (cosHA < -1.0f) cosHA = -1.0f;
     if (cosHA >  1.0f) cosHA =  1.0f;
     float ha = acosf(cosHA);
-    int m = (int)((12.0f - ha * 12.0f / (float)M_PI) * 60.0f);
-    if (m < 4 * 60) m = 4 * 60;
-    if (m > 10 * 60) m = 10 * 60;
+    int m = (int)((isSunrise ? 12.0f - ha * 12.0f / (float)M_PI
+                             : 12.0f + ha * 12.0f / (float)M_PI) * 60.0f);
+    if (isSunrise) {
+        if (m <  4 * 60) m =  4 * 60;
+        if (m > 10 * 60) m = 10 * 60;
+    } else {
+        if (m < 16 * 60) m = 16 * 60;
+        if (m > 22 * 60) m = 22 * 60;
+    }
     return m;
+}
+
+int Scheduler::calculateSunriseMinutes() {
+    return calcSunMinutes((float)_config->time.latitude, true);
 }
 
 int Scheduler::calculateSunsetMinutes() {
-    float lat = (float)(_config->time.latitude * M_PI / 180.0);
-    int dayOfYear = (int)((getEpochTime() / 86400) % 365);
-    float dec = 0.409f * sinf(2.0f * (float)M_PI / 365.0f * dayOfYear - 1.39f);
-    float cosHA = -tanf(lat) * tanf(dec);
-    if (cosHA < -1.0f) cosHA = -1.0f;
-    if (cosHA >  1.0f) cosHA =  1.0f;
-    float ha = acosf(cosHA);
-    int m = (int)((12.0f + ha * 12.0f / (float)M_PI) * 60.0f);
-    if (m < 16 * 60) m = 16 * 60;
-    if (m > 22 * 60) m = 22 * 60;
-    return m;
+    return calcSunMinutes((float)_config->time.latitude, false);
 }
 
-std::string Scheduler::getSunriseTime() {
-    if (_sunriseMinutes == -1) return "N/A";
-    int m = (_sunriseMinutes < 0) ? 0 : (_sunriseMinutes > 1439 ? 1439 : _sunriseMinutes);
-    int h = m / 60, mm = m % 60;
+// ── Shared formatter for sun-event times ─────────────────────────────────────
+static std::string formatSunTime(int rawMinutes) {
+    if (rawMinutes == -1) return "N/A";
+    int m = (rawMinutes < 0) ? 0 : (rawMinutes > 1439 ? 1439 : rawMinutes);
     char buf[12];
-    snprintf(buf, sizeof(buf), "%02d:%02d", h, mm);
+    snprintf(buf, sizeof(buf), "%02d:%02d", m / 60, m % 60);
     return std::string(buf);
 }
 
-std::string Scheduler::getSunsetTime() {
-    if (_sunsetMinutes == -1) return "N/A";
-    int m = (_sunsetMinutes < 0) ? 0 : (_sunsetMinutes > 1439 ? 1439 : _sunsetMinutes);
-    int h = m / 60, mm = m % 60;
-    char buf[12];
-    snprintf(buf, sizeof(buf), "%02d:%02d", h, mm);
-    return std::string(buf);
-}
+std::string Scheduler::getSunriseTime() { return formatSunTime(_sunriseMinutes); }
+std::string Scheduler::getSunsetTime()  { return formatSunTime(_sunsetMinutes);  }
 
 int8_t Scheduler::getCurrentScheduledPreset() {
     if (!isTimeValid()) return -1;
