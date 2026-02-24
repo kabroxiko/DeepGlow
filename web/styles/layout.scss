@@ -13,11 +13,22 @@
   cursor: pointer;
 }
 
+.status-power-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.status-power-btn.is-on {
+  filter: drop-shadow(0 0 6px rgba(102, 204, 255, 0.45));
+}
+
 // Config action bar and buttons
 .config-action-bar {
   display: flex;
   justify-content: flex-end;
   margin-bottom: 0.5em;
+  gap: 8px;
 }
 
 .hidden-input {
@@ -43,7 +54,7 @@ body {
   border-radius: 12px;
   padding: 12px 16px;
   margin-bottom: 12px;
-  box-shadow: 0 8px 24px var(--shadow);
+  box-shadow: 0 2px 8px var(--shadow);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -74,8 +85,9 @@ body {
   border-radius: 12px;
   padding: 12px 16px;
   margin-bottom: 12px;
-  box-shadow: 0 4px 12px var(--shadow);
+  box-shadow: 0 2px 8px var(--shadow);
   border: 1px solid rgba(102, 204, 255, 0.1);
+  overflow-x: auto;
 }
 
 .card h2 {

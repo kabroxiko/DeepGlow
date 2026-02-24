@@ -177,18 +177,26 @@ function buildTimerChartData(
   return { pointsForChart, minutesArray, bgColors };
 }
 
+// Parses the device time string and returns the current time as fractional
+// minutes since midnight, or null if the time is unknown / not yet synced.
+// Falls back to the browser clock when the device reports '--:--'.
+function parseActualMinutes(time) {
+  if (time && time !== '--:--' && /^\d{2}:\d{2}(:\d{2})?$/.test(time)) {
+    const parts = time.split(':').map(Number);
+    return parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
+  }
+  if (time !== '--:--') {
+    const now = new Date();
+    return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+  }
+  return null;
+}
+
 export function Graph({ state, timers, presets, config }) {
   const brightnessGraphRef = useRef(null);
   useEffect(() => {
     if (!brightnessGraphRef.current) return;
     if (typeof config?.transitionTimes?.schedule !== 'number') return;
-
-    // Explicitly set canvas height and width to avoid Chart.js sizing bugs
-    brightnessGraphRef.current.style.height = '220px';
-    brightnessGraphRef.current.height = 220;
-    brightnessGraphRef.current.style.width = '100%';
-    brightnessGraphRef.current.width =
-      brightnessGraphRef.current.offsetWidth || 600;
 
     function renderChart() {
       // --- Legacy math: build points for ramp transitions ---
@@ -210,15 +218,8 @@ export function Graph({ state, timers, presets, config }) {
             .sort((a, b) => a.time - b.time)
         : [];
 
-      // Calculate actual time in minutes
-      let actualMinutes = null;
-      if (state?.time && state.time !== '--:--' && /^\d{2}:\d{2}(:\d{2})?$/.test(state.time)) {
-        const parts = state.time.split(':').map(Number);
-        actualMinutes = parts[0] * 60 + parts[1] + (parts[2] || 0) / 60;
-      } else if (state?.time !== '--:--') {
-        const now = new Date();
-        actualMinutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-      }
+      // Calculate actual time in minutes from device clock (or browser fallback)
+      const actualMinutes = parseActualMinutes(state?.time);
 
       // Chart.js plugin for vertical red line at actual time
       const actualTimeLinePlugin = {
@@ -248,6 +249,7 @@ export function Graph({ state, timers, presets, config }) {
         chartData = buildFlatChartData(state);
         chartOptions = {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
             actualTimeLine: actualTimeLinePlugin,
@@ -335,6 +337,7 @@ export function Graph({ state, timers, presets, config }) {
         };
         chartOptions = {
           responsive: true,
+          maintainAspectRatio: false,
           plugins: {
             legend: { display: false },
             colorBgByBlock: colorBgPlugin,
@@ -352,7 +355,7 @@ export function Graph({ state, timers, presets, config }) {
               max: 1440,
               ticks: {
                 stepSize: 60,
-                callback (value, index, ticks) {
+                callback(value, index, ticks) {
                   // Show label at each event/ramp point and on the hour
                   if (minutesArray.includes(value)) return timeToLabel(value);
                   if (value % 60 === 0) return timeToLabel(value);
@@ -424,17 +427,25 @@ export function Graph({ state, timers, presets, config }) {
   }, [timers, state, presets, config]);
 
   return (
-    <canvas
-      ref={brightnessGraphRef}
-      id="brightnessGraph"
-      tabIndex={0}
+    <div
       style={{
         width: '100%',
         maxWidth: '100%',
-        height: '220px',
+        aspectRatio: '5 / 1',
+        minHeight: '180px',
         marginTop: '16px',
-        outline: 'none',
       }}
-     />
+    >
+      <canvas
+        ref={brightnessGraphRef}
+        id="brightnessGraph"
+        tabIndex={0}
+        style={{
+          width: '100%',
+          height: '100%',
+          outline: 'none',
+        }}
+      />
+    </div>
   );
 }

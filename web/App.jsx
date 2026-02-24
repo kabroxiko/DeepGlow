@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'preact/hooks';
-import { getBaseUrl } from './baseUrl.js';
+import { apiUrl } from './baseUrl.js';
 import { initializeWebSocket } from './websocket.js';
 import { ToastContainer, useToast } from './Toast.jsx';
 import { useTabs, getHandshakeType, Tabs } from './Tabs.jsx';
 
 function sendState(updates) {
-  fetch(`${getBaseUrl()  }/api/state`, {
+  fetch(apiUrl('/api/state'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(updates),
@@ -34,16 +34,20 @@ export function App() {
 
   // Tabs logic (migrated)
   const [tab, setTab] = useTabs();
+  const tabRef = useRef(tab);
+
+  useEffect(() => {
+    tabRef.current = tab;
+  }, [tab]);
 
   // Shared WebSocket connection
   const wsRef = useRef(null);
-  const [setWsReady] = useState(false);
-  const [setWsError] = useState(null);
+  const [, setWsReady] = useState(false);
+  const [, setWsError] = useState(null);
 
   // Create the WebSocket connection only once
   useEffect(() => {
     wsRef.current = initializeWebSocket({
-      handshake: getHandshakeType(tab),
       onMessage: (data) => {
         setState((prev) => ({ ...prev, ...data }));
         if (data.preset !== undefined) setActivePreset(data.preset);
@@ -55,8 +59,9 @@ export function App() {
         }
         if (data.type === 'ota_status') {
           if (typeof data.progress === 'number') {
-            setOtaProgress(data.progress);
-            if (data.progress >= 100) {
+            const clamped = Math.max(0, Math.min(100, data.progress));
+            setOtaProgress(clamped);
+            if (clamped >= 100) {
               setTimeout(() => setOtaProgress(-1), 2000);
             }
           }
@@ -66,7 +71,8 @@ export function App() {
             });
             setTimeout(() => globalThis.location.reload(), 7000);
           } else if (data.status === 'error') {
-            showToast(`OTA update failed: ${  data.message}`, { type: 'error' });
+            showToast(`OTA update failed: ${data.message}`, { type: 'error' });
+            setOtaProgress(-2); // sentinel: hides progress bar + re-triggers dismiss effect in FirmwareUpdate
           }
         }
       },
@@ -81,6 +87,9 @@ export function App() {
       onOpen: () => {
         setWsReady(true);
         setWsError(null);
+        if (wsRef.current?.readyState === 1) {
+          wsRef.current.send(JSON.stringify(getHandshakeType(tabRef.current)));
+        }
       },
       onError: (err) => {
         setWsError(err);
@@ -130,21 +139,21 @@ export function App() {
   // Fetch shared data (presets, timers, effects, version, config, timezones) in parallel
   useEffect(() => {
     Promise.all([
-      fetch(`${getBaseUrl()  }/api/presets`)
+      fetch(apiUrl('/api/presets'))
         .then((r) => r.json())
         .then((data) => (Array.isArray(data) ? data : data.presets))
         .catch(() => []),
-      fetch(`${getBaseUrl()  }/api/effects`)
+      fetch(apiUrl('/api/effects'))
         .then((r) => r.json())
         .then((data) => data.effects)
         .catch(() => []),
-      fetch(`${getBaseUrl()  }/api/version`)
+      fetch(apiUrl('/api/version'))
         .then((r) => r.json())
         .catch(() => {}),
-      fetch(`${getBaseUrl()  }/api/timezones`)
+      fetch(apiUrl('/api/timezones'))
         .then((resp) => resp.json())
         .catch(() => []),
-      fetch(`${getBaseUrl()  }/api/config`)
+      fetch(apiUrl('/api/config'))
         .then(async (response) => {
           const text = await response.text();
           if (!text) return {};
@@ -165,7 +174,7 @@ export function App() {
       // Set version string if available
       if (version?.version) {
         const vEl = document.getElementById('versionString');
-        if (vEl) vEl.textContent = `Version: ${  version.version}`;
+        if (vEl) vEl.textContent = `Version: ${version.version}`;
       }
     });
   }, []);

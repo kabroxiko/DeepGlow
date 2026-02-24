@@ -10,7 +10,6 @@ export function ColorPickers({ colors, sendState }) {
     <div className="color-pickers-row">
       {colors.map((color, idx) => {
         let hex = color.length === 9 ? color.slice(0, 7) : color;
-        // For the swatch, use rgbwToDisplayColor; for the input, always use hex
         let swatchColor = hex;
         if (color.length === 9) {
           const r = Number.parseInt(color.slice(1, 3), 16);
@@ -20,9 +19,9 @@ export function ColorPickers({ colors, sendState }) {
           const [rr, gg, bb] = rgbwToDisplayColor(r, g, b, wch);
           swatchColor = `rgb(${rr},${gg},${bb})`;
         }
-        // Use a more unique key, e.g., color value plus index fallback
+
         return (
-          <div className="control-item" key={`${color  }-${  idx}`}>
+          <div className="control-item" key={`${color}-${idx}`}>
             <label
               style={{ display: 'flex', alignItems: 'center', gap: '1px' }}
             >
@@ -42,7 +41,7 @@ export function ColorPickers({ colors, sendState }) {
                     boxShadow: '0 0 6px #222',
                     display: 'block',
                   }}
-                 />
+                />
                 <input
                   type="color"
                   aria-label={`${['Primary', 'Secondary', 'Tertiary'][idx]} Color`}
@@ -78,7 +77,6 @@ export function ColorPickers({ colors, sendState }) {
 }
 
 export function Controls({ state, effects, sendState }) {
-  // Generic handler to avoid duplication for slider POST on release
   const sliderReleaseHandler = (extractValue, updateObj) => (e) => {
     sendState(
       typeof updateObj === 'function'
@@ -89,38 +87,6 @@ export function Controls({ state, effects, sendState }) {
 
   return (
     <div className="control-grid">
-      <div className="control-item">
-        <div className="switch-label">
-          <label htmlFor="powerToggle">
-            <span>Power</span>
-          </label>
-          <label className="switch" htmlFor="powerToggle">
-            <span
-              style={{
-                position: 'absolute',
-                width: 1,
-                height: 1,
-                padding: 0,
-                margin: -1,
-                overflow: 'hidden',
-                clip: 'rect(0,0,0,0)',
-                border: 0,
-              }}
-            >
-              Power toggle
-            </span>
-            <input
-              type="checkbox"
-              id="powerToggle"
-              checked={!!state.power}
-              onChange={(e) => sendState({ power: e.target.checked })}
-              aria-label="Power toggle"
-            />
-            <span className="slider" />
-          </label>
-        </div>
-      </div>
-
       <div className="control-item full-width">
         <label>
           <span>Brightness</span>
@@ -217,7 +183,7 @@ export function Controls({ state, effects, sendState }) {
           className="slider-input"
           onInput={(e) => {
             document.getElementById('speedValue').textContent =
-              `${e.target.value  }%`;
+              `${e.target.value}%`;
           }}
           onMouseUp={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value, 10),
@@ -229,6 +195,7 @@ export function Controls({ state, effects, sendState }) {
           )}
         />
       </div>
+
       <div className="control-item">
         <label>
           <span>Intensity</span>
@@ -243,7 +210,7 @@ export function Controls({ state, effects, sendState }) {
           className="slider-input"
           onInput={(e) => {
             document.getElementById('intensityValue').textContent =
-              `${e.target.value  }%`;
+              `${e.target.value}%`;
           }}
           onMouseUp={sliderReleaseHandler(
             (e) => Number.parseInt(e.target.value, 10),
@@ -255,7 +222,10 @@ export function Controls({ state, effects, sendState }) {
           )}
         />
       </div>
-      {state.params?.colors && <ColorPickers colors={state.params.colors} />}
+
+      {state.params?.colors && (
+        <ColorPickers colors={state.params.colors} sendState={sendState} />
+      )}
     </div>
   );
 }

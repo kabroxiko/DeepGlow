@@ -1,6 +1,6 @@
 /*
  * Standalone Aquarium LED Controller
- * ESP32/ESP8266 Fish-Safe LED Controller with Scheduling
+ * ESP32 Fish-Safe LED Controller with Scheduling
  *
  * Features:
  * - 6 Custom aquarium effects
@@ -11,22 +11,21 @@
  * - Preset management
  */
 
-#include "network.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-#include "driver/gpio.h"
-#include "esp_timer.h"
-#include <string.h>
 #include "bus_manager.h"
 #include "config.h"
-#include "debug.h"
+#include "driver/gpio.h"
 #include "effects.h"
+#include "esp_log.h"
+#include "esp_timer.h"
+#include "network.h"
+#include "nvs_flash.h"
 #include "ota.h"
 #include "presets.h"
 #include "scheduler.h"
 #include "state.h"
 #include "transition.h"
 #include "webserver.h"
+#include <string.h>
 
 #include "display.h"
 #include "inc/version.inc"
@@ -59,7 +58,6 @@ std::vector<Timer> lastTimers;
 int8_t lastScheduledPreset = -1;
 
 extern TransitionEngine transition;
-static bool apFallbackTriggered = false;
 
 // Function declarations
 void setupLEDs();
@@ -78,11 +76,20 @@ extern "C" void app_main() {
 
 void main_task(void *pvParameters) {
   esp_log_level_set("main", ESP_LOG_INFO);
-  ESP_LOGI("main", "Aquarium LED Controller starting... stack=%u", (unsigned)uxTaskGetStackHighWaterMark(NULL));
+  // Expected when browser/WebSocket clients disconnect abruptly.
+  // Keep internal httpd_ws noise low while preserving app-level logs.
+  esp_log_level_set("httpd_ws", ESP_LOG_ERROR);
+#ifdef DEBUG_SERIAL
+  esp_log_level_set("transition", ESP_LOG_DEBUG);
+  esp_log_level_set("state", ESP_LOG_DEBUG);
+#endif
+  ESP_LOGI("main", "Aquarium LED Controller starting... stack=%u",
+           (unsigned)uxTaskGetStackHighWaterMark(NULL));
 
   // NVS must be initialized before WiFi
   esp_err_t nvs_err = nvs_flash_init();
-  if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES || nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+  if (nvs_err == ESP_ERR_NVS_NO_FREE_PAGES ||
+      nvs_err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
     nvs_flash_erase();
     nvs_err = nvs_flash_init();
   }
@@ -101,12 +108,12 @@ void main_task(void *pvParameters) {
 
   // Load presets
   if (!loadPresets(config.presets)) {
-    debugPrintln("Failed to load presets");
+    ESP_LOGW("main", "Failed to load presets");
     savePresets(config.presets);
   }
   ESP_LOGI("main", "step: LEDs pin=%d count=%d type=%s order=%s",
-           config.led.pin, config.led.count,
-           config.led.type.c_str(), config.led.colorOrder.c_str());
+           config.led.pin, config.led.count, config.led.type.c_str(),
+           config.led.colorOrder.c_str());
 
   // Guard: skip LED init if config is invalid
   if (config.led.count > 0 && config.led.count <= 512 && config.led.pin < 22) {
@@ -114,12 +121,14 @@ void main_task(void *pvParameters) {
     updatePixelCount();
     busManager.turnOffLEDs();
   } else {
-    ESP_LOGW("main", "Skipping LED init: invalid config (count=%d pin=%d)", config.led.count, config.led.pin);
+    ESP_LOGW("main", "Skipping LED init: invalid config (count=%d pin=%d)",
+             config.led.count, config.led.pin);
   }
 
   // Initialize relay pin from config
   gpio_set_direction((gpio_num_t)config.led.relayPin, GPIO_MODE_OUTPUT);
-  gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 0 : 1);
+  gpio_set_level((gpio_num_t)config.led.relayPin,
+                 config.led.relayActiveHigh ? 0 : 1);
 
   // Initialize transition engine brightness to default
   transition.forceCurrentBrightness(state.brightness);
@@ -145,8 +154,8 @@ void main_task(void *pvParameters) {
   webServer.onConfigChange([]() {
     gpio_set_direction((gpio_num_t)config.led.relayPin, GPIO_MODE_OUTPUT);
     gpio_set_level((gpio_num_t)config.led.relayPin,
-           state.power ? (config.led.relayActiveHigh ? 1 : 0)
-                 : (config.led.relayActiveHigh ? 0 : 1));
+                   state.power ? (config.led.relayActiveHigh ? 1 : 0)
+                               : (config.led.relayActiveHigh ? 0 : 1));
     bool locationChanged =
         config.time.latitude != lastConfiguration.time.latitude ||
         config.time.longitude != lastConfiguration.time.longitude;
@@ -157,8 +166,13 @@ void main_task(void *pvParameters) {
     }
     bool timersChanged = config.timers != lastConfiguration.timers;
     if (timersChanged) {
-      scheduler.begin();
       lastConfiguration.timers = config.timers;
+    }
+    bool ntpServerChanged =
+        config.time.ntpServer != lastConfiguration.time.ntpServer;
+    if (ntpServerChanged) {
+      scheduler.updateNTP();
+      lastConfiguration.time.ntpServer = config.time.ntpServer;
     }
     bool ledChanged = config.led.pin != lastConfiguration.led.pin ||
                       config.led.count != lastConfiguration.led.count ||
@@ -197,12 +211,55 @@ void main_task(void *pvParameters) {
   scheduler.begin();
   setupArduinoOTA(config.network.hostname.c_str());
 
-  // Only wait for time sync if connected to WiFi (STA mode)
-  bool wifi_sta_connected = networkIsStaConnected();
-  if (wifi_sta_connected) {
+  enum NetworkReadyState {
+    NET_READY_NONE = 0,
+    NET_READY_AP,
+    NET_READY_STA,
+  };
+  NetworkReadyState lastNetReadyState = NET_READY_NONE;
+  bool lastStaConnectedForNtp = false;
+
+  // Give networkLoop() a chance to activate AP fallback if WiFi failed during
+  // startup Process it several times to ensure AP mode is activated before we
+  // check mode below
+  for (int i = 0; i < 5; i++) {
+    networkLoop(config);
+    scheduler.update();
+    vTaskDelay(pdMS_TO_TICKS(100));
+  }
+
+  // Only wait for time sync if NOT in AP mode (i.e., in STA mode)
+  // Check mode instead of IP connection to avoid race condition where IP hasn't
+  // been assigned yet
+  bool in_ap_mode = networkIsApMode();
+  if (!in_ap_mode) {
     ESP_LOGI("main", "Waiting for time sync...");
     for (int i = 0; i < 30; i++) {
+      networkLoop(config);
       scheduler.update();
+
+      bool staConnectedNow = networkIsStaConnected();
+      bool apModeNow = networkIsApMode();
+      NetworkReadyState netReadyState = NET_READY_NONE;
+      if (staConnectedNow) {
+        netReadyState = NET_READY_STA;
+      } else if (apModeNow) {
+        netReadyState = NET_READY_AP;
+      }
+
+      if (netReadyState != NET_READY_NONE &&
+          netReadyState != lastNetReadyState) {
+        ESP_LOGI("main", "System ready!");
+        ESP_LOGI("main", "IP Address: %s", getCurrentIpString(config).c_str());
+        ESP_LOGI("main", "=================================");
+        lastNetReadyState = netReadyState;
+      }
+
+      if (staConnectedNow && !lastStaConnectedForNtp) {
+        scheduler.updateNTP();
+      }
+      lastStaConnectedForNtp = staConnectedNow;
+
       if (scheduler.isTimeValid()) {
         ESP_LOGI("main", "Time synchronized!");
         break;
@@ -212,10 +269,6 @@ void main_task(void *pvParameters) {
   } else {
     ESP_LOGI("main", "Skipping time sync (AP mode)");
   }
-
-  ESP_LOGI("main", "System ready!");
-  ESP_LOGI("main", "IP Address: %s", getCurrentIpString(config).c_str());
-  ESP_LOGI("main", "=================================");
 
   transition.forceCurrentBrightness(state.brightness);
   setEffect(state.effect, state.params);
@@ -248,6 +301,28 @@ void main_task(void *pvParameters) {
     webServer.update();
     transition.update();
     networkLoop(config);
+
+    bool staConnectedNow = networkIsStaConnected();
+    bool apModeNow = networkIsApMode();
+    NetworkReadyState netReadyState = NET_READY_NONE;
+    if (staConnectedNow) {
+      netReadyState = NET_READY_STA;
+    } else if (apModeNow) {
+      netReadyState = NET_READY_AP;
+    }
+
+    if (netReadyState != NET_READY_NONE && netReadyState != lastNetReadyState) {
+      ESP_LOGI("main", "System ready!");
+      ESP_LOGI("main", "IP Address: %s", getCurrentIpString(config).c_str());
+      ESP_LOGI("main", "=================================");
+      lastNetReadyState = netReadyState;
+    }
+
+    if (staConnectedNow && !lastStaConnectedForNtp) {
+      scheduler.updateNTP();
+    }
+    lastStaConnectedForNtp = staConnectedNow;
+
     uint64_t now = esp_timer_get_time() / 1000;
     if (now - lastFrame >= (1000 / FRAMES_PER_SECOND)) {
       lastFrame = now;
@@ -259,9 +334,9 @@ void main_task(void *pvParameters) {
       std::string ipStr = getCurrentIpString(config);
       if (presetName != lastPreset || state.power != lastPower ||
           state.brightness != lastBrightness || ipStr != lastIp) {
-        #ifdef DISPLAY_ENABLED
+#ifdef DISPLAY_ENABLED
         display_status(presetName.c_str(), state.power, ipStr.c_str());
-        #endif
+#endif
         lastPreset = presetName;
         lastPower = state.power;
         lastBrightness = state.brightness;
@@ -278,6 +353,9 @@ void setupLEDs() {
 }
 
 void handleScheduledPreset(int8_t presetId, int currentMinutes) {
+  if (manualPowerOffOverride) {
+    return;
+  }
   const Timer *activeTimer = scheduler.getActiveTimer();
   if (activeTimer && activeTimer->presetId == presetId &&
       presetId != lastScheduledPreset) {

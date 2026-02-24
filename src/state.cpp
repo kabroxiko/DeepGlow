@@ -1,11 +1,11 @@
 #include "state.h"
 #include "bus_manager.h"
 #include "colors.h"
-#include "debug.h"
+#include "driver/gpio.h"
 #include "effects.h"
+#include "esp_log.h"
 #include "transition.h"
 #include "webserver.h"
-#include "driver/gpio.h"
 #include <inttypes.h>
 #include <stdint.h>
 
@@ -14,6 +14,7 @@ EffectParams transitionPrevParams;
 TransitionEngine::PendingTransitionState pendingTransition;
 extern volatile uint8_t g_effectSpeed;
 SystemState state;
+bool manualPowerOffOverride = false;
 extern BusManager busManager;
 std::vector<uint32_t> *g_outputFramePtr = nullptr;
 #include <array>
@@ -36,7 +37,8 @@ void setUserColor(const uint32_t *newColor, size_t count);
 void updateLEDs();
 
 // --- Static/internal helpers ---
-static bool hasValidPresetColors(const std::vector<std::string> &presetColorsVec);
+static bool
+hasValidPresetColors(const std::vector<std::string> &presetColorsVec);
 static void captureCurrentBusFrame(std::vector<uint32_t> &frame);
 static void
 fillArrayFromPresetColors(const std::vector<std::string> &presetColorsVec,
@@ -55,7 +57,8 @@ static void handleAnimation(size_t count,
 // --- Implementation ---
 
 // Static/internal helpers
-static bool hasValidPresetColors(const std::vector<std::string> &presetColorsVec) {
+static bool
+hasValidPresetColors(const std::vector<std::string> &presetColorsVec) {
   for (const auto &hex : presetColorsVec) {
     if (parse_hex_rgbw(hex.c_str()) == 0x00000000)
       return false;
@@ -92,7 +95,7 @@ static void setPendingTransitionFromPreset(const Preset &preset, size_t n) {
   pendingTransition.preset = preset.id;
 }
 static void captureCurrentFrameForTransition() {
-  BusNeoPixel *neo = busManager.getNeoPixelBus();
+  BusNeoPixel *neo = busManager.getLedBus();
   size_t count = busManager.getPixelCount();
   std::vector<uint32_t> prevFrame(count);
   for (size_t i = 0; i < count; ++i) {
@@ -101,13 +104,14 @@ static void captureCurrentFrameForTransition() {
   transition.setPreviousFrame(prevFrame);
 }
 static void renderFrameToBus(const std::vector<uint32_t> &frame) {
+  busManager.beginFrame();
   for (size_t i = 0; i < frame.size(); ++i) {
     uint32_t c = frame[i];
     uint8_t r, g, b, w;
     unpack_rgbw(c, r, g, b, w);
     busManager.setPixelColor(i, pack_rgbw(r, g, b, w));
   }
-  busManager.show();
+  busManager.endFrame();
 }
 static void commitPendingTransition() {
   state.effect = pendingTransition.effect;
@@ -120,7 +124,8 @@ static void commitPendingTransition() {
   setEffect(state.effect, state.params);
   transition.clearFrames();
 }
-static void __attribute__((unused)) renderAnimationFrame(size_t count, uint8_t brightness) {
+static void __attribute__((unused)) renderAnimationFrame(size_t count,
+                                                         uint8_t brightness) {
   std::vector<uint32_t> animFrame(count, 0);
   auto animColors = parse_colors_vec(state.params.colors);
   size_t animColorCount =
@@ -132,32 +137,35 @@ static void __attribute__((unused)) renderAnimationFrame(size_t count, uint8_t b
 static void handlePowerOff() {
   busManager.turnOffLEDs();
   state.inTransition = false;
-  state.brightness = 0;
-  gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 0 : 1);
+  gpio_set_level((gpio_num_t)config.led.relayPin,
+                 config.led.relayActiveHigh ? 0 : 1);
   static std::vector<uint32_t> g_lastOutputFrame;
   g_lastOutputFrame.clear();
   g_outputFramePtr = &g_lastOutputFrame;
 }
 static void handleTransition(size_t count,
                              std::vector<uint32_t> &g_lastOutputFrame) {
+  if (state.power) {
+    gpio_set_level((gpio_num_t)config.led.relayPin,
+                   config.led.relayActiveHigh ? 1 : 0);
+  }
   transition.blendTransitionFrames(pendingTransition, state, g_lastOutputFrame);
   renderFrameToBus(g_lastOutputFrame);
 }
 static void handleAnimation(size_t count,
                             std::vector<uint32_t> &g_lastOutputFrame) {
-  uint8_t currentBrightness = transition._currentState.brightness;
   state.inTransition = false;
-  state.brightness = currentBrightness;
   std::vector<uint32_t> animFrame(count, 0);
   auto animColors = parse_colors_vec(state.params.colors);
   size_t animColorCount =
       state.params.colors.size() > 0 ? state.params.colors.size() : 1;
   renderEffectToBuffer(state.effect, state.params, animFrame, count, animColors,
-                       animColorCount, currentBrightness);
+             animColorCount, transition._currentState.brightness);
   renderFrameToBus(animFrame);
   g_lastOutputFrame = animFrame;
   if (state.power) {
-    gpio_set_level((gpio_num_t)config.led.relayPin, config.led.relayActiveHigh ? 1 : 0);
+    gpio_set_level((gpio_num_t)config.led.relayPin,
+                   config.led.relayActiveHigh ? 1 : 0);
   }
 }
 
@@ -182,7 +190,6 @@ void applyPreset(uint8_t presetId, uint8_t brightness) {
     return;
 
   transition._previousState = transition._currentState;
-  bool doTransition = (state.prevEffect >= 0);
   webServer.applyTransitionTimeLimit(state.transitionTime);
 
   size_t count = busManager.getPixelCount();
@@ -218,24 +225,81 @@ void setPower(bool power) {
   if (state.power == power) {
     return;
   }
+  const bool wasOffAndIdle = (!state.power && !transition.isTransitioning());
+  uint8_t currentBrightness = transition._currentState.brightness;
+  if (!power && currentBrightness == 0) {
+    // If current state brightness got out of sync, seed fade-out from the
+    // intended runtime brightness so power-off still dims instead of cutting.
+    currentBrightness = transition._targetState.brightness;
+    if (currentBrightness == 0) {
+      currentBrightness = state.brightness;
+    }
+    transition.forceCurrentBrightness(currentBrightness);
+  }
+  if (power && wasOffAndIdle) {
+    // When fully off, force a deterministic dark start so power-on ramps do
+    // not begin from stale transition brightness.
+    transition.forceCurrentBrightness(0);
+    currentBrightness = 0;
+  }
   state.power = power;
-    gpio_set_level((gpio_num_t)config.led.relayPin,
-               power ? (config.led.relayActiveHigh ? 1 : 0)
-                     : (config.led.relayActiveHigh ? 0 : 1));
+  manualPowerOffOverride = !power;
   uint8_t targetBrightness = power ? state.brightness : 0;
   // Use powerOn transition time for power changes
   state.transitionTime = config.transitionTimes.powerOn;
   webServer.applyTransitionTimeLimit(state.transitionTime);
+
+  // Always transition from the currently rendered frame/colors on power
+  // toggles, including power-off.
+  captureCurrentFrameForTransition();
+
+  auto curColors = transition._currentState.colors;
+  if (curColors.empty()) {
+    curColors = transition._targetState.colors;
+  }
+  if (curColors.empty() && colorCount > 0) {
+    curColors.assign(color.begin(), color.begin() + colorCount);
+  }
+
   if (power) {
-    transition.forceCurrentBrightness(state.brightness);
+    size_t count = busManager.getPixelCount();
+    std::vector<uint32_t> targetFrame(count, 0);
+    std::array<uint32_t, 8> targetColors = {0};
+    size_t targetColorCount = 1;
+    if (!curColors.empty()) {
+      targetColorCount = curColors.size();
+      if (targetColorCount > targetColors.size())
+        targetColorCount = targetColors.size();
+      for (size_t i = 0; i < targetColorCount; ++i) {
+        targetColors[i] = curColors[i];
+      }
+    } else {
+      targetColors = parse_colors_vec(state.params.colors);
+      targetColorCount = state.params.colors.empty() ? 1 : state.params.colors.size();
+      if (targetColorCount > targetColors.size())
+        targetColorCount = targetColors.size();
+    }
+    renderEffectToBuffer(state.effect,
+                         state.params,
+                         targetFrame,
+                         count,
+                         targetColors,
+                         targetColorCount,
+                         targetBrightness);
+    transition.setTargetFrame(targetFrame);
   }
-  if (transition._currentState.brightness != targetBrightness ||
-      !transition.isTransitioning()) {
-    // Use current colors for effect transition
-    auto curColors = transition._currentState.colors;
-    transition.startTransition({targetBrightness, curColors},
-                               state.transitionTime);
-  }
+
+  transition.startTransition({targetBrightness, curColors},
+                             state.transitionTime);
+
+  ESP_LOGI("state",
+           "setPower(%d): current=%u target=%u durationMs=%u stateBrightness=%u",
+           power ? 1 : 0,
+           (unsigned)currentBrightness,
+           (unsigned)targetBrightness,
+           (unsigned)state.transitionTime,
+           (unsigned)state.brightness);
+
   webServer.broadcastState();
 }
 void setBrightness(uint8_t brightness) {
@@ -246,6 +310,12 @@ void setBrightness(uint8_t brightness) {
   uint8_t current = transition._currentState.brightness;
   if (brightness == current)
     return;
+  ESP_LOGD("state",
+           "setBrightness: current=%u target=%u durationMs=%u power=%d",
+           (unsigned)current,
+           (unsigned)brightness,
+           (unsigned)state.transitionTime,
+           state.power ? 1 : 0);
   if (!transition.isTransitioning()) {
     transition.forceCurrentBrightness(current);
   }
@@ -266,7 +336,7 @@ void setEffect(uint8_t effect, const EffectParams &params) {
     state.params.colors.push_back(std::string(hex));
   }
 
-  BusNeoPixel *neo = busManager.getNeoPixelBus();
+  BusNeoPixel *neo = busManager.getLedBus();
   if (!neo || !neo->getStrip())
     return;
   if (effect < effectRegistry.size() && effectRegistry[effect].fn) {
@@ -286,16 +356,20 @@ void setUserColor(const uint32_t *newColor, size_t count) {
   setEffect(state.effect, state.params);
 }
 void updateLEDs() {
-  BusNeoPixel *neo = busManager.getNeoPixelBus();
+  BusNeoPixel *neo = busManager.getLedBus();
   if (!neo || !neo->getStrip())
     return;
-  if (!state.power) {
+  static bool pendingCommit = false;
+  static std::vector<uint32_t> g_lastOutputFrame;
+
+  if (!state.power && !transition.isTransitioning()) {
+    pendingCommit = false;
+    g_lastOutputFrame.clear();
     handlePowerOff();
     return;
   }
+
   size_t count = busManager.getPixelCount();
-  static bool pendingCommit = false;
-  static std::vector<uint32_t> g_lastOutputFrame;
   g_lastOutputFrame.resize(count, 0);
   if (transition.isTransitioning()) {
     pendingCommit = true;

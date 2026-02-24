@@ -15,7 +15,7 @@
 }
 .preset-card:hover {
   transform: translateY(-4px);
-  box-shadow: 0 8px 16px var(--shadow);
+  box-shadow: 0 2px 8px var(--shadow);
   border-color: var(--primary-color);
 }
 .preset-card.active {

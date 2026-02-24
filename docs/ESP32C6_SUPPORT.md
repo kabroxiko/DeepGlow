@@ -1,22 +1,20 @@
 # ESP32-C6 Support
 
-## Added Environment
-- `env:esp32c6` in platformio.ini
-  - Board: esp32-c6-devkitc-1
-  - Platform: espressif32@6.12.0
-  - Framework: arduino
+DeepGlow includes PlatformIO environments for ESP32-C6:
 
-## Source Compatibility
-- Conditional compilation updated for ESP32C6 in webserver.cpp
-- OTA task creation and Update.h included for ESP32C6
+- `esp32c6`
+- `esp32c6_debug`
 
-## Build
-- Use: `platformio run -e esp32c6`
+## Build and flash
+
+```bash
+pio run -e esp32c6_debug
+pio run -e esp32c6_debug -t uploadfs
+pio run -e esp32c6_debug -t upload
+```
 
 ## Notes
-- Make sure your PlatformIO and espressif32 platform are up to date.
-- ESP32-C6 support is experimental; test all features thoroughly.
 
-## Next Steps
-- Flash firmware to ESP32-C6 board
-- Report any issues for further compatibility improvements
+- Framework: ESP-IDF via PlatformIO
+- Keep `espressif32` platform updated for latest C6 fixes
+- Validate Wi-Fi, OTA, timers, and effects after flashing

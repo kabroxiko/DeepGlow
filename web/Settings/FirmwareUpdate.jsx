@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'preact/hooks';
 import { Fragment } from 'preact';
-import { getBaseUrl } from '../baseUrl.js';
+import { apiUrl } from '../baseUrl.js';
 import { Modal } from '../Modal.jsx';
 
 export function FirmwareUpdate({
@@ -21,34 +21,53 @@ export function FirmwareUpdate({
     setOtaFileName('');
   };
 
+  // Helper to extract version from various data formats
+  const extractVersion = (data) => {
+    const latestArr = data?.latest;
+    if (Array.isArray(latestArr)) {
+      const entry = latestArr.find((e) => e.version);
+      return entry ? entry.version : null;
+    }
+    if (Array.isArray(data)) {
+      const entry = data.find((e) => e.version);
+      return entry ? entry.version : null;
+    }
+    return data?.version || data?.Version || data?.tag || null;
+  };
+
   // Modal state
   const [showModal, setShowModal] = useState(false);
   const [latestVersion, setLatestVersion] = useState(null);
   const [installing, setInstalling] = useState(false);
+  const [currentVersion, setCurrentVersion] = useState(null);
+  const [remoteStartPending, setRemoteStartPending] = useState(false);
+
+  const isUpgradeActive =
+    installing ||
+    remoteStartPending ||
+    otaProgress >= 0 ||
+    localOtaProgress >= 0;
+
   // Handler for update check and confirmation
   const handleCheckForUpdates = async () => {
+    if (isUpgradeActive) return;
     let toastId = null;
     try {
       toastId = showToast('Checking for latest version...', { type: 'info' });
-      // Fetch the latest manifest from the remote repository (GET /api/update)
-      const resp = await fetch(`${getBaseUrl()  }/api/update`);
-      if (!resp.ok) throw new Error('Could not fetch remote manifest');
-      const manifest = await resp.json();
-      // If manifest is an array, find the entry for this environment (optional: filter by env)
-      let version = null;
-      if (Array.isArray(manifest)) {
-        // Try to find the first entry with a version
-        const entry = manifest.find((e) => e.version);
-        version = entry ? entry.version : null;
-      } else {
-        version =
-          manifest?.version || manifest?.Version || manifest?.tag || null;
+      const resp = await fetch(apiUrl('/api/update'));
+      if (!resp.ok) throw new Error('Could not fetch update info');
+      const data = await resp.json();
+      if (data?.error && !data?.latest) {
+        if (toastId) showToast(null, null, toastId);
+        showToast(data.error, { type: 'error' });
+        return;
       }
-      setLatestVersion(version);
+      setCurrentVersion(data?.current || null);
+      setLatestVersion(extractVersion(data));
       setShowModal(true);
-      if (toastId) showToast(null, null, toastId); // Dismiss toast
+      if (toastId) showToast(null, null, toastId);
     } catch (e) {
-      if (toastId) showToast(null, null, toastId); // Dismiss toast
+      if (toastId) showToast(null, null, toastId);
       console.error('Remote manifest fetch failed:', e);
       showToast('Could not fetch latest version info!', { type: 'error' });
     }
@@ -59,10 +78,11 @@ export function FirmwareUpdate({
   const [otaInstallToastId, setOtaInstallToastId] = useState(null);
 
   const handleConfirmInstall = async () => {
+    if (isUpgradeActive) return;
     setInstalling(true);
+    setRemoteStartPending(true);
     try {
-      // Actually trigger the install (same as before)
-      const resp = await fetch(`${getBaseUrl()  }/api/update`, {
+      const resp = await fetch(apiUrl('/api/update'), {
         method: 'POST',
       });
       const result = await resp.json();
@@ -76,11 +96,13 @@ export function FirmwareUpdate({
         });
         setOtaInstallToastId(toastId);
       } else {
+        setRemoteStartPending(false);
         showToast(result?.message ? result.message : 'No update found.', {
           type: 'info',
         });
       }
     } catch (e) {
+      setRemoteStartPending(false);
       console.error('Update install failed:', e);
       showToast('Update install failed!', { type: 'error' });
     }
@@ -88,13 +110,22 @@ export function FirmwareUpdate({
     setInstalling(false);
   };
 
-  // Dismiss OTA install toast when progress starts (from WS or local)
+  // Dismiss OTA install toast when:
+  //  a) progress actually started (> 0), or
+  //  b) an error arrived before progress began (otaProgress sentinel < -1)
   useEffect(() => {
-    if ((otaProgress > 0 || localOtaProgress > 0) && otaInstallToastId) {
+    if (!otaInstallToastId) return;
+    if (otaProgress > 0 || localOtaProgress > 0 || otaProgress < -1) {
       if (typeof hideToast === 'function') hideToast(otaInstallToastId);
       setOtaInstallToastId(null);
     }
   }, [otaProgress, localOtaProgress, otaInstallToastId, hideToast]);
+
+  useEffect(() => {
+    if (otaProgress < -1) {
+      setRemoteStartPending(false);
+    }
+  }, [otaProgress]);
 
   return (
     <Fragment>
@@ -103,6 +134,11 @@ export function FirmwareUpdate({
         title="Install Update?"
         description={
           <>
+            {currentVersion && (
+              <div className="modal-version">
+                Current version: <span>{`v${currentVersion}`}</span>
+              </div>
+            )}
             <div className="modal-version">
               Latest version: <span>{latestVersion || 'unknown'}</span>
             </div>
@@ -115,13 +151,13 @@ export function FirmwareUpdate({
             label: installing ? 'Installing...' : 'Install',
             onClick: handleConfirmInstall,
             className: 'btn btn-primary',
-            disabled: installing,
+            disabled: isUpgradeActive,
           },
           {
             label: 'Cancel',
             onClick: () => setShowModal(false),
             className: 'btn btn-secondary',
-            disabled: installing,
+            disabled: isUpgradeActive,
           },
         ]}
       />
@@ -137,6 +173,7 @@ export function FirmwareUpdate({
           }}
           onSubmit={async (e) => {
             e.preventDefault();
+            if (isUpgradeActive) return;
             const otaFile = otaInputRef.current?.files[0];
             if (!otaFile) {
               showToast('Please select a firmware file.', { type: 'error' });
@@ -145,7 +182,7 @@ export function FirmwareUpdate({
             try {
               setLocalOtaProgress(0);
               const xhr = new XMLHttpRequest();
-              xhr.open('POST', `${getBaseUrl()  }/ota`, true);
+              xhr.open('POST', apiUrl('/ota'), true);
               xhr.setRequestHeader('Accept', 'application/json');
               xhr.upload.onprogress = function (evt) {
                 if (evt.lengthComputable) {
@@ -162,7 +199,7 @@ export function FirmwareUpdate({
                   resetFileInput();
                 } else {
                   showToast(
-                    `OTA failed: ${  xhr.responseText || xhr.statusText}`,
+                    `OTA failed: ${xhr.responseText || xhr.statusText}`,
                     { type: 'error' }
                   );
                   setLocalOtaProgress(-1);
@@ -176,7 +213,7 @@ export function FirmwareUpdate({
               };
               xhr.send(otaFile);
             } catch (err) {
-              showToast(`OTA error: ${  err}`, { type: 'error' });
+              showToast(`OTA error: ${err}`, { type: 'error' });
               setLocalOtaProgress(-1);
               resetFileInput();
             }
@@ -197,6 +234,7 @@ export function FirmwareUpdate({
               name="otaFile"
               accept=".bin,.gz,.zip"
               required
+              disabled={isUpgradeActive}
               style={{ display: 'none' }}
               id="otaFileInput"
               onChange={(e) => {
@@ -207,6 +245,7 @@ export function FirmwareUpdate({
             <button
               type="button"
               class="btn btn-primary"
+              disabled={isUpgradeActive}
               style={{
                 margin: 0,
                 display: 'flex',
@@ -223,6 +262,7 @@ export function FirmwareUpdate({
             <button
               type="submit"
               class="btn btn-primary"
+              disabled={isUpgradeActive}
               style={{
                 margin: 0,
                 height: 40,
@@ -251,6 +291,7 @@ export function FirmwareUpdate({
           <button
             type="button"
             class="btn btn-info"
+            disabled={isUpgradeActive}
             style={{ width: '100%', marginTop: 0 }}
             onClick={handleCheckForUpdates}
           >
@@ -259,17 +300,12 @@ export function FirmwareUpdate({
         </form>
         {/* OTA Progress Bar */}
         {(() => {
-          // Show progress bar if either progress is >= 0
-          const showProgress = localOtaProgress >= 0 || otaProgress >= 0;
-          if (!showProgress) return null;
-          // Prefer localOtaProgress if it's uploading, else use otaProgress
-          let progress = otaProgress;
-          if (localOtaProgress >= 0 && localOtaProgress < 100) {
-            progress = localOtaProgress;
-          }
+          const rawProgress = Number(otaProgress);
+          if (!Number.isFinite(rawProgress) || rawProgress < 0) return null;
+          const progress = Math.max(0, Math.min(100, Math.round(rawProgress)));
           const isUploading = progress < 100;
           const progressText = isUploading
-            ? `Uploading... ${progress}%`
+            ? `Flashing... ${progress}%`
             : 'Update complete! Rebooting...';
           return (
             <div style={{ width: '100%', marginTop: '1em' }}>

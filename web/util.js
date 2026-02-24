@@ -22,9 +22,24 @@ export function steppedTransitionValue(val) {
 export function formatTransitionTime(val) {
   val = Number(val);
   if (val === 0) return '0s';
-  if (val < 60) return `${val  }s`;
-  if (val < 3600) return `${Math.round(val / 60)  }m`;
-  return `${Math.round(val / 3600)  }h`;
+  if (val < 60) return `${val}s`;
+  if (val < 3600) return `${Math.round(val / 60)}m`;
+  return `${Math.round(val / 3600)}h`;
+}
+
+// Sort timers: sunrise/sunset types (1,2) first, then by time.
+export function sortTimers(timers) {
+  return [...timers].sort((a, b) => {
+    // Sunrise and Sunset types (1,2) always at the top
+    if (a.type === 1 || a.type === 2) return -1;
+    if (b.type === 1 || b.type === 2) return 1;
+    // Otherwise, sort by hour then minute
+    return (
+      (a.hour ?? 0) * 60 +
+      (a.minute ?? 0) -
+      ((b.hour ?? 0) * 60 + (b.minute ?? 0))
+    );
+  });
 }
 
 export function rgbwHexToPreview(hex) {

@@ -1,15 +1,92 @@
 // Only Quick Controls and switch/slider styles
 .control-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 20px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .control-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .control-grid {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
+  }
+}
+
+.config-item {
+  gap: 8px;
+}
+
+.config-action-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 18px;
   width: 100%;
 }
 
-.control-item {
+.config-action-bar .btn,
+.config-action-bar button,
+.config-action-bar label.btn {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  margin: 0;
+  text-align: center;
+  padding: 12px 10px;
+  box-sizing: border-box;
+}
+
+.config-buttons {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  gap: 18px;
+  margin-bottom: 18px;
+  justify-content: center;
+}
+
+.config-buttons .btn,
+.config-buttons button {
+  min-width: 140px;
+  padding: 10px 0;
+  font-size: 1.08rem;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px var(--shadow, rgba(102,204,255,0.2));
+  transition: box-shadow 0.18s, background 0.18s;
+  flex: 1 1 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+.config-buttons .btn:active,
+.config-buttons button:active {
+  box-shadow: 0 1px 4px var(--shadow, rgba(102,204,255,0.18));
+}
+
+@media (max-width: 600px) {
+  .config-buttons {
+    flex-direction: column;
+    gap: 12px;
+    align-items: stretch;
+  }
+  .config-buttons .btn,
+  .config-buttons button {
+    min-width: 0;
+    width: 100%;
+    font-size: 1rem;
+    border-radius: 8px;
+    padding: 12px 0;
+  }
+
+  .config-action-bar {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
 }
 
 .control-item.full-width {

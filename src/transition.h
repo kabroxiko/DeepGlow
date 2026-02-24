@@ -2,7 +2,6 @@
 #define TRANSITION_H
 
 #include "config.h"
-#include "debug.h"
 #include "state.h"
 
 class TransitionEngine {
