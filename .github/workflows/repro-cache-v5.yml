@@ -1,0 +1,84 @@
+---
+name: Build and Release v2
+
+permissions:
+  contents: write  # required for creating releases and uploading artifacts
+  actions: read    # required for using actions/checkout, actions/cache, etc.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  deps:
+    runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.cache-key }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute key
+        id: cache-key
+        run: |
+          echo "cache-key=${{ runner.os }}-deps-${{ hashFiles('dependencies.lock') }}" >> $GITHUB_OUTPUT
+
+      - name: Create dummy files
+        run: |
+          mkdir -p .venv .pio
+          dd if=/dev/zero of=.pio/dummy.bin bs=1M count=1 || true
+          echo "dummy" > .venv/ok || true
+
+      - name: Save cache (v5)
+        id: cache-save
+        uses: actions/cache@v5
+        with:
+          path: |
+            .venv
+            .pio
+          key: ${{ steps.cache-key.outputs.cache-key }}
+
+      - name: Show save outputs
+        run: |
+          echo "cache-save.cache-hit='${{ steps.cache-save.outputs.cache-hit }}'"
+          echo "cache-save.cache-key='${{ steps.cache-save.outputs.cache-key }}'"
+
+  build:
+    needs: deps
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        env: [esp32d, esp32c6, esp32, esp32c3, esp32s3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore cache (v5)
+        id: cache-restore
+        uses: actions/cache@v5
+        with:
+          path: |
+            .venv
+            .pio
+          key: ${{ needs.deps.outputs.cache-key }}
+          restore-keys: |
+            ${{ runner.os }}-deps-
+
+      - name: Show restore outputs
+        run: |
+          echo "restore.cache-hit='${{ steps.cache-restore.outputs.cache-hit }}'"
+          echo "restore.cache-key='${{ steps.cache-restore.outputs.cache-key }}'"
+          echo "needs.deps.outputs.cache-key='${{ needs.deps.outputs.cache-key }}'"
+
+      - name: List restored files
+        run: |
+          ls -la .venv || true
+          ls -la .pio || true
+
+      - name: Print runner info
+        run: |
+          echo "GITHUB_RUN_ID=${GITHUB_RUN_ID}"
+          echo "GITHUB_RUN_NUMBER=${GITHUB_RUN_NUMBER}"
+          echo "GITHUB_REF=${GITHUB_REF}"
+          echo "GITHUB_SHA=${GITHUB_SHA}"
