@@ -121,7 +121,7 @@ jobs:
         run: echo "${{ matrix.env }}" > built_envs_${{ matrix.env }}.txt
 
       - name: Upload build artifacts and env file for ${{ matrix.env }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: build-${{ matrix.env }}
           path: |
@@ -182,7 +182,7 @@ jobs:
           ENVS: ${{ env.ENVS }}
 
       - name: Upload manifest.json
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: manifest-json
           path: manifest.json
