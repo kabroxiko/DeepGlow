@@ -9,179 +9,43 @@ on:
   push:
     tags:
       - 'v*.*.*'
-    branches:
-      - main
-  pull_request_target:
-    branches:
-      - main
+  workflow_run:
+    workflows:
+      - Semantic Release
+    types:
+      - completed
 
 jobs:
-  deps:
-    runs-on: ubuntu-latest
-    outputs:
-      cache-key: ${{ steps.cache-key.outputs.cache-key }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Compute key
-        id: cache-key
-        run: |
-          echo "cache-key=${{ runner.os }}-deps-${{ hashFiles('dependencies.lock') }}" >> $GITHUB_OUTPUT
-
-      - name: Restore cache (v5)
-        id: cache-restore
-        uses: actions/cache@v5
-        with:
-          path: |
-            .venv
-            .pio
-            ~/.platformio/.cache
-            ~/.platformio/lib
-            ~/.npm
-            web/node_modules
-          key: ${{ steps.cache-key.outputs.cache-key }}
-          restore-keys: |
-            ${{ runner.os }}-deps-
-
-      - name: Create Python venv
-        if: steps.cache-restore.outputs.cache-hit != 'true'
-        run: |
-          python -m venv .venv
-
-      - name: Activate venv and install PlatformIO
-        run: |
-          source .venv/bin/activate
-          pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Install PlatformIO libraries (explicit)
-        run: |
-          source .venv/bin/activate
-          pio pkg install
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20.x'
-
-      - name: Install npm dependencies
-        run: |
-          npm ci
-
-      - name: Cache Python venv, PlatformIO, and node_modules
-        id: cache-save
-        uses: actions/cache@v5
-        with:
-          path: |
-            .venv
-            .pio
-            ~/.platformio/.cache
-            ~/.platformio/lib
-            ~/.npm
-            web/node_modules
-          key: ${{ steps.cache-key.outputs.cache-key }}
-
-      - name: Show save outputs
-        run: |
-          echo "cache-save.cache-hit='${{ steps.cache-save.outputs.cache-hit }}'"
-          echo "cache-save.cache-key='${{ steps.cache-save.outputs.cache-key }}'"
-
   build:
-    needs: deps
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        env: [esp32d, esp32c6, esp32, esp32c3, esp32s3]
-    outputs:
-      envs: ${{ toJson(matrix.env) }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-
-      - name: Restore PlatformIO dependencies
-        id: cache-restore
-        uses: actions/cache@v5
-        with:
-          path: |
-            .venv
-            .pio
-            ~/.platformio/.cache
-            ~/.platformio/lib
-            ~/.npm
-            web/node_modules
-          key: ${{ needs.deps.outputs.cache-key }}
-          restore-keys: |
-            ${{ runner.os }}-deps-
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: '3.11'
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20.x'
-
-      - name: Install npm dependencies
-        run: |
-          npm ci
-
-      - name: Build firmware for ${{ matrix.env }} (with retry)
-        run: |
-          source .venv/bin/activate
-          n=0
-          until [ "$n" -ge 3 ]
-          do
-            platformio run -e ${{ matrix.env }} && break
-            n=$((n+1))
-            echo "Build failed, retrying ($n/3)..."
-            sleep 10
-          done
-          if [ "$n" -ge 3 ]; then
-            echo "Build failed after 3 attempts." >&2
-            exit 1
-          fi
-
-      - name: Compress firmware binaries
-        run: |
-          find .pio/build/${{ matrix.env }} -type f -name '*.bin' -exec gzip -k -n {} \;
-
-      - name: Rename .bin.gz files with env and version
-        run: |
-          VERSION=$(cat VERSION)
-          # Ensure version always has 'v' prefix
-          if [[ $VERSION != v* ]]; then
-            VERSION="v$VERSION"
-          fi
-          for f in .pio/build/${{ matrix.env }}/*.bin.gz; do \
-            BASE=$(basename "$f" .bin.gz); \
-            mv "$f" ".pio/build/${{ matrix.env }}/${BASE}_${{ matrix.env }}_${VERSION}.bin.gz"; \
-          done
-
-      - name: Record built environment
-        run: echo "${{ matrix.env }}" > built_envs_${{ matrix.env }}.txt
-
-      - name: Upload build artifacts and env file for ${{ matrix.env }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: build-${{ matrix.env }}
-          path: |
-            .pio/build/${{ matrix.env }}/*.bin.gz
-            built_envs_${{ matrix.env }}.txt
+    if: github.event_name == 'push' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && !startsWith(github.event.workflow_run.head_commit.message, 'chore(release):'))
+    uses: ./.github/workflows/ci-workflow.yml
+    with:
+      run_web: true
+      run_firmware: true
 
   manifest:
     needs: [build]
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.release_tag.outputs.release_tag }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+
+      - name: Detect release tag
+        id: release_tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+          else
+            VERSION=$(cat VERSION)
+            if [[ $VERSION != v* ]]; then
+              VERSION="v$VERSION"
+            fi
+            RELEASE_TAG="$VERSION"
+          fi
+          echo "release_tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
 
       - name: Download all build artifacts and env files
         uses: actions/download-artifact@v8
@@ -201,7 +65,7 @@ jobs:
       - name: Set manifest environment variables
         run: |
           echo "FIRMWARE_TYPE=DeepGlow" >> $GITHUB_ENV
-          echo "FIRMWARE_BASE_URL=https://github.com/${{ github.repository }}/releases/download/${GITHUB_REF_NAME}/" >> $GITHUB_ENV
+          echo "FIRMWARE_BASE_URL=https://github.com/${{ github.repository }}/releases/download/${RELEASE_TAG}/" >> $GITHUB_ENV
 
       - name: Generate manifest.json for OTA
         run: |
@@ -236,10 +100,8 @@ jobs:
           path: manifest.json
 
   release:
-    needs: [build, manifest]
+    needs: [manifest]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') &&
-        github.event.base_ref == 'refs/heads/main'
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
@@ -262,6 +124,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ needs.manifest.outputs.release_tag }}
           files: |
             .pio/build/**/*.bin.gz
             manifest.json
