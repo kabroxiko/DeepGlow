@@ -81,8 +81,7 @@ jobs:
   release:
     needs: [manifest]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') &&
-        github.event.base_ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/v')
     steps:
       - name: Download all build artifacts
         uses: actions/download-artifact@v8
