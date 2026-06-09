@@ -21,9 +21,19 @@
 #define CONFIG_FILE "/config.json"
 #define PRESET_FILE "/presets.json"
 
-// Limits
+// Onboard LED Configuration
+#if defined(CONFIG_IDF_TARGET_ESP32C6)
+  #define ONBOARD_STATUS_LED 15
+#elif defined(CONFIG_IDF_TARGET_ESP32)
+  #define ONBOARD_STATUS_LED 2
+#endif
 
-// Presets now use effect index directly (uint8_t)
+// WiFi Status LED (hardcoded - onboard WS2812 RGB on GPIO 8)
+#if defined(CONFIG_IDF_TARGET_ESP32C6)
+  #define ONBOARD_RGB_LED 8
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+  #define ONBOARD_RGB_LED 48
+#endif
 
 // Timer Types
 enum TimerType { TIMER_REGULAR = 0, TIMER_SUNRISE = 1, TIMER_SUNSET = 2 };
