@@ -1,12 +1,12 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "$schema": "https://renovatebot.com",
   "extends": ["config:recommended"],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["^platformio\\.ini$"],
+      "fileMatch": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
-        "platform = (?<depName>espressif32)@(?<currentValue>[0-9.]+)"
+        "platform\\s*=\\s*(?<depName>espressif32)@(?<currentValue>[0-9.]+)"
       ],
       "packageNameTemplate": "platformio/platform-espressif32",
       "datasourceTemplate": "github-releases"
