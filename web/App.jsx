@@ -49,7 +49,11 @@ export function App() {
   useEffect(() => {
     wsRef.current = initializeWebSocket({
       onMessage: (data) => {
-        setState((prev) => ({ ...prev, ...data }));
+          // Console log to debug version updates
+          if (data.version !== undefined) {
+            console.log('WebSocket version update:', data.version);
+          }
+          setState((prev) => ({ ...prev, ...data }));
         if (data.preset !== undefined) setActivePreset(data.preset);
         if ('sunrise' in data) {
           setSunTimes((st) => ({
@@ -106,6 +110,7 @@ export function App() {
 
   // Send handshake/subscription message on tab change
   useEffect(() => {
+    console.log('Tab changed to:', tab, 'with state version:', state.version); // Debug
     if (wsRef.current?.readyState === 1) {
       wsRef.current.send(JSON.stringify(getHandshakeType(tab)));
     }
@@ -170,12 +175,13 @@ export function App() {
       setConfig(config);
       setTimezones(timezones);
       setTimers(config?.timers);
-      setLoaded({ presets: true, timezones: true, config: true });
-      // Set version string if available
-      if (version?.version) {
-        const vEl = document.getElementById('versionString');
-        if (vEl) vEl.textContent = `Version: ${version.version}`;
+      // Merge version into state - handle both primitive strings and object formats
+      if (version) {
+        const v = typeof version === 'string' ? version : (version.version || '');
+        setState((prev) => ({ ...prev, version: v }));
       }
+      console.log('Version after load:', state.version); // Debug
+      setLoaded({ presets: true, timezones: true, config: true });
     });
   }, []);
 
