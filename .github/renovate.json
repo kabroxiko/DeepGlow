@@ -1,31 +1,15 @@
 {
-  "$schema": "https://renovatebot.com",
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["^platformio\\.ini$"],
+      "fileMatch": ["^platformio\\.ini$"],
       "matchStrings": [
-        "platform\\s*=\\s*(?<depName>espressif32)@(?<currentValue>[0-9.]+)"
+        "platform = (?<depName>espressif32)@(?<currentValue>[0-9.]+)"
       ],
       "packageNameTemplate": "platformio/platform-espressif32",
-      "datasourceTemplate": "github-releases",
-      "depTypeTemplate": "platform"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": ["^platformio\\.ini$"],
-      "matchStrings": [
-        "^\\s*(?<depName>[^@\\n\\s;]+)@(?<currentValue>[0-9.]+)"
-      ],
-      "datasourceTemplate": "custom.pio-library",
-      "depTypeTemplate": "library"
+      "datasourceTemplate": "github-releases"
     }
-  ],
-  "customDatasources": {
-    "pio-library": {
-      "defaultRegistryUrlTemplate": "https://platformio.org{{{packageName}}}",
-      "format": "json"
-    }
-  }
+  ]
 }
