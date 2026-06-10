@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "regexManagers": [
+    {
+      "fileMatch": ["(^|/)platformio\\.ini$"],
+      "matchStrings": [
+        "lib_deps\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "{{{depName}}}"
+    }
+  ]
+}
