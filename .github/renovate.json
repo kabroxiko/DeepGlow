@@ -1,11 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
-  "enabled": true,
   "vulnerabilityAlerts": {
     "enabled": false
   },
-  "enabledManagers": ["custom.regex"],
   "customDatasources": {
     "ds-pio-platform": {
       "description": "PlatformIO Platform Registry",
@@ -30,24 +28,20 @@
       "description": "PlatformIO Platform Manager",
       "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
-        "^\\s*platform\\s*\\=\\s*(?<depName>[\\s\\w\\-\\_\\.\\/]+)@\\^(?<currentValue>[\\d\\.]+)\\s*$"
+        "platform\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
       ],
       "datasourceTemplate": "custom.ds-pio-platform",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-platform"
+      "depNameTemplate": "{{{depName}}}"
     },
     {
       "customType": "regex",
-      "description": "PlatformIO Library Manager",
+      "description": "PlatformIO Platform Manager",
       "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
-        "^\\s*(?<depName>[\\s\\w\\-\\_\\.\\/]+)@\\^(?<currentValue>[\\d\\.]+)\\s*$"
+         "lib_deps\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
       ],
       "datasourceTemplate": "custom.ds-pio-library",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-library"
+      "depNameTemplate": "{{{depName}}}"
     }
   ],
   "packageRules": [
