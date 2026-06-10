@@ -27,7 +27,7 @@
     {
       "customType": "regex",
       "description": "PlatformIO Platform Manager",
-      "managerFilePatterns": ["/^platformio\\.ini$/"],
+      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
         "^\\s*platform\\s*\\=\\s*(?<depName>[\\s\\w\\-\\_\\.\\/]+)@\\^(?<currentValue>[\\d\\.]+)\\s*$"
       ],
@@ -39,7 +39,7 @@
     {
       "customType": "regex",
       "description": "PlatformIO Library Manager",
-      "managerFilePatterns": ["/^platformio\\.ini$/"],
+      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
         "^\\s*(?<depName>[\\s\\w\\-\\_\\.\\/]+)@\\^(?<currentValue>[\\d\\.]+)\\s*$"
       ],
