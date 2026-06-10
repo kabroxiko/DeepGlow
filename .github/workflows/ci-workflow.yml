@@ -55,37 +55,31 @@ jobs:
 
 
       - name: Set up Python
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
       - name: Create Python venv
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: |
           python -m venv .venv
 
       - name: Activate venv and install PlatformIO
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
           pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Install PlatformIO libraries (explicit)
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
           pio pkg install
 
       - name: Set up Node.js
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: '24.x'
 
       - name: Install npm dependencies
-        if: steps.cache-restore.outputs.cache-hit != 'true'
         run: |
           npm ci
 

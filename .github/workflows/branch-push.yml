@@ -6,6 +6,7 @@ on:
     # Run on any branch except the principal 'main' branch
     branches-ignore:
       - main
+  workflow_dispatch:    
 
 jobs:
   build:
