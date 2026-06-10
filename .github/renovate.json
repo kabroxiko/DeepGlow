@@ -4,7 +4,7 @@
   "vulnerabilityAlerts": {
     "enabled": false
   },
-  "enabledManagers": ["custom.regex"],
+  "enabledManagers": ["github-actions", "npm", "pip_requirements", "custom.regex"],
   "customDatasources": {
     "ds-pio-platform": {
       "description": "PlatformIO Platform Registry",
