@@ -1,62 +1,11 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended"],
-  "vulnerabilityAlerts": {
-    "enabled": false
-  },
-  "enabledManagers": ["github-actions", "npm", "pip_requirements", "custom.regex"],
   "customManagers": [
     {
       "customType": "regex",
-      "description": "PlatformIO Platform Manager",
       "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
-        "platform\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
-      ],
-      "datasourceTemplate": "custom.ds-pio-platform",
-      "depNameTemplate": "{{depName}}"
-    },
-    {
-      "customType": "regex",
-      "description": "PlatformIO Platform Manager",
-      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
-      "matchStrings": [
-         "lib_deps\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
-      ],
-      "datasourceTemplate": "custom.ds-pio-library",
-      "depNameTemplate": "{{depName}}"
-    }
-  ],
-  "customDatasources": {
-    "ds-pio-platform": {
-      "description": "PlatformIO Platform Registry",
-      "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/platform/{{{replace '.*/' '' packageName}}}",
-      "format": "json",
-      "transformTemplates": [
-        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+        "#\\s*renovate:\\s*datasource=(?<datasource>[\\w-]+?)\\s+depName=(?<depName>[^\\s]+?)(?:\\s+versioning=(?<versioning>[^\\s]+?))?\\s+\\w+\\s*=\\s*[^@]+@(?<currentValue>.+)"
       ]
-    },
-    "ds-pio-library": {
-      "description": "PlatformIO Library Registry",
-      "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/library/{{{replace '.*/' '' packageName}}}",
-      "format": "json",
-      "transformTemplates": [
-        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
-      ]
-    }
-  },
-  "packageRules": [
-    {
-      "groupName": "PlatformIO Platform",
-      "description": "PlatformIO Platform",
-      "matchDepTypes": ["dep-pio-platform"],
-      "addLabels": ["renovatebot", "pio", "platform"]
-    },
-    {
-      "groupName": "PlatformIO Library",
-      "description": "PlatformIO Library",
-      "matchDepTypes": ["dep-pio-library"],
-      "addLabels": ["renovatebot", "pio", "library"]
     }
   ]
 }
