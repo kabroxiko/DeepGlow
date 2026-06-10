@@ -1,6 +1,7 @@
 {
   "$schema": "https://renovatebot.com",
   "extends": ["config:recommended"],
+  "recreateWhen": "always",
   "customManagers": [
     {
       "customType": "regex",
@@ -9,8 +10,7 @@
         "platform\\s*=\\s*(?<depName>espressif32)@(?<currentValue>[0-9.]+)"
       ],
       "packageNameTemplate": "platformio/platform-espressif32",
-      "datasourceTemplate": "github-releases",
-      "recreateWhen": "always"
+      "datasourceTemplate": "github-releases"
     }
   ]
 }
