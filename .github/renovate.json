@@ -15,19 +15,10 @@
       "customType": "regex",
       "fileMatch": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
-        "(?m)^lib_deps\\s*=\\s*(?:[^\\n]*\\n(?:\\s+[^\\n]*\\n)*)"
+        "(?m)^\\s*(?<depName>[^@\\n\\s]+)@(?<currentValue>[^\\n\\s]+)"
       ],
-      "matchStringsStrategy": "recursive",
-      "customManagers": [
-        {
-          "customType": "regex",
-          "matchStrings": [
-            "(?m)^\\s*(?<depName>[^@\\n]+)@(?<currentValue>[^\\n]+)"
-          ],
-          "datasourceTemplate": "github-tags",
-          "depTypeTemplate": "library"
-        }
-      ]
+      "datasourceTemplate": "github-tags",
+      "depTypeTemplate": "library"
     }
   ]
 }
