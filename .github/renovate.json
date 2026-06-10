@@ -5,6 +5,28 @@
     "enabled": false
   },
   "enabledManagers": ["github-actions", "npm", "pip_requirements", "custom.regex"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "PlatformIO Platform Manager",
+      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
+      "matchStrings": [
+        "platform\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
+      ],
+      "datasourceTemplate": "custom.ds-pio-platform",
+      "depNameTemplate": "{{depName}}"
+    },
+    {
+      "customType": "regex",
+      "description": "PlatformIO Platform Manager",
+      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
+      "matchStrings": [
+         "lib_deps\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
+      ],
+      "datasourceTemplate": "custom.ds-pio-library",
+      "depNameTemplate": "{{depName}}"
+    }
+  ],
   "customDatasources": {
     "ds-pio-platform": {
       "description": "PlatformIO Platform Registry",
@@ -23,28 +45,6 @@
       ]
     }
   },
-  "customManagers": [
-    {
-      "customType": "regex",
-      "description": "PlatformIO Platform Manager",
-      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
-      "matchStrings": [
-        "platform\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
-      ],
-      "datasourceTemplate": "custom.ds-pio-platform",
-      "depNameTemplate": "{{{depName}}}"
-    },
-    {
-      "customType": "regex",
-      "description": "PlatformIO Platform Manager",
-      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
-      "matchStrings": [
-         "lib_deps\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
-      ],
-      "datasourceTemplate": "custom.ds-pio-library",
-      "depNameTemplate": "{{{depName}}}"
-    }
-  ],
   "packageRules": [
     {
       "groupName": "PlatformIO Platform",
