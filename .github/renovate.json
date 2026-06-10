@@ -4,28 +4,27 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
+      "managerFilePatterns": ["^platformio\\.ini$"],
       "matchStrings": [
-        "(?m)^platform\\s*=\\s*(?<depName>[^@\\n]+)(?:@(?<currentValue>[^\\n]+))?"
+        "platform\\s*=\\s*(?<depName>espressif32)@(?<currentValue>[0-9.]+)"
       ],
-      "datasourceTemplate": "custom.pio-platform"
+      "packageNameTemplate": "platformio/platform-espressif32",
+      "datasourceTemplate": "github-releases",
+      "depTypeTemplate": "platform"
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
+      "managerFilePatterns": ["^platformio\\.ini$"],
       "matchStrings": [
-        "(?m)^\\s*(?<depName>[^@\\n\\s]+)@(?<currentValue>[^\\n\\s]+)"
+        "^\\s*(?<depName>[^@\\n\\s;]+)@(?<currentValue>[0-9.]+)"
       ],
-      "datasourceTemplate": "custom.pio-library"
+      "datasourceTemplate": "custom.pio-library",
+      "depTypeTemplate": "library"
     }
   ],
   "customDatasources": {
-    "pio-platform": {
-      "defaultRegistryUrlTemplate": "https://platformio.org{{{replace '.*/' '' packageName}}}",
-      "format": "json"
-    },
     "pio-library": {
-      "defaultRegistryUrlTemplate": "https://platformio.org{{{replace '.*/' '' packageName}}}",
+      "defaultRegistryUrlTemplate": "https://platformio.org{{{packageName}}}",
       "format": "json"
     }
   }
