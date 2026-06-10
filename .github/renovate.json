@@ -9,6 +9,7 @@
       "customType": "regex",
       "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
+        "platform\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)",
         "lib_deps\\s*=\\s*(?<depName>[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)@(?<currentValue>[vV]?\\d+\\.\\d+\\.\\d+[^\\s]*)"
       ],
       "datasourceTemplate": "github-releases",
