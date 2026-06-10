@@ -23,14 +23,9 @@
 
 // Onboard LED Configuration
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
-  #define ONBOARD_STATUS_LED 15
+  #define ONBOARD_RGB_LED 8
 #elif defined(CONFIG_IDF_TARGET_ESP32)
   #define ONBOARD_STATUS_LED 2
-#endif
-
-// WiFi Status LED (hardcoded - onboard WS2812 RGB on GPIO 8)
-#if defined(CONFIG_IDF_TARGET_ESP32C6)
-  #define ONBOARD_RGB_LED 8
 #elif defined(CONFIG_IDF_TARGET_ESP32S3)
   #define ONBOARD_RGB_LED 48
 #endif
