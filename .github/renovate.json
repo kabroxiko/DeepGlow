@@ -1,24 +1,38 @@
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "$schema": "https://renovatebot.com",
   "extends": ["config:recommended"],
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": ["(^|/)platformio\\.ini$"],
+      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
         "(?m)^platform\\s*=\\s*(?<depName>[^@\\n]+)(?:@(?<currentValue>[^\\n]+))?"
       ],
-      "datasourceTemplate": "github-tags",
+      "datasourceTemplate": "custom.pio-platform",
       "depTypeTemplate": "platform"
     },
     {
       "customType": "regex",
-      "fileMatch": ["(^|/)platformio\\.ini$"],
+      "managerFilePatterns": ["(^|/)platformio\\.ini$"],
       "matchStrings": [
         "(?m)^\\s*(?<depName>[^@\\n\\s]+)@(?<currentValue>[^\\n\\s]+)"
       ],
-      "datasourceTemplate": "github-tags",
+      "datasourceTemplate": "custom.pio-library",
       "depTypeTemplate": "library"
     }
-  ]
+  ],
+  "customDatasources": {
+    "pio-platform": {
+      "defaultRegistryUrlTemplate": "https://platformio.org{{depName}}",
+      "transformTemplates": [
+        "{\"releases\": [{\"version\": version, \"releaseTimestamp\": date_published}]}"
+      ]
+    },
+    "pio-library": {
+      "defaultRegistryUrlTemplate": "https://platformio.org{{depName}}/core",
+      "transformTemplates": [
+        "{\"releases\": [{\"version\": version, \"releaseTimestamp\": date_published}]}"
+      ]
+    }
+  }
 }
