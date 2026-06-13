@@ -22,7 +22,7 @@ def get_version():
         with open(version_file, "r") as f:
             return f.read().strip()
     except Exception as e:
-        logging.error(f"[gen_version] ERROR reading VERSION file: {e}")
+        logging.exception(f"[gen_version] ERROR reading VERSION file: {e}")
         return "unknown"
 
 def is_dirty():
@@ -30,8 +30,8 @@ def is_dirty():
     try:
         status = subprocess.check_output(["git", "status", "--porcelain"]).decode().strip()
         return bool(status)
-    except Exception:
-        logging.warning('Could not determine git dirty state')
+    except Exception as e:
+        logging.exception(f"[gen_version] ERROR determining git dirty state: {e}")
         return False
 
 def make_version_string():
