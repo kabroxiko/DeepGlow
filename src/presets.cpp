@@ -3,7 +3,6 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "inc/presets_json.inc"
 #include <cJSON.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +12,9 @@
 
 #define PRESET_MOUNT_POINT "/data"
 #define PRESET_FILE "/presets.json"
+
+extern const uint8_t presets_json_start[] asm("_binary_presets_json_start");
+extern const uint8_t presets_json_end[]   asm("_binary_presets_json_end");
 
 // Utility to ensure filesystem is mounted
 static bool ensureFilesystemMounted() {
@@ -64,8 +66,8 @@ bool loadPresets(std::vector<Preset> &presets) {
     loaded = !content.empty();
   } else {
     // Load from embedded asset if file missing or invalid
-    content.assign((const char *)web_presets_json,
-                   (size_t)web_presets_json_len);
+    content.assign((const char *)presets_json_start,
+                   (size_t)(presets_json_end - presets_json_start));
     loaded = !content.empty();
   }
   if (!loaded)
