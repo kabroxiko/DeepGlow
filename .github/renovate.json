@@ -19,10 +19,11 @@
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
       "matchStrings": [
-        "(?:lib_deps\\s*=|\\n\\s+)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+        "lib_deps\\s*=\\s*(?:[^\\n]*\\n\\s+.*)*",
+        "(?:\\n\\s+|^lib_deps\\s*=\\s*)(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
-      "matchStringsStrategy": "any",
-      "datasourceTemplate": "ds-pio-library",
+      "matchStringsStrategy": "combination",
+      "datasourceTemplate": "custom.ds-pio-library",
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
       "depTypeTemplate": "dep-pio-library"
@@ -42,7 +43,7 @@
       "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages?query={{{packageName}}}&page=1&limit=1",
       "format": "json",
       "transformTemplates": [
-        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+        "{\"releases\": [$map($.items[0].versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
       ]
     }
   },
