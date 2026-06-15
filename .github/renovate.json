@@ -22,7 +22,7 @@
         "lib_deps\\s*=\\s*(?:[^\\n]*\\n\\s+)*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
       "matchStringsStrategy": "any",
-      "datasourceTemplate": "custom.ds-pio-library",
+      "datasourceTemplate": "github-releases",
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
       "depTypeTemplate": "dep-pio-library"
@@ -51,13 +51,13 @@
       "groupName": "PlatformIO Platform",
       "description": "PlatformIO Platform",
       "matchDepTypes": ["dep-pio-platform"],
-      "addLabels": ["renovatebot", "pio", "platform"]
+      "addLabels": ["dependencies", "renovate:platform"]
     },
     {
       "groupName": "PlatformIO Library",
       "description": "PlatformIO Library",
       "matchDepTypes": ["dep-pio-library"],
-      "addLabels": ["renovatebot", "pio", "library"]
+      "addLabels": ["dependencies", "renovate:library"]
     }
   ]
 }
