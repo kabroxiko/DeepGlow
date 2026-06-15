@@ -7,7 +7,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
       "matchStrings": [
-        "platform\\s*=\\s*(?:[^\\n]*\\n\\s+)*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+        "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
       "matchStringsStrategy": "any",
       "datasourceTemplate": "custom.ds-pio-platform",
@@ -19,7 +19,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
       "matchStrings": [
-        "lib_deps\\s*=\\s*(?:[^\\n]*\\n\\s+)*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+        "(?:lib_deps\\s*=|\\n\\s+)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
       "matchStringsStrategy": "any",
       "datasourceTemplate": "ds-pio-library",
