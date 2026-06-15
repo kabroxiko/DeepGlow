@@ -7,10 +7,22 @@
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
       "matchStrings": [
-        "platform\\s*=\\s*(?<depName>espressif32)@(?<currentValue>[0-9.]+)"
+        "platform\\s*=\\s*(?<depName>.*)@(?<currentValue>[0-9.]+)"
       ],
       "packageNameTemplate": "platformio/platform-espressif32",
-      "datasourceTemplate": "github-releases"
+      "datasourceTemplate": "custom.ds-pio-platform",
+      "depNameTemplate": "{{depName}}",
+      "versioningTemplate": "loose"
     }
-  ]
+  ],
+  "customDatasources": {
+    "ds-pio-platform": {
+      "description": "PlatformIO Platform Registry",
+      "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/platform/{{{replace '.*/' '' packageName}}}",
+      "format": "json",
+      "transformTemplates": [
+        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+      ]
+    }
+  }
 }
