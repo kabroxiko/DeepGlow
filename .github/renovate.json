@@ -11,7 +11,8 @@
       ],
       "datasourceTemplate": "custom.ds-pio-platform",
       "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose"
+      "versioningTemplate": "loose",
+      "depTypeTemplate": "dep-pio-platform"
     }
   ],
   "customDatasources": {
@@ -23,5 +24,13 @@
         "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
       ]
     }
-  }
+  },
+  "packageRules": [
+    {
+      "groupName": "PlatformIO Platform",
+      "description": "PlatformIO Platform",
+      "matchDepTypes": ["dep-pio-platform"],
+      "addLabels": ["renovatebot", "pio", "platform"]
+    }
+  ]
 }
