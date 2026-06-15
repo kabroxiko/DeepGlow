@@ -31,7 +31,7 @@
       "customType": "regex",
       "managerFilePatterns": ["(^|/)idf_component\\.yml$"],
       "matchStrings": [
-        "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*\"[~^]?(?<currentValue>[0-9.]+)\""
+        "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
       ],
       "matchStringsStrategy": "any",
       "datasourceTemplate": "custom.ds-espressif-component",
