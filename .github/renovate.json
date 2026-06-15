@@ -59,10 +59,10 @@
     },
     "ds-espressif-component": {
       "description": "Espressif Component Registry API",
-      "defaultRegistryUrlTemplate": "https://espressif.com{{{packageName}}}",
+      "defaultRegistryUrlTemplate": "https://components.espressif.com/components/espressif/{{{packageName}}}",
       "format": "json",
       "transformTemplates": [
-        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.version } })], \"homepage\": \"https://espressif.com{{{packageName}}}\" }"
+        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.version } })], \"homepage\": \"https://components.espressif.com/components/espressif/{{{packageName}}}\" }"
       ]
     }
   },
