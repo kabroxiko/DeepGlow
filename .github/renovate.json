@@ -34,7 +34,7 @@
         "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
       ],
       "matchStringsStrategy": "any",
-      "datasourceTemplate": "github-tags",
+      "datasourceTemplate": "custom.ds-espressif-component",
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "semver",
       "depTypeTemplate": "dep-idf-component"
@@ -56,6 +56,11 @@
       "transformTemplates": [
         "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
       ]
+    },
+    "ds-espressif-component": {
+      "description": "Espressif Component Registry API",
+      "defaultRegistryUrlTemplate": "https://components.espressif.com/components/espressif/{{{packageName}}}",
+      "format": "html",
     }
   },
   "packageRules": [
