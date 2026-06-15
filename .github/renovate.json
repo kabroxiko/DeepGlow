@@ -51,13 +51,13 @@
       "groupName": "PlatformIO Platform",
       "description": "PlatformIO Platform",
       "matchDepTypes": ["dep-pio-platform"],
-      "addLabels": ["dependencies", "renovate:platform"]
+      "addLabels": ["dependencies", "pio:platform"]
     },
     {
       "groupName": "PlatformIO Library",
       "description": "PlatformIO Library",
       "matchDepTypes": ["dep-pio-library"],
-      "addLabels": ["dependencies", "renovate:library"]
+      "addLabels": ["dependencies", "pio:library"]
     }
   ]
 }
