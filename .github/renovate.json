@@ -18,18 +18,26 @@
       "customType": "regex",
       "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
       "matchStrings": [
-        "platform\\s*=\\s*(?<depName>.*)@(?<currentValue>[0-9.]+)"
+        "lib_deps\\s*=\\s*(?<depName>.*)@(?<currentValue>[0-9.]+)"
       ],
-      "datasourceTemplate": "custom.ds-pio-platform",
+      "datasourceTemplate": "custom.ds-pio-library",
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-platform"
+      "depTypeTemplate": "dep-pio-library"
     }
   ],
   "customDatasources": {
     "ds-pio-platform": {
       "description": "PlatformIO Platform Registry",
       "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/platform/{{{replace '.*/' '' packageName}}}",
+      "format": "json",
+      "transformTemplates": [
+        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+      ]
+    },
+    "ds-pio-library": {
+      "description": "PlatformIO Library Registry",
+      "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/library/{{{replace '.*/' '' packageName}}}",
       "format": "json",
       "transformTemplates": [
         "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
@@ -42,6 +50,12 @@
       "description": "PlatformIO Platform",
       "matchDepTypes": ["dep-pio-platform"],
       "addLabels": ["renovatebot", "pio", "platform"]
+    },
+    {
+      "groupName": "PlatformIO Library",
+      "description": "PlatformIO Library",
+      "matchDepTypes": ["dep-pio-library"],
+      "addLabels": ["renovatebot", "pio", "library"]
     }
   ]
 }
