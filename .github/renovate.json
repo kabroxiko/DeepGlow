@@ -60,7 +60,7 @@
     "ds-espressif-component": {
       "description": "Espressif Component Registry API",
       "defaultRegistryUrlTemplate": "https://components.espressif.com/components/espressif/{{{packageName}}}",
-      "format": "html",
+      "format": "html"
     }
   },
   "packageRules": [
