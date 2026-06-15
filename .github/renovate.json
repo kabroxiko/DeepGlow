@@ -5,7 +5,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["platformio.ini"],
+      "managerFilePatterns": ["/^platformio\\.ini$/"],
       "matchStrings": [
         "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
