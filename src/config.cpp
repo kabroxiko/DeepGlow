@@ -2,8 +2,6 @@
 using std::vector;
 
 #include "config.h"
-#include "inc/config_default.inc"
-#include "inc/timezones_json.inc"
 
 #include <cJSON.h>
 #include "esp_littlefs.h"
@@ -24,6 +22,10 @@ static const char *TAG = "config";
 #define CONFIG_BACKUP_FILE "/config.json.bak"
 
 static bool s_fs_mounted = false;
+extern const uint8_t config_json_start[]    asm("_binary_config_json_start");
+extern const uint8_t config_json_end[]      asm("_binary_config_json_end");
+extern const uint8_t timezones_json_start[] asm("_binary_timezones_json_start");
+extern const uint8_t timezones_json_end[]   asm("_binary_timezones_json_end");
 
 static bool ensureFilesystemMounted() {
   if (esp_littlefs_mounted("spiffs")) {
@@ -368,8 +370,8 @@ bool Configuration::load() {
   debugDumpFileContents(CONFIG_FILE);
   debugDumpFileContents(CONFIG_BACKUP_FILE);
 
-  std::string defaultsContent((const char *)web_config_default,
-                              (size_t)web_config_default_len);
+  std::string defaultsContent((const char *)config_json_start,
+                              (size_t)(config_json_end - config_json_start));
   cJSON *defaultsDoc = cJSON_Parse(defaultsContent.c_str());
   if (!defaultsDoc) {
     setDefaults();
@@ -644,8 +646,8 @@ void Configuration::setDefaults() {
   network = NetworkConfig();
   time = TimeConfig();
 
-  std::string defaultsContent((const char *)web_config_default,
-                              (size_t)web_config_default_len);
+  std::string defaultsContent((const char *)config_json_start,
+                              (size_t)(config_json_end - config_json_start));
   cJSON *defaultsDoc = cJSON_Parse(defaultsContent.c_str());
   if (defaultsDoc) {
     loadTimersFromJson(jsonObjectItem(defaultsDoc, "timers"));
@@ -660,8 +662,8 @@ void Configuration::updateLocationFromGPS(float lat, float lon, bool valid) {
 }
 
 int Configuration::getTimezoneOffsetSeconds() {
-  std::string tzContent((const char *)web_timezones_json,
-                        (size_t)web_timezones_json_len);
+  std::string tzContent((const char *)timezones_json_start,
+                        (size_t)(timezones_json_end - timezones_json_start));
   cJSON *tzDoc = cJSON_Parse(tzContent.c_str());
   if (!cJSON_IsArray(tzDoc)) {
     if (tzDoc)
@@ -689,8 +691,8 @@ int Configuration::getTimezoneOffsetSeconds() {
 
 std::vector<std::string> Configuration::getSupportedTimezones() {
   std::vector<std::string> timezones;
-  std::string tzContent((const char *)web_timezones_json,
-                        (size_t)web_timezones_json_len);
+  std::string tzContent((const char *)timezones_json_start,
+                        (size_t)(timezones_json_end - timezones_json_start));
   cJSON *tzDoc = cJSON_Parse(tzContent.c_str());
   if (!cJSON_IsArray(tzDoc)) {
     if (tzDoc)

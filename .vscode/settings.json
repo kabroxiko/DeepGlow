@@ -3,5 +3,6 @@
         "connectionId": "https-sonarqube-lonecesito-cl",
         "projectKey": "deepglow"
     },
-    "sonarlint.pathToCompileCommands": "${workspaceFolder}/.pio/build/esp32/compile_commands.json"
+    "sonarlint.pathToCompileCommands": "${workspaceFolder}/.pio/build/esp32/compile_commands.json",
+    "python-envs.defaultEnvManager": "ms-python.python:system"
 }
