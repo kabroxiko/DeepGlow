@@ -17,7 +17,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["platfojrmio.ini"],
+      "managerFilePatterns": ["/^platformio\\.ini$/"],
       "matchStrings": [
         "(?:lib_deps\\s*=|\\n\\s+)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
@@ -29,7 +29,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["src/idf_jcomponent.yml"],
+      "managerFilePatterns": ["/^src/idf_jcomponent\\.yml$/"],
       "matchStrings": [
         "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
       ],
