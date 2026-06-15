@@ -5,7 +5,7 @@
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
+      "managerFilePatterns": ["platformio.ini"],
       "matchStrings": [
         "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
@@ -17,7 +17,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
+      "managerFilePatterns": ["/platformio.ini$"],
       "matchStrings": [
         "(?:lib_deps\\s*=|\\n\\s+)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
@@ -29,7 +29,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/(^|/)idf_component\\.yml$/"],
+      "managerFilePatterns": ["src/idf_component.yml"],
       "matchStrings": [
         "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
       ],
