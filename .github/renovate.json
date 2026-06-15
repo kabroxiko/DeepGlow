@@ -42,7 +42,7 @@
       "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages?query={{{packageName}}}&page=1&limit=1",
       "format": "json",
       "transformTemplates": [
-        "{\"releases\": [$map($.items[0].versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
+        "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
       ]
     }
   },
