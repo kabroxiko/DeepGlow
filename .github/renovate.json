@@ -26,6 +26,18 @@
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
       "depTypeTemplate": "dep-pio-library"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["(^|/)idf_component\\.yml$"],
+      "matchStrings": [
+        "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*\"[~^]?(?<currentValue>[0-9.]+)\""
+      ],
+      "matchStringsStrategy": "any",
+      "datasourceTemplate": "custom.ds-espressif-component",
+      "depNameTemplate": "{{depName}}",
+      "versioningTemplate": "semver",
+      "depTypeTemplate": "dep-idf-component"
     }
   ],
   "customDatasources": {
@@ -44,6 +56,14 @@
       "transformTemplates": [
         "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
       ]
+    },
+    "ds-espressif-component": {
+      "description": "Espressif Component Registry API",
+      "defaultRegistryUrlTemplate": "https://espressif.com{{{packageName}}}",
+      "format": "json",
+      "transformTemplates": [
+        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.version } })], \"homepage\": \"https://espressif.com{{{packageName}}}\" }"
+      ]
     }
   },
   "packageRules": [
@@ -58,6 +78,11 @@
       "description": "PlatformIO Library",
       "matchDepTypes": ["dep-pio-library"],
       "addLabels": ["dependencies", "pio:library"]
+    },
+    {
+      "groupName": "ESP-IDF Components",
+      "matchDepTypes": ["dep-idf-component"],
+      "addLabels": ["dependencies", "esp-idf"]
     }
   ]
 }
