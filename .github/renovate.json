@@ -13,6 +13,17 @@
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
       "depTypeTemplate": "dep-pio-platform"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/(^|/)platformio\\.ini$/"],
+      "matchStrings": [
+        "platform\\s*=\\s*(?<depName>.*)@(?<currentValue>[0-9.]+)"
+      ],
+      "datasourceTemplate": "custom.ds-pio-platform",
+      "depNameTemplate": "{{depName}}",
+      "versioningTemplate": "loose",
+      "depTypeTemplate": "dep-pio-platform"
     }
   ],
   "customDatasources": {
