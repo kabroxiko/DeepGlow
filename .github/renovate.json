@@ -69,20 +69,21 @@
   "packageRules": [
     {
       "groupName": "PlatformIO Platform",
-      "description": "PlatformIO Platform",
       "matchDepTypes": ["dep-pio-platform"],
-      "addLabels": ["dependencies", "pio:platform"]
+      "addLabels": ["dependencies", "pio:platform"],
+      "prHeadline": "Chore(PIO): Update platform `{{{depName}}}` to `{{{newVersion}}}`"
     },
     {
       "groupName": "PlatformIO Library",
-      "description": "PlatformIO Library",
       "matchDepTypes": ["dep-pio-library"],
-      "addLabels": ["dependencies", "pio:library"]
+      "addLabels": ["dependencies", "pio:library"],
+      "prHeadline": "Chore(PIO): Update library `{{{depName}}}` to `{{{newVersion}}}`"
     },
     {
       "groupName": "ESP-IDF Components",
       "matchDepTypes": ["dep-idf-component"],
-      "addLabels": ["dependencies", "esp-idf"]
+      "addLabels": ["dependencies", "esp-idf"],
+      "prHeadline": "Chore(IDF): Update component `{{{depName}}}` to `{{{newVersion}}}`"
     }
   ]
 }
