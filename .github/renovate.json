@@ -19,9 +19,10 @@
       "customType": "regex",
       "managerFilePatterns": ["/^platformio\\.ini$/"],
       "matchStrings": [
-        "(?:^lib_deps\\s*=|\\n\\t+|\\n {2,})(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+        "(?:^|\\n)lib_deps\\s*=\\s*(?<block>[\\s\\S]*?)(?=\\n\\S|^\\s*\\n|^\\[)",
+        "(?:\\n\\s+|^lib_deps\\s*=\\s*)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
-      "matchStringsStrategy": "any",
+      "matchStringsStrategy": "combination",
       "datasourceTemplate": "custom.ds-pio-library",
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
