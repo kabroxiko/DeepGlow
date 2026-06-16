@@ -19,7 +19,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^platformio\\.ini$/"],
       "matchStrings": [
-        "(?:^|\\n)lib_deps\\s*=\\s*(?<block>[\\s\\S]*)(?:\\n[^ \\t\\n]|\\n\\n|$)",
+        "(?:^|\\n)lib_deps\\s*=\\s*(?<block>[\\s\\S]*?)(?:\\n[^ \\t\\n]|\\n\\n|$)",
         "(?:\\n[ \\t]+|^lib_deps\\s*=\\s*)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
       ],
       "matchStringsStrategy": "combination",
@@ -32,7 +32,6 @@
       "customType": "regex",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
       "matchStrings": [
-        "(?:^|\\n)dependencies\\s*:\\s*(?<block>[\\s\\S]*)(?:\\n[^ \\t\\n]|\\n\\n|$)",
         "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
       ],
       "matchStringsStrategy": "any",
