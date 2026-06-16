@@ -57,12 +57,12 @@
         "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
       ]
     },
-    "ds-espressif-static": {
+    "ds-espressif-component": {
       "description": "Espressif Component Registry Static JSON Endpoint",
       "defaultRegistryUrlTemplate": "https://components-file.espressif.com/components/{{{packageName}}}.json",
       "format": "json",
       "transformTemplates": [
-        "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.version, \"releaseTimestamp\": $v.created_at } })], \"homepage\": \"https://components.espressif.com/components/{{{packageName}}}\" }"
+        "{\"releases\": [$map($.versions[0], function($v) { { \"version\": $v.version, \"releaseTimestamp\": $v.created_at } })], \"homepage\": \"https://components.espressif.com/components/{{{packageName}}}\" }"
       ]
     }
   },
