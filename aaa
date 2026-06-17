@@ -70,7 +70,7 @@ DEBUG: Repository config (repository=local)
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
              ],
              "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
              "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -123,6 +123,7 @@ DEBUG: Repository config (repository=local)
            {
              "matchManagers": ["regex"],
              "matchDepTypes": ["dep-idf-component"],
+             "rangeStrategy": "update-lockfile",
              "matchPackageNames": ["espressif/esp-idf"],
              "enabled": false
            }
@@ -148,7 +149,7 @@ DEBUG: Config migration necessary (repository=local)
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
              ],
              "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
              "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -201,6 +202,7 @@ DEBUG: Config migration necessary (repository=local)
            {
              "matchManagers": ["regex"],
              "matchDepTypes": ["dep-idf-component"],
+             "rangeStrategy": "update-lockfile",
              "matchPackageNames": ["espressif/esp-idf"],
              "enabled": false
            }
@@ -224,7 +226,7 @@ DEBUG: Config migration necessary (repository=local)
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
              ],
              "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
              "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -277,6 +279,7 @@ DEBUG: Config migration necessary (repository=local)
            {
              "matchManagers": ["custom.regex"],
              "matchDepTypes": ["dep-idf-component"],
+             "rangeStrategy": "update-lockfile",
              "matchPackageNames": ["espressif/esp-idf"],
              "enabled": false
            }
@@ -303,7 +306,7 @@ DEBUG: Post-massage config (repository=local)
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
              ],
              "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
              "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -356,6 +359,7 @@ DEBUG: Post-massage config (repository=local)
            {
              "matchManagers": ["custom.regex"],
              "matchDepTypes": ["dep-idf-component"],
+             "rangeStrategy": "update-lockfile",
              "matchPackageNames": ["espressif/esp-idf"],
              "enabled": false
            }
@@ -382,7 +386,7 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
              ],
              "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
              "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -435,6 +439,7 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
            {
              "matchManagers": ["custom.regex"],
              "matchDepTypes": ["dep-idf-component"],
+             "rangeStrategy": "update-lockfile",
              "matchPackageNames": ["espressif/esp-idf"],
              "enabled": false
            }
@@ -463,7 +468,7 @@ DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=
 DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
 DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: manager extract durations (ms) (repository=local)
-       "managers": {"regex": 32}
+       "managers": {"regex": 28}
 DEBUG: Found regex package files (repository=local)
 DEBUG: Found 1 package file(s) (repository=local)
  INFO: Dependency extraction complete (repository=local)
@@ -498,7 +503,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "datasource": "github-releases",
                  "versioning": "semver",
                  "depType": "dep-idf-engine",
-                 "replaceString": "\n  idf:\n    version: \">=5.5.0",
+                 "replaceString": "\n  idf:\n    version: \">=5.5.0\"",
                  "skipReason": "github-token-required",
                  "updates": []
                },
@@ -509,7 +514,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "datasource": "espressif/led_strip",
                  "versioning": "semver",
                  "depType": "espressif/led_strip",
-                 "replaceString": "\n  espressif/led_strip: \"^3.0.3",
+                 "replaceString": "\n  espressif/led_strip: \"^3.0.3\"",
                  "updates": [],
                  "warnings": [],
                  "skipReason": "invalid-config"
@@ -521,7 +526,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "datasource": "espressif/zlib",
                  "versioning": "semver",
                  "depType": "espressif/zlib",
-                 "replaceString": "\n  espressif/zlib: \"^1.3.2",
+                 "replaceString": "\n  espressif/zlib: \"^1.3.2\"",
                  "updates": [],
                  "warnings": [],
                  "skipReason": "invalid-config"
@@ -533,7 +538,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "datasource": "espressif/cjson",
                  "versioning": "semver",
                  "depType": "espressif/cjson",
-                 "replaceString": "\n  espressif/cjson: \"^1.7.19",
+                 "replaceString": "\n  espressif/cjson: \"^1.7.19\"",
                  "updates": [],
                  "warnings": [],
                  "skipReason": "invalid-config"
@@ -545,7 +550,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "datasource": "joltwallet/littlefs",
                  "versioning": "semver",
                  "depType": "joltwallet/littlefs",
-                 "replaceString": "\n  joltwallet/littlefs: \"^1.20.4",
+                 "replaceString": "\n  joltwallet/littlefs: \"^1.20.4\"",
                  "updates": [],
                  "warnings": [],
                  "skipReason": "invalid-config"
@@ -553,7 +558,7 @@ DEBUG: packageFiles with updates (repository=local)
              ],
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
              ],
              "matchStringsStrategy": "recursive",
              "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -569,8 +574,8 @@ DEBUG: semanticCommits: returning "disabled" from cache (repository=local)
 DEBUG: repository problems (repository=local)
        "repoProblems": ["⚠️ WARN: GitHub token is required for some dependencies"]
 DEBUG: Repository timing splits (milliseconds) (repository=local)
-       "splits": {"init": 722, "onboarding": 0, "extract": 99, "lookup": 47, "update": 0},
-       "total": 878
+       "splits": {"init": 714, "onboarding": 0, "extract": 86, "lookup": 45, "update": 0},
+       "total": 856
 DEBUG: Package cache statistics (repository=local)
        "get": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
        "set": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0}
@@ -592,10 +597,10 @@ DEBUG: Cache fallback URLs (repository=local)
 DEBUG: Git operations statistics (repository=local)
  INFO: Repository finished (repository=local)
        "cloned": undefined,
-       "durationMs": 878,
+       "durationMs": 856,
        "result": undefined,
        "status": undefined,
        "enabled": undefined,
        "onboarded": undefined
 DEBUG: Checking file package cache for expired items
-DEBUG: Deleted 0 of 10 file cached entries in 22ms
+DEBUG: Deleted 0 of 10 file cached entries in 21ms

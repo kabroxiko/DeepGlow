@@ -41,7 +41,7 @@
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
       ],
       "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
       "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
@@ -94,6 +94,7 @@
     {
       "matchManagers": ["regex"],
       "matchDepTypes": ["dep-idf-component"],
+      "rangeStrategy": "update-lockfile",
       "matchPackageNames": ["espressif/esp-idf"],
       "enabled": false
     }
