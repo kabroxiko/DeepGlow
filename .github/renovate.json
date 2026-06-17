@@ -34,32 +34,20 @@
     //   "versioningTemplate": "loose",
     //   "depTypeTemplate": "dep-pio-library"
     // },
-    {
+        {
       "customType": "regex",
-      "description": "Extractor aislado y exclusivo para la plataforma IDF",
-      "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
-      "matchStrings": [
-        "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
-      ],
-      "extractVersionTemplate": "^v?(?<version>.*)$",
-      "datasourceTemplate": "github-releases",
-      "packageNameTemplate": "espressif/esp-idf",
-      "versioningTemplate": "semver",
-      "depTypeTemplate": "dep-idf-engine"
-    },
-    {
-      "customType": "regex",
-      "description": "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)",
+      "description": "Extractor universal para todos los componentes e idf engine",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
       ],
-      "datasourceTemplate": "custom.ds-espressif-component",
-      "depNameTemplate": "{{{depName}}}",
+      "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
+      "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
+      "extractVersionTemplate": "{{#if (eq depName 'idf')}}^v?(?<version>.*)${{else}}{{{version}}}{{/if}}",
       "versioningTemplate": "semver",
-      "depTypeTemplate": "dep-idf-component"
+      "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
     }
   ],
   "customDatasources": {
@@ -90,26 +78,23 @@
   },
   "packageRules": [
     {
-      "groupName": "PlatformIO Platform",
       "matchDepTypes": ["dep-pio-platform"],
       "addLabels": ["dependencies", "pio:platform"]
     },
     {
-      "groupName": "PlatformIO Libraries",
       "matchDepTypes": ["dep-pio-library"],
       "addLabels": ["dependencies", "pio:library"]
     },
     {
-      "groupName": "ESP-IDF Components",
+      "matchManagers": ["regex"],
       "matchDepTypes": ["dep-idf-component"],
-      "addLabels": ["dependencies", "esp-idf:component"]
+      "matchPackageNames": ["espressif/esp-idf"],
+      "enabled": false
     },
     {
       "matchManagers": ["regex"],
-      "matchDepTypes": ["dep-idf-component"],
-      "rangeStrategy": "update-lockfile",
-      "matchPackageNames": ["espressif/esp-idf"],
-      "enabled": false
+      "matchPackageNames": ["idf"],
+      "depType": "dep-idf-engine"
     }
   ]
 }
