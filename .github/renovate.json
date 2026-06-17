@@ -40,8 +40,8 @@
         "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
         "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
       ],
-      "datasourceTemplate": "custom.ds-espressif-component",
-      "depNameTemplate": "{{{depName}}}",
+      "datasourceTemplate": "{{#if (eq depName 'idf')}}github-releases{{else}}custom.ds-espressif-component{{/if}}",
+      "packageNameTemplate": "{{#if (eq depName 'idf')}}espressif/esp-idf{{else}}{{{depName}}}{{/if}}",
       "versioningTemplate": "semver",
       "depTypeTemplate": "dep-idf-component"
     }
