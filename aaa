@@ -63,11 +63,24 @@ DEBUG: Repository config (repository=local)
          "customManagers": [
            {
              "customType": "regex",
+             "description": "Extractor exclusivo para la plataforma IDF",
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "github-releases",
+             "packageNameTemplate": "espressif/esp-idf",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           },
+           {
+             "customType": "regex",
+             "description": "Extractor para los componentes estándar con namespace",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "custom.ds-espressif-component",
              "depNameTemplate": "{{{depName}}}",
@@ -121,8 +134,7 @@ DEBUG: Repository config (repository=local)
              "matchManagers": ["regex"],
              "matchDepTypes": ["dep-idf-component"],
              "matchPackageNames": ["idf"],
-             "datasourceTemplate": "github-releases",
-             "packageName": "espressif/esp-idf"
+             "enabled": false
            }
          ]
        }
@@ -139,11 +151,24 @@ DEBUG: Config migration necessary (repository=local)
          "customManagers": [
            {
              "customType": "regex",
+             "description": "Extractor exclusivo para la plataforma IDF",
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "github-releases",
+             "packageNameTemplate": "espressif/esp-idf",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           },
+           {
+             "customType": "regex",
+             "description": "Extractor para los componentes estándar con namespace",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "custom.ds-espressif-component",
              "depNameTemplate": "{{{depName}}}",
@@ -197,8 +222,7 @@ DEBUG: Config migration necessary (repository=local)
              "matchManagers": ["regex"],
              "matchDepTypes": ["dep-idf-component"],
              "matchPackageNames": ["idf"],
-             "datasourceTemplate": "github-releases",
-             "packageName": "espressif/esp-idf"
+             "enabled": false
            }
          ]
        },
@@ -213,11 +237,24 @@ DEBUG: Config migration necessary (repository=local)
          "customManagers": [
            {
              "customType": "regex",
+             "description": "Extractor exclusivo para la plataforma IDF",
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "github-releases",
+             "packageNameTemplate": "espressif/esp-idf",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           },
+           {
+             "customType": "regex",
+             "description": "Extractor para los componentes estándar con namespace",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "custom.ds-espressif-component",
              "depNameTemplate": "{{{depName}}}",
@@ -270,8 +307,8 @@ DEBUG: Config migration necessary (repository=local)
            {
              "matchManagers": ["custom.regex"],
              "matchDepTypes": ["dep-idf-component"],
-             "matchPackageNames": ["espressif/esp-idf"],
-             "datasourceTemplate": "github-releases"
+             "matchPackageNames": ["idf"],
+             "enabled": false
            }
          ]
        }
@@ -287,11 +324,24 @@ DEBUG: Post-massage config (repository=local)
          "customManagers": [
            {
              "customType": "regex",
+             "description": ["Extractor exclusivo para la plataforma IDF"],
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "github-releases",
+             "packageNameTemplate": "espressif/esp-idf",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           },
+           {
+             "customType": "regex",
+             "description": ["Extractor para los componentes estándar con namespace"],
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "custom.ds-espressif-component",
              "depNameTemplate": "{{{depName}}}",
@@ -344,18 +394,11 @@ DEBUG: Post-massage config (repository=local)
            {
              "matchManagers": ["custom.regex"],
              "matchDepTypes": ["dep-idf-component"],
-             "matchPackageNames": ["espressif/esp-idf"],
-             "datasourceTemplate": "github-releases"
+             "matchPackageNames": ["idf"],
+             "enabled": false
            }
          ]
        }
- WARN: Found renovate config warnings (repository=local)
-       "warnings": [
-         {
-           "topic": "packageRules[3].datasourceTemplate",
-           "message": "\"datasourceTemplate\" can't be used in \"packageRules\". Allowed objects: customManagers."
-         }
-       ]
 DEBUG: Resolved shallow config, without merging internal presets (repository=local)
        "renovateVersion": "43.228.0",
        "config": {
@@ -368,11 +411,24 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
          "customManagers": [
            {
              "customType": "regex",
+             "description": ["Extractor exclusivo para la plataforma IDF"],
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "github-releases",
+             "packageNameTemplate": "espressif/esp-idf",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           },
+           {
+             "customType": "regex",
+             "description": ["Extractor para los componentes estándar con namespace"],
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "custom.ds-espressif-component",
              "depNameTemplate": "{{{depName}}}",
@@ -425,8 +481,8 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
            {
              "matchManagers": ["custom.regex"],
              "matchDepTypes": ["dep-idf-component"],
-             "matchPackageNames": ["espressif/esp-idf"],
-             "datasourceTemplate": "github-releases"
+             "matchPackageNames": ["idf"],
+             "enabled": false
            }
          ]
        },
@@ -605,6 +661,7 @@ DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=
 DEBUG: Using file pattern: **/{j,t}sconfig.json for manager regex (repository=local)
 DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=local)
 DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
+DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
 DEBUG: Matched 1 file(s) for manager bun: package.json (repository=local)
 DEBUG: No bun lockfiles found (repository=local)
 DEBUG: Matched 5 file(s) for manager github-actions: .github/workflows/branch-push.yml, .github/workflows/ci-workflow.yml, .github/workflows/pull-request.yml, .github/workflows/release.yml, .github/workflows/renovate.yml (repository=local)
@@ -612,6 +669,7 @@ DEBUG: Matched 1 file(s) for manager html: web/index.html (repository=local)
 DEBUG: Matched 1 file(s) for manager npm: package.json (repository=local)
 DEBUG: Matched 1 file(s) for manager pip_requirements: requirements.txt (repository=local)
 DEBUG: Matched 1 file(s) for manager renovate-config: .github/renovate.json (repository=local)
+DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: npm file package.json has name "deepglow-ui-preact" (repository=local)
 DEBUG: Detecting pnpm Workspaces (repository=local)
@@ -621,27 +679,28 @@ DEBUG: Found package-lock.json for package.json (repository=local)
 DEBUG: manager extract durations (ms) (repository=local)
        "managers": {
          "bun": 2,
-         "github-actions": 79,
-         "html": 11,
-         "npm": 65,
-         "pip_requirements": 12,
-         "regex": 29,
+         "github-actions": 81,
+         "html": 20,
+         "npm": 68,
+         "pip_requirements": 32,
+         "regex": 18,
          "renovate-config": 11
        }
 DEBUG: Found github-actions package files (repository=local)
 DEBUG: Found npm package files (repository=local)
 DEBUG: Found pip_requirements package files (repository=local)
 DEBUG: Found regex package files (repository=local)
-DEBUG: Found 6 package file(s) (repository=local)
+DEBUG: Found regex package files (repository=local)
+DEBUG: Found 7 package file(s) (repository=local)
  INFO: Dependency extraction complete (repository=local)
        "stats": {
          "managers": {
            "github-actions": {"fileCount": 3, "depCount": 35},
            "npm": {"fileCount": 1, "depCount": 10},
            "pip_requirements": {"fileCount": 1, "depCount": 2},
-           "regex": {"fileCount": 1, "depCount": 5}
+           "regex": {"fileCount": 2, "depCount": 5}
          },
-         "total": {"fileCount": 6, "depCount": 52}
+         "total": {"fileCount": 7, "depCount": 52}
        }
  WARN: GitHub token is required for some dependencies (repository=local)
        "githubDeps": [
@@ -655,31 +714,18 @@ DEBUG: Found 6 package file(s) (repository=local)
          "cycjimmy/semantic-release-action",
          "actions/download-artifact",
          "softprops/action-gh-release",
-         "renovatebot/github-action"
+         "renovatebot/github-action",
+         "espressif/esp-idf"
        ]
 DEBUG: hostRules: no authentication for components-file.espressif.com (repository=local)
 DEBUG: Using queue: host=components-file.espressif.com, concurrency=16 (repository=local)
 DEBUG: hostRules: no authentication for registry.npmjs.org (repository=local)
 DEBUG: Using queue: host=registry.npmjs.org, concurrency=999 (repository=local)
-DEBUG: hostRules: no authentication for pypi.org (repository=local)
-DEBUG: Using queue: host=pypi.org, concurrency=16 (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/eslint from 2026-06-17T12:40:35.473Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/@eslint%2Feslintrc from 2026-06-17T12:40:35.456Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/prettier from 2026-06-17T12:40:35.654Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/rollup from 2026-06-17T12:40:38.440Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/sass from 2026-06-17T12:40:35.656Z (repository=local)
  INFO: Found no results from datasource that look like a version (repository=local, dependency=espressif/cjson)
        "result": {
          "releases": [],
          "homepage": "https://components.espressif.com/components/espressif/cjson"
        }
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/vite from 2026-06-17T12:40:35.726Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/@preact%2Fpreset-vite from 2026-06-17T12:40:39.275Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/preact from 2026-06-17T12:40:35.463Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/@eslint-react%2Feslint-plugin from 2026-06-17T12:40:39.387Z (repository=local)
-DEBUG: http cache: Using cached response: https://registry.npmjs.org/vite-plugin-compression from 2026-06-17T12:40:38.763Z (repository=local)
-DEBUG: GET https://components-file.espressif.com/components/idf.json = (code=ERR_NON_2XX_3XX_RESPONSE, statusCode=404 retryCount=0, duration=1093) (repository=local)
-DEBUG: Failed to look up custom.ds-espressif-component package idf: no-result (repository=local, packageFile=src/idf_component.yml, dependency=idf)
 DEBUG: PackageFiles.add() - Package file saved for base branch (repository=local)
 DEBUG: Package releases lookups complete (repository=local)
 DEBUG: LibYears: no currentVersionTimestamp for joltwallet/littlefs (repository=local)
@@ -1411,21 +1457,28 @@ DEBUG: packageFiles with updates (repository=local)
            {
              "deps": [
                {
-                 "depName": "idf",
+                 "packageName": "espressif/esp-idf",
                  "currentValue": "5.5.0",
-                 "datasource": "custom.ds-espressif-component",
+                 "datasource": "github-releases",
                  "versioning": "semver",
                  "depType": "dep-idf-component",
                  "replaceString": "\n  idf:\n    version: \">=5.5.0",
-                 "updates": [],
-                 "packageName": "idf",
-                 "warnings": [
-                   {
-                     "topic": "idf",
-                     "message": "Failed to look up custom.ds-espressif-component package idf: no-result"
-                   }
-                 ]
-               },
+                 "depName": "espressif/esp-idf",
+                 "skipReason": "github-token-required",
+                 "updates": []
+               }
+             ],
+             "matchStrings": [
+               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+             ],
+             "packageNameTemplate": "espressif/esp-idf",
+             "datasourceTemplate": "github-releases",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component",
+             "packageFile": "src/idf_component.yml"
+           },
+           {
+             "deps": [
                {
                  "depName": "espressif/led_strip",
                  "currentValue": "3.0.3",
@@ -1505,7 +1558,7 @@ DEBUG: packageFiles with updates (repository=local)
              ],
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "matchStringsStrategy": "recursive",
              "depNameTemplate": "{{{depName}}}",
@@ -1519,132 +1572,91 @@ DEBUG: packageFiles with updates (repository=local)
 DEBUG: detectSemanticCommits() (repository=local)
 DEBUG: semanticCommits: returning "disabled" from cache (repository=local)
 DEBUG: repository problems (repository=local)
-       "repoProblems": [
-         "⚠️ WARN: Found renovate config warnings",
-         "⚠️ WARN: GitHub token is required for some dependencies"
-       ]
+       "repoProblems": ["⚠️ WARN: GitHub token is required for some dependencies"]
 DEBUG: Repository timing splits (milliseconds) (repository=local)
-       "splits": {"init": 738, "onboarding": 0, "extract": 402, "lookup": 1222, "update": 0},
-       "total": 2370
+       "splits": {"init": 756, "onboarding": 0, "extract": 403, "lookup": 842, "update": 0},
+       "total": 2008
 DEBUG: Package cache statistics (repository=local)
-       "get": {"count": 12, "avgMs": 37, "medianMs": 45, "maxMs": 64, "totalMs": 447},
-       "set": {"count": 12, "avgMs": 11, "medianMs": 6, "maxMs": 36, "totalMs": 135}
+       "get": {"count": 12, "avgMs": 110, "medianMs": 83, "maxMs": 362, "totalMs": 1325},
+       "set": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0}
 DEBUG: Datasource cache statistics (repository=local)
-       "pypi": {"https://pypi.org/pypi": {"hit": 0, "miss": 2, "set": 2, "skip": 0}},
+       "pypi": {"https://pypi.org/pypi": {"hit": 2, "miss": 0, "set": 0, "skip": 0}},
        "npm": {"https://registry.npmjs.org": {"hit": 0, "miss": 0, "set": 0, "skip": 10}}
 DEBUG: HTTP statistics (repository=local)
        "hosts": {
          "components-file.espressif.com": {
-           "count": 5,
-           "reqAvgMs": 754,
-           "reqMedianMs": 601,
-           "reqMaxMs": 1093,
-           "queueAvgMs": 8,
-           "queueMedianMs": 6,
-           "queueMaxMs": 15
-         },
-         "pypi.org": {
-           "count": 2,
-           "reqAvgMs": 110,
-           "reqMedianMs": 123,
-           "reqMaxMs": 123,
-           "queueAvgMs": 0,
-           "queueMedianMs": 0,
-           "queueMaxMs": 0
-         },
-         "registry.npmjs.org": {
-           "count": 10,
-           "reqAvgMs": 297,
-           "reqMedianMs": 191,
-           "reqMaxMs": 771,
-           "queueAvgMs": 1,
-           "queueMedianMs": 0,
-           "queueMaxMs": 2
+           "count": 4,
+           "reqAvgMs": 635,
+           "reqMedianMs": 689,
+           "reqMaxMs": 703,
+           "queueAvgMs": 9,
+           "queueMedianMs": 13,
+           "queueMaxMs": 14
          }
        },
-       "requests": 17
+       "requests": 4
 DEBUG: HTTP cache statistics (repository=local)
        "https://registry.npmjs.org": {
-         "/@eslint%2Feslintrc": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/@eslint-react%2Feslint-plugin": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/@preact%2Fpreset-vite": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/eslint": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/preact": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/prettier": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/rollup": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/sass": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/vite": {"hit": 1, "miss": 0, "localMiss": 1},
-         "/vite-plugin-compression": {"hit": 1, "miss": 0, "localMiss": 1}
+         "/@eslint%2Feslintrc": {"hit": 0, "miss": 0, "localHit": 1},
+         "/@eslint-react%2Feslint-plugin": {"hit": 0, "miss": 0, "localHit": 1},
+         "/@preact%2Fpreset-vite": {"hit": 0, "miss": 0, "localHit": 1},
+         "/eslint": {"hit": 0, "miss": 0, "localHit": 1},
+         "/preact": {"hit": 0, "miss": 0, "localHit": 1},
+         "/prettier": {"hit": 0, "miss": 0, "localHit": 1},
+         "/rollup": {"hit": 0, "miss": 0, "localHit": 1},
+         "/sass": {"hit": 0, "miss": 0, "localHit": 1},
+         "/vite": {"hit": 0, "miss": 0, "localHit": 1},
+         "/vite-plugin-compression": {"hit": 0, "miss": 0, "localHit": 1}
        }
 DEBUG: Lookup statistics (repository=local)
-       "pypi": {"count": 2, "avgMs": 206, "medianMs": 229, "maxMs": 229, "totalMs": 412},
-       "npm": {"count": 10, "avgMs": 384, "medianMs": 292, "maxMs": 979, "totalMs": 3843},
-       "custom.ds-espressif-component": {"count": 5, "avgMs": 774, "medianMs": 615, "maxMs": 1118, "totalMs": 3871}
+       "pypi": {"count": 2, "avgMs": 81, "medianMs": 83, "maxMs": 83, "totalMs": 161},
+       "npm": {"count": 10, "avgMs": 153, "medianMs": 146, "maxMs": 451, "totalMs": 1531},
+       "custom.ds-espressif-component": {"count": 4, "avgMs": 657, "medianMs": 714, "maxMs": 721, "totalMs": 2628}
 DEBUG: getReleases statistics summary (repository=local)
        "stats": {
-         "count": 17,
-         "avgMs": 455,
-         "medianMs": 477.853625,
-         "maxMs": 1117.698083,
-         "totalMs": 7730.774749000001
+         "count": 14,
+         "avgMs": 281,
+         "medianMs": 168.525084,
+         "maxMs": 711.221125,
+         "totalMs": 3937.310542
        },
        "datasources": {
-         "pypi": {
-           "stats": {
-             "count": 2,
-             "avgMs": 125,
-             "medianMs": 141.962125,
-             "maxMs": 141.962125,
-             "totalMs": 249.260958
-           },
-           "registryUrls": {
-             "https://pypi.org/pypi": {
-               "stats": {
-                 "count": 2,
-                 "avgMs": 125,
-                 "medianMs": 141.962125,
-                 "maxMs": 141.962125,
-                 "totalMs": 249.260958
-               }
-             }
-           }
-         },
          "npm": {
            "stats": {
              "count": 10,
-             "avgMs": 363,
-             "medianMs": 262.7355,
-             "maxMs": 916.276458,
-             "totalMs": 3627.4951250000004
+             "avgMs": 133,
+             "medianMs": 130.862292,
+             "maxMs": 393.349041,
+             "totalMs": 1326.9753329999999
            },
            "registryUrls": {
              "https://registry.npmjs.org": {
                "stats": {
                  "count": 10,
-                 "avgMs": 363,
-                 "medianMs": 262.7355,
-                 "maxMs": 916.276458,
-                 "totalMs": 3627.4951250000004
+                 "avgMs": 133,
+                 "medianMs": 130.862292,
+                 "maxMs": 393.349041,
+                 "totalMs": 1326.9753329999999
                }
              }
            }
          },
          "custom": {
            "stats": {
-             "count": 5,
-             "avgMs": 771,
-             "medianMs": 606.626375,
-             "maxMs": 1117.698083,
-             "totalMs": 3854.018666
+             "count": 4,
+             "avgMs": 653,
+             "medianMs": 710.251209,
+             "maxMs": 711.221125,
+             "totalMs": 2610.335209
            },
            "registryUrls": {
              "": {
                "stats": {
-                 "count": 5,
-                 "avgMs": 771,
-                 "medianMs": 606.626375,
-                 "maxMs": 1117.698083,
-                 "totalMs": 3854.018666
+                 "count": 4,
+                 "avgMs": 653,
+                 "medianMs": 710.251209,
+                 "maxMs": 711.221125,
+                 "totalMs": 2610.335209
                }
              }
            }
@@ -1656,10 +1668,10 @@ DEBUG: Cache fallback URLs (repository=local)
 DEBUG: Git operations statistics (repository=local)
  INFO: Repository finished (repository=local)
        "cloned": undefined,
-       "durationMs": 2370,
+       "durationMs": 2008,
        "result": undefined,
        "status": undefined,
        "enabled": undefined,
        "onboarded": undefined
 DEBUG: Checking file package cache for expired items
-DEBUG: Deleted 0 of 12 file cached entries in 9ms
+DEBUG: Deleted 0 of 12 file cached entries in 19ms
