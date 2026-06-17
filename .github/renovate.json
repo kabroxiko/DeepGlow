@@ -93,6 +93,7 @@
     },
     {
       "matchManagers": ["regex"],
+      "matchDepNames": ["espressif/esp-idf"],
       "matchDepTypes": ["dep-idf-component"],
       "rangeStrategy": "update-lockfile",
       "matchPackageNames": ["espressif/esp-idf"],
