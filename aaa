@@ -1,0 +1,592 @@
+Need to install the following packages:
+renovate@43.227.1
+Ok to proceed? (y)  INFO: Renovate started
+       "renovateVersion": "43.227.1"
+DEBUG: Using RE2 regex engine
+DEBUG: Parsing configs
+DEBUG: No config file found on disk - skipping
+DEBUG: No additional config file found specified - skipping
+ WARN: cli config dryRun property has been changed to full
+DEBUG: File config
+       "config": {}
+DEBUG: Additional file config
+       "config": {}
+DEBUG: CLI config
+       "config": {"dryRun": "full", "platform": "local"}
+DEBUG: Env config
+       "config": {"hostRules": []}
+DEBUG: Resolved global extends
+       "config": undefined
+DEBUG: Combined config
+       "config": {"hostRules": [], "dryRun": "full", "platform": "local"}
+DEBUG: Enabling forkProcessing while in non-autodiscover mode
+DEBUG: Enabling onboardingNoDeps while in non-autodiscover mode
+DEBUG: Found valid git version: 2.49.0
+DEBUG: Setting global hostRules
+DEBUG: Using baseDir: /var/folders/0m/bc49zfzn5z9bfmsnybcb9bf80000gn/T/renovate
+DEBUG: Using cacheDir: /var/folders/0m/bc49zfzn5z9bfmsnybcb9bf80000gn/T/renovate/cache
+DEBUG: Using containerbaseDir: /var/folders/0m/bc49zfzn5z9bfmsnybcb9bf80000gn/T/renovate/cache/containerbase
+DEBUG: Initializing Renovate internal cache into /var/folders/0m/bc49zfzn5z9bfmsnybcb9bf80000gn/T/renovate/cache/renovate/renovate-cache-v1
+DEBUG: Commits limit = null
+DEBUG: Setting global hostRules
+DEBUG: validatePresets()
+DEBUG: Reinitializing hostRules for repo
+DEBUG: Clearing hostRules
+ INFO: Repository started (repository=local)
+       "renovateVersion": "43.227.1"
+DEBUG: Using localDir: /Users/kabroxiko/DeepGlow (repository=local)
+DEBUG: PackageFiles.clear() - Package files deleted (repository=local)
+DEBUG: Resetting npmrc (repository=local)
+DEBUG: Resetting npmrc (repository=local)
+DEBUG: checkOnboarding() (repository=local)
+DEBUG: isOnboarded() (repository=local)
+DEBUG: findFile(renovate.json) (repository=local)
+DEBUG: Got file list using git (repository=local)
+DEBUG: findFile(renovate.jsonc) (repository=local)
+DEBUG: Got file list using git (repository=local)
+DEBUG: findFile(renovate.json5) (repository=local)
+DEBUG: Got file list using git (repository=local)
+DEBUG: findFile(.github/renovate.json) (repository=local)
+DEBUG: Got file list using git (repository=local)
+DEBUG: Config file exists, fileName: .github/renovate.json (repository=local)
+DEBUG: Repo is onboarded (repository=local)
+DEBUG: Got file list using git (repository=local)
+DEBUG: Found .github/renovate.json config file (repository=local)
+DEBUG: Repository config (repository=local)
+       "fileName": ".github/renovate.json",
+       "config": {
+         "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+         "extends": ["config:recommended"],
+         "recreateWhen": "always",
+         "commitMessagePrefix": "🤖",
+         "commitMessageTopic": "{{depName}}",
+         "commitMessageExtra": "to {{newVersion}}",
+         "commitMessageSuffix": "",
+         "customManagers": [
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^platformio\\.ini$/"],
+             "matchStrings": [
+               "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+             ],
+             "matchStringsStrategy": "any",
+             "datasourceTemplate": "custom.ds-pio-platform",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "loose",
+             "depTypeTemplate": "dep-pio-platform"
+           },
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^platformio\\.ini$/"],
+             "matchStringsStrategy": "recursive",
+             "matchStrings": [
+               "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+               "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "custom.ds-pio-library",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "loose",
+             "depTypeTemplate": "dep-pio-library"
+           },
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "\\n\\s+(?<depName>[a-zA-Z0-9_/-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
+             ],
+             "matchStringsStrategy": "any",
+             "datasourceTemplate": "custom.ds-espressif-component",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           }
+         ],
+         "customDatasources": {
+           "ds-pio-platform": {
+             "description": "PlatformIO Platform Registry",
+             "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/platform/{{{replace '.*/' '' packageName}}}",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+             ]
+           },
+           "ds-pio-library": {
+             "description": "PlatformIO Library Registry",
+             "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages?query={{{packageName}}}&page=1&limit=1",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
+             ]
+           },
+           "ds-espressif-component": {
+             "description": "Espressif Component Registry Static JSON Endpoint",
+             "defaultRegistryUrlTemplate": "https://components-file.espressif.com/components/{{{packageName}}}.json",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.versions[0], function($v) { { \"version\": $v.version, \"releaseTimestamp\": $v.created_at } })], \"homepage\": \"https://components.espressif.com/components/{{{packageName}}}\" }"
+             ]
+           }
+         },
+         "packageRules": [
+           {
+             "groupName": "PlatformIO Platform",
+             "matchDepTypes": ["dep-pio-platform"],
+             "addLabels": ["dependencies", "pio:platform"]
+           },
+           {
+             "groupName": "PlatformIO Library",
+             "matchDepTypes": ["dep-pio-library"],
+             "addLabels": ["dependencies", "pio:library"]
+           },
+           {
+             "groupName": "ESP-IDF Components",
+             "matchDepTypes": ["dep-idf-component"],
+             "addLabels": ["dependencies", "esp-idf:component"]
+           },
+           {
+             "groupName": "ESP-IDF Core",
+             "matchDepTypes": ["dep-idf-core"],
+             "matchPackageNames": ["espressif/esp-idf"],
+             "addLabels": ["dependencies", "esp-idf:core"]
+           }
+         ]
+       }
+DEBUG: migrateAndValidate() (repository=local)
+DEBUG: No config migration necessary (repository=local)
+DEBUG: Post-massage config (repository=local)
+       "config": {
+         "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+         "extends": ["config:recommended"],
+         "recreateWhen": "always",
+         "commitMessagePrefix": "🤖",
+         "commitMessageTopic": "{{depName}}",
+         "commitMessageExtra": "to {{newVersion}}",
+         "commitMessageSuffix": "",
+         "customManagers": [
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^platformio\\.ini$/"],
+             "matchStrings": [
+               "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+             ],
+             "matchStringsStrategy": "any",
+             "datasourceTemplate": "custom.ds-pio-platform",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "loose",
+             "depTypeTemplate": "dep-pio-platform"
+           },
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^platformio\\.ini$/"],
+             "matchStringsStrategy": "recursive",
+             "matchStrings": [
+               "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+               "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "custom.ds-pio-library",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "loose",
+             "depTypeTemplate": "dep-pio-library"
+           },
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "\\n\\s+(?<depName>[a-zA-Z0-9_/-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
+             ],
+             "matchStringsStrategy": "any",
+             "datasourceTemplate": "custom.ds-espressif-component",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           }
+         ],
+         "customDatasources": {
+           "ds-pio-platform": {
+             "description": ["PlatformIO Platform Registry"],
+             "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/platform/{{{replace '.*/' '' packageName}}}",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+             ]
+           },
+           "ds-pio-library": {
+             "description": ["PlatformIO Library Registry"],
+             "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages?query={{{packageName}}}&page=1&limit=1",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
+             ]
+           },
+           "ds-espressif-component": {
+             "description": ["Espressif Component Registry Static JSON Endpoint"],
+             "defaultRegistryUrlTemplate": "https://components-file.espressif.com/components/{{{packageName}}}.json",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.versions[0], function($v) { { \"version\": $v.version, \"releaseTimestamp\": $v.created_at } })], \"homepage\": \"https://components.espressif.com/components/{{{packageName}}}\" }"
+             ]
+           }
+         },
+         "packageRules": [
+           {
+             "groupName": "PlatformIO Platform",
+             "matchDepTypes": ["dep-pio-platform"],
+             "addLabels": ["dependencies", "pio:platform"]
+           },
+           {
+             "groupName": "PlatformIO Library",
+             "matchDepTypes": ["dep-pio-library"],
+             "addLabels": ["dependencies", "pio:library"]
+           },
+           {
+             "groupName": "ESP-IDF Components",
+             "matchDepTypes": ["dep-idf-component"],
+             "addLabels": ["dependencies", "esp-idf:component"]
+           },
+           {
+             "groupName": "ESP-IDF Core",
+             "matchDepTypes": ["dep-idf-core"],
+             "matchPackageNames": ["espressif/esp-idf"],
+             "addLabels": ["dependencies", "esp-idf:core"]
+           }
+         ]
+       }
+DEBUG: Resolved shallow config, without merging internal presets (repository=local)
+       "renovateVersion": "43.227.1",
+       "config": {
+         "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+         "recreateWhen": "always",
+         "commitMessagePrefix": "🤖",
+         "commitMessageTopic": "{{depName}}",
+         "commitMessageExtra": "to {{newVersion}}",
+         "commitMessageSuffix": "",
+         "customManagers": [
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^platformio\\.ini$/"],
+             "matchStrings": [
+               "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+             ],
+             "matchStringsStrategy": "any",
+             "datasourceTemplate": "custom.ds-pio-platform",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "loose",
+             "depTypeTemplate": "dep-pio-platform"
+           },
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^platformio\\.ini$/"],
+             "matchStringsStrategy": "recursive",
+             "matchStrings": [
+               "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+               "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
+             ],
+             "datasourceTemplate": "custom.ds-pio-library",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "loose",
+             "depTypeTemplate": "dep-pio-library"
+           },
+           {
+             "customType": "regex",
+             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+             "matchStrings": [
+               "\\n\\s+(?<depName>[a-zA-Z0-9_/-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
+             ],
+             "matchStringsStrategy": "any",
+             "datasourceTemplate": "custom.ds-espressif-component",
+             "depNameTemplate": "{{depName}}",
+             "versioningTemplate": "semver",
+             "depTypeTemplate": "dep-idf-component"
+           }
+         ],
+         "customDatasources": {
+           "ds-pio-platform": {
+             "description": ["PlatformIO Platform Registry"],
+             "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages/{{#if (containsString packageName '/')}}{{{replace '/.*' '' packageName}}}{{else}}platformio{{/if}}/platform/{{{replace '.*/' '' packageName}}}",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.versions, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.type,\"/\",$.owner.username,\"/\",$.name])) }"
+             ]
+           },
+           "ds-pio-library": {
+             "description": ["PlatformIO Library Registry"],
+             "defaultRegistryUrlTemplate": "https://api.registry.platformio.org/v3/packages?query={{{packageName}}}&page=1&limit=1",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.items[0].version, function($v) { { \"version\": $v.name, \"releaseTimestamp\": $v.released_at } })], \"homepage\": $encodeUrl($join([\"https://registry.platformio.org/\",$.items[0].type,\"/\",$.items[0].owner.username,\"/\",$.items[0].name])) }"
+             ]
+           },
+           "ds-espressif-component": {
+             "description": ["Espressif Component Registry Static JSON Endpoint"],
+             "defaultRegistryUrlTemplate": "https://components-file.espressif.com/components/{{{packageName}}}.json",
+             "format": "json",
+             "transformTemplates": [
+               "{\"releases\": [$map($.versions[0], function($v) { { \"version\": $v.version, \"releaseTimestamp\": $v.created_at } })], \"homepage\": \"https://components.espressif.com/components/{{{packageName}}}\" }"
+             ]
+           }
+         },
+         "packageRules": [
+           {
+             "groupName": "PlatformIO Platform",
+             "matchDepTypes": ["dep-pio-platform"],
+             "addLabels": ["dependencies", "pio:platform"]
+           },
+           {
+             "groupName": "PlatformIO Library",
+             "matchDepTypes": ["dep-pio-library"],
+             "addLabels": ["dependencies", "pio:library"]
+           },
+           {
+             "groupName": "ESP-IDF Components",
+             "matchDepTypes": ["dep-idf-component"],
+             "addLabels": ["dependencies", "esp-idf:component"]
+           },
+           {
+             "groupName": "ESP-IDF Core",
+             "matchDepTypes": ["dep-idf-core"],
+             "matchPackageNames": ["espressif/esp-idf"],
+             "addLabels": ["dependencies", "esp-idf:core"]
+           }
+         ]
+       },
+       "visitedPresets": {"merged": [], "unmerged": ["config:recommended"]}
+DEBUG: Found repo ignorePaths (repository=local)
+       "ignorePaths": [
+         "**/node_modules/**",
+         "**/bower_components/**",
+         "**/vendor/**",
+         "**/examples/**",
+         "**/__tests__/**",
+         "**/test/**",
+         "**/tests/**",
+         "**/__fixtures__/**"
+       ]
+DEBUG: No vulnerability alerts found (repository=local)
+DEBUG: No baseBranches (repository=local)
+DEBUG: extract() (repository=local)
+DEBUG: Got file list using git (repository=local)
+DEBUG: Using file pattern: **/build.xml for manager ant (repository=local)
+DEBUG: Using file pattern: /(^|/)tasks/[^/]+\.ya?ml$/ for manager ansible (repository=local)
+DEBUG: Using file pattern: /(^|/)(galaxy|requirements)(\.ansible)?\.ya?ml$/ for manager ansible-galaxy (repository=local)
+DEBUG: Using file pattern: /(^|/)\.tool-versions$/ for manager asdf (repository=local)
+DEBUG: Using file pattern: /(^|/).azuredevops/.+\.ya?ml$/ for manager azure-pipelines (repository=local)
+DEBUG: Using file pattern: /azure.*pipelines?.*\.ya?ml$/ for manager azure-pipelines (repository=local)
+DEBUG: Using file pattern: /(^|/)batect(-bundle)?\.ya?ml$/ for manager batect (repository=local)
+DEBUG: Using file pattern: /(^|/)batect$/ for manager batect-wrapper (repository=local)
+DEBUG: Using file pattern: /(^|/)WORKSPACE(|\.bazel|\.bzlmod)$/ for manager bazel (repository=local)
+DEBUG: Using file pattern: /\.WORKSPACE\.bazel$/ for manager bazel (repository=local)
+DEBUG: Using file pattern: /\.bzl$/ for manager bazel (repository=local)
+DEBUG: Using file pattern: /(^|/|\.)MODULE\.bazel$/ for manager bazel-module (repository=local)
+DEBUG: Using file pattern: /(^|/)\.bazelversion$/ for manager bazelisk (repository=local)
+DEBUG: Using file pattern: /\.bicep$/ for manager bicep (repository=local)
+DEBUG: Using file pattern: **/*-pipelines.yml for manager bitbucket-pipelines (repository=local)
+DEBUG: Using file pattern: /(^|/)bitrise\.ya?ml$/ for manager bitrise (repository=local)
+DEBUG: Using file pattern: /buildkite\.ya?ml/ for manager buildkite (repository=local)
+DEBUG: Using file pattern: /\.buildkite/.+\.ya?ml$/ for manager buildkite (repository=local)
+DEBUG: Using file pattern: /(^|/)project\.toml$/ for manager buildpacks (repository=local)
+DEBUG: Using file pattern: /(^|/)bun\.lockb?$/ for manager bun (repository=local)
+DEBUG: Using file pattern: /(^|/)package\.json$/ for manager bun (repository=local)
+DEBUG: Using file pattern: /(^|/)\.bun-version$/ for manager bun-version (repository=local)
+DEBUG: Using file pattern: /(^|/)Gemfile$/ for manager bundler (repository=local)
+DEBUG: Using file pattern: /\.cake$/ for manager cake (repository=local)
+DEBUG: Using file pattern: /(^|/)Cargo\.toml$/ for manager cargo (repository=local)
+DEBUG: Using file pattern: /(^|/)\.circleci/.+\.ya?ml$/ for manager circleci (repository=local)
+DEBUG: Using file pattern: /(^|/)cloudbuild\.ya?ml/ for manager cloudbuild (repository=local)
+DEBUG: Using file pattern: /(^|/)Podfile$/ for manager cocoapods (repository=local)
+DEBUG: Using file pattern: /(^|/)([\w-]*)composer\.json$/ for manager composer (repository=local)
+DEBUG: Using file pattern: /(^|/)conanfile\.(txt|py)$/ for manager conan (repository=local)
+DEBUG: Using file pattern: /(^|/)\.copier-answers(\..+)?\.ya?ml/ for manager copier (repository=local)
+DEBUG: Using file pattern: /(^|/)cpanfile$/ for manager cpanfile (repository=local)
+DEBUG: Using file pattern: /^\.crow(?:/[^/]+)?\.ya?ml$/ for manager crow (repository=local)
+DEBUG: Using file pattern: /(^|/)deno\.lock$/ for manager deno (repository=local)
+DEBUG: Using file pattern: /(^|/)deno\.(json|jsonc)$/ for manager deno (repository=local)
+DEBUG: Using file pattern: /(^|/)(?:deps|bb)\.edn$/ for manager deps-edn (repository=local)
+DEBUG: Using file pattern: /(^|/)devbox\.json$/ for manager devbox (repository=local)
+DEBUG: Using file pattern: /^.devcontainer/devcontainer.json$/ for manager devcontainer (repository=local)
+DEBUG: Using file pattern: /^.devcontainer.json$/ for manager devcontainer (repository=local)
+DEBUG: Using file pattern: /(^|/)(?:docker-)?compose[^/]*\.ya?ml$/ for manager docker-compose (repository=local)
+DEBUG: Using file pattern: /(^|/|\.)([Dd]ocker|[Cc]ontainer)file$/ for manager dockerfile (repository=local)
+DEBUG: Using file pattern: /(^|/)([Dd]ocker|[Cc]ontainer)file[^/]*$/ for manager dockerfile (repository=local)
+DEBUG: Using file pattern: /(^|/)\.drone\.yml$/ for manager droneci (repository=local)
+DEBUG: Using file pattern: /(^|/)fleet\.ya?ml/ for manager fleet (repository=local)
+DEBUG: Using file pattern: /(?:^|/)gotk-components\.ya?ml$/ for manager flux (repository=local)
+DEBUG: Using file pattern: /(^|/)\.fvm/fvm_config\.json$/ for manager fvm (repository=local)
+DEBUG: Using file pattern: /(^|/)\.fvmrc$/ for manager fvm (repository=local)
+DEBUG: Using file pattern: /(^|/)\.gitmodules$/ for manager git-submodules (repository=local)
+DEBUG: Using file pattern: /(^|/)(workflow-templates|\.(?:github|gitea|forgejo)/(?:workflows|actions))/.+\.ya?ml$/ for manager github-actions (repository=local)
+DEBUG: Using file pattern: /(^|/)action\.ya?ml$/ for manager github-actions (repository=local)
+DEBUG: Using file pattern: /\.gitlab-ci\.ya?ml$/ for manager gitlabci (repository=local)
+DEBUG: Using file pattern: /\.gitlab-ci\.ya?ml$/ for manager gitlabci-include (repository=local)
+DEBUG: Using file pattern: /(^|/)gleam.toml$/ for manager gleam (repository=local)
+DEBUG: Using file pattern: /(^|/)go\.mod$/ for manager gomod (repository=local)
+DEBUG: Using file pattern: /\.gradle(\.kts)?$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /(^|/)gradle\.properties$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /(^|/)gradle/.+\.toml$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /(^|/)buildSrc/.+\.kt$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /\.versions\.toml$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /(^|/)versions.props$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /(^|/)versions.lock$/ for manager gradle (repository=local)
+DEBUG: Using file pattern: /(^|/)gradle/wrapper/gradle-wrapper\.properties$/ for manager gradle-wrapper (repository=local)
+DEBUG: Using file pattern: /\.cabal$/ for manager haskell-cabal (repository=local)
+DEBUG: Using file pattern: /(^|/)requirements\.ya?ml$/ for manager helm-requirements (repository=local)
+DEBUG: Using file pattern: /(^|/)values\.ya?ml$/ for manager helm-values (repository=local)
+DEBUG: Using file pattern: /(^|/)helmfile\.ya?ml(?:\.gotmpl)?$/ for manager helmfile (repository=local)
+DEBUG: Using file pattern: /(^|/)helmfile\.d/.+\.ya?ml(?:\.gotmpl)?$/ for manager helmfile (repository=local)
+DEBUG: Using file pattern: /(^|/)Chart\.ya?ml$/ for manager helmv3 (repository=local)
+DEBUG: Using file pattern: /(^|/)bin/hermit$/ for manager hermit (repository=local)
+DEBUG: Using file pattern: /(^|/)manifest\.json$/ for manager homeassistant-manifest (repository=local)
+DEBUG: Using file pattern: /^Formula/\w*/?[^/]+[.]rb$/ for manager homebrew (repository=local)
+DEBUG: Using file pattern: /\.html?$/ for manager html (repository=local)
+DEBUG: Using file pattern: /(^|/)plugins\.(txt|ya?ml)$/ for manager jenkins (repository=local)
+DEBUG: Using file pattern: /(^|/)jsonnetfile\.json$/ for manager jsonnet-bundler (repository=local)
+DEBUG: Using file pattern: /^.+\.main\.kts$/ for manager kotlin-script (repository=local)
+DEBUG: Using file pattern: /(^|/)kustomization\.ya?ml$/ for manager kustomize (repository=local)
+DEBUG: Using file pattern: /(^|/)project\.clj$/ for manager leiningen (repository=local)
+DEBUG: Using file pattern: /(^|/|\.)pom\.xml$/ for manager maven (repository=local)
+DEBUG: Using file pattern: /(^|/)pom\.template\.xml$/ for manager maven (repository=local)
+DEBUG: Using file pattern: /^(((\.mvn)|(\.m2))/)?settings\.xml$/ for manager maven (repository=local)
+DEBUG: Using file pattern: /(^|/)\.mvn/extensions\.xml$/ for manager maven (repository=local)
+DEBUG: Using file pattern: /(^|\/).mvn/wrapper/maven-wrapper.properties$/ for manager maven-wrapper (repository=local)
+DEBUG: Using file pattern: /(^|\/)mvnw(.cmd)?$/ for manager maven-wrapper (repository=local)
+DEBUG: Using file pattern: /(^|/)package\.js$/ for manager meteor (repository=local)
+DEBUG: Using file pattern: /(^|/)Mintfile$/ for manager mint (repository=local)
+DEBUG: Using file pattern: **/{,.}mise{,.*}.toml for manager mise (repository=local)
+DEBUG: Using file pattern: **/{,.}mise/config{,.*}.toml for manager mise (repository=local)
+DEBUG: Using file pattern: **/.config/mise{,.*}.toml for manager mise (repository=local)
+DEBUG: Using file pattern: **/.config/mise/{mise,config}{,.*}.toml for manager mise (repository=local)
+DEBUG: Using file pattern: **/.config/mise/conf.d/*.toml for manager mise (repository=local)
+DEBUG: Using file pattern: **/.rtx{,.*}.toml for manager mise (repository=local)
+DEBUG: Using file pattern: /(^|/)mix\.exs$/ for manager mix (repository=local)
+DEBUG: Using file pattern: /(^|/)flake\.nix$/ for manager nix (repository=local)
+DEBUG: Using file pattern: /(^|/)\.node-version$/ for manager nodenv (repository=local)
+DEBUG: Using file pattern: /(^|/)package\.json$/ for manager npm (repository=local)
+DEBUG: Using file pattern: /(^|/)pnpm-workspace\.yaml$/ for manager npm (repository=local)
+DEBUG: Using file pattern: /(^|/)\.yarnrc\.yml$/ for manager npm (repository=local)
+DEBUG: Using file pattern: /\.(?:cs|fs|vb)proj$/ for manager nuget (repository=local)
+DEBUG: Using file pattern: /\.(?:props|targets)$/ for manager nuget (repository=local)
+DEBUG: Using file pattern: /(^|/)dotnet-tools\.json$/ for manager nuget (repository=local)
+DEBUG: Using file pattern: /(^|/)global\.json$/ for manager nuget (repository=local)
+DEBUG: Using file pattern: /(^|/)\.nvmrc$/ for manager nvm (repository=local)
+DEBUG: Using file pattern: /(^|/)src/main/features/.+\.json$/ for manager osgi (repository=local)
+DEBUG: Using file pattern: /(^|/)pyproject\.toml$/ for manager pep621 (repository=local)
+DEBUG: Using file pattern: /(^|/)[\w-]*requirements([-._]\w+)?\.(txt|pip)$/ for manager pip_requirements (repository=local)
+DEBUG: Using file pattern: /(^|/)setup\.py$/ for manager pip_setup (repository=local)
+DEBUG: Using file pattern: /(^|/)Pipfile$/ for manager pipenv (repository=local)
+DEBUG: Using file pattern: /(^|/)pyproject\.toml$/ for manager pixi (repository=local)
+DEBUG: Using file pattern: /(^|/)pixi\.toml$/ for manager pixi (repository=local)
+DEBUG: Using file pattern: /(^|/)pyproject\.toml$/ for manager poetry (repository=local)
+DEBUG: Using file pattern: /(^|/)\.pre-commit-config\.ya?ml$/ for manager pre-commit (repository=local)
+DEBUG: Using file pattern: **/.prototools for manager proto (repository=local)
+DEBUG: Using file pattern: /(^|/)pubspec\.ya?ml$/ for manager pub (repository=local)
+DEBUG: Using file pattern: /(^|/)Puppetfile$/ for manager puppet (repository=local)
+DEBUG: Using file pattern: /(^|/)\.python-version$/ for manager pyenv (repository=local)
+DEBUG: Using file pattern: /.+\.container$/ for manager quadlet (repository=local)
+DEBUG: Using file pattern: /.+\.image$/ for manager quadlet (repository=local)
+DEBUG: Using file pattern: /.+\.volume$/ for manager quadlet (repository=local)
+DEBUG: Using file pattern: renovate.json for manager renovate-config (repository=local)
+DEBUG: Using file pattern: renovate.jsonc for manager renovate-config (repository=local)
+DEBUG: Using file pattern: renovate.json5 for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .github/renovate.json for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .github/renovate.jsonc for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .github/renovate.json5 for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .gitlab/renovate.json for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .gitlab/renovate.jsonc for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .gitlab/renovate.json5 for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .renovaterc for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .renovaterc.json for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .renovaterc.jsonc for manager renovate-config (repository=local)
+DEBUG: Using file pattern: .renovaterc.json5 for manager renovate-config (repository=local)
+DEBUG: Using file pattern: /(^|/)\.ruby-version$/ for manager ruby-version (repository=local)
+DEBUG: Using file pattern: /(^|/)runtime.txt$/ for manager runtime-version (repository=local)
+DEBUG: Using file pattern: /(^|/)rust-toolchain(\.toml)?$/ for manager rust-toolchain (repository=local)
+DEBUG: Using file pattern: /\.sbt$/ for manager sbt (repository=local)
+DEBUG: Using file pattern: /project/[^/]*\.scala$/ for manager sbt (repository=local)
+DEBUG: Using file pattern: /project/build\.properties$/ for manager sbt (repository=local)
+DEBUG: Using file pattern: /(^|/)repositories$/ for manager sbt (repository=local)
+DEBUG: Using file pattern: /(^|/)\.scalafmt.conf$/ for manager scalafmt (repository=local)
+DEBUG: Using file pattern: /(^|/)setup\.cfg$/ for manager setup-cfg (repository=local)
+DEBUG: Using file pattern: /(^|/)Package\.swift/ for manager swift (repository=local)
+DEBUG: Using file pattern: **/*.tf for manager terraform (repository=local)
+DEBUG: Using file pattern: **/*.tofu for manager terraform (repository=local)
+DEBUG: Using file pattern: /(^|/)\.terraform-version$/ for manager terraform-version (repository=local)
+DEBUG: Using file pattern: /(^|/)terragrunt\.hcl$/ for manager terragrunt (repository=local)
+DEBUG: Using file pattern: /(^|/)\.terragrunt-version$/ for manager terragrunt-version (repository=local)
+DEBUG: Using file pattern: /\.tflint\.hcl$/ for manager tflint-plugin (repository=local)
+DEBUG: Using file pattern: /^\.travis\.ya?ml$/ for manager travis (repository=local)
+DEBUG: Using file pattern: /\.typ$/ for manager typst (repository=local)
+DEBUG: Using file pattern: **/ProjectSettings/ProjectVersion.txt for manager unity3d (repository=local)
+DEBUG: Using file pattern: /(^|/)\.vela\.ya?ml$/ for manager velaci (repository=local)
+DEBUG: Using file pattern: /(^|/)vendir\.yml$/ for manager vendir (repository=local)
+DEBUG: Using file pattern: /^\.woodpecker(?:/[^/]+)?\.ya?ml$/ for manager woodpecker (repository=local)
+DEBUG: Using file pattern: **/project.yml for manager xcodegen (repository=local)
+DEBUG: Using file pattern: **/{j,t}sconfig.json for manager regex (repository=local)
+DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=local)
+DEBUG: Using file pattern: **/{j,t}sconfig.json for manager regex (repository=local)
+DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=local)
+DEBUG: Using file pattern: /^platformio\.ini$/ for manager regex (repository=local)
+DEBUG: Using file pattern: /^platformio\.ini$/ for manager regex (repository=local)
+DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
+DEBUG: Matched 1 file(s) for manager bun: package.json (repository=local)
+DEBUG: No bun lockfiles found (repository=local)
+DEBUG: Matched 5 file(s) for manager github-actions: .github/workflows/branch-push.yml, .github/workflows/ci-workflow.yml, .github/workflows/pull-request.yml, .github/workflows/release.yml, .github/workflows/renovate.yml (repository=local)
+DEBUG: Matched 1 file(s) for manager html: web/index.html (repository=local)
+DEBUG: Matched 1 file(s) for manager npm: package.json (repository=local)
+DEBUG: Matched 1 file(s) for manager pip_requirements: requirements.txt (repository=local)
+DEBUG: Matched 1 file(s) for manager renovate-config: .github/renovate.json (repository=local)
+DEBUG: Matched 1 file(s) for manager regex: platformio.ini (repository=local)
+DEBUG: Matched 1 file(s) for manager regex: platformio.ini (repository=local)
+DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
+DEBUG: npm file package.json has name "deepglow-ui-preact" (repository=local)
+DEBUG: Detecting pnpm Workspaces (repository=local)
+DEBUG: Detecting workspaces (repository=local)
+DEBUG: Finding locked versions (repository=local)
+DEBUG: Found package-lock.json for package.json (repository=local)
+DEBUG: manager extract durations (ms) (repository=local)
+       "managers": {
+         "bun": 1,
+         "github-actions": 85,
+         "html": 14,
+         "npm": 65,
+         "pip_requirements": 14,
+         "regex": 32,
+         "renovate-config": 13
+       }
+DEBUG: Found github-actions package files (repository=local)
+DEBUG: Found npm package files (repository=local)
+DEBUG: Found pip_requirements package files (repository=local)
+DEBUG: Found regex package files (repository=local)
+DEBUG: Found regex package files (repository=local)
+DEBUG: Found regex package files (repository=local)
+DEBUG: Found 8 package file(s) (repository=local)
+ INFO: Dependency extraction complete (repository=local)
+       "stats": {
+         "managers": {
+           "github-actions": {"fileCount": 3, "depCount": 35},
+           "npm": {"fileCount": 1, "depCount": 10},
+           "pip_requirements": {"fileCount": 1, "depCount": 2},
+           "regex": {"fileCount": 3, "depCount": 7}
+         },
+         "total": {"fileCount": 8, "depCount": 54}
+       }
+ WARN: GitHub token is required for some dependencies (repository=local)
+       "githubDeps": [
+         "actions/checkout",
+         "actions/cache",
+         "actions/setup-python",
+         "actions/setup-node",
+         "actions/upload-artifact",
+         "python",
+         "node",
+         "cycjimmy/semantic-release-action",
+         "actions/download-artifact",
+         "softprops/action-gh-release",
+         "renovatebot/github-action"
+       ]
+DEBUG: hostRules: no authentication for api.registry.platformio.org (repository=local)
+DEBUG: Using queue: host=api.registry.platformio.org, concurrency=16 (repository=local)
+DEBUG: hostRules: no authentication for components-file.espressif.com (repository=local)
+DEBUG: Using queue: host=components-file.espressif.com, concurrency=16 (repository=local)
+DEBUG: hostRules: no authentication for registry.npmjs.org (repository=local)
+DEBUG: Using queue: host=registry.npmjs.org, concurrency=999 (repository=local)
+DEBUG: hostRules: no authentication for pypi.org (repository=local)
+DEBUG: Using queue: host=pypi.org, concurrency=16 (repository=local)

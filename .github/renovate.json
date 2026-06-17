@@ -2,6 +2,10 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
   "recreateWhen": "always",
+  "commitMessagePrefix": "🤖",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "to {{newVersion}}",
+  "commitMessageSuffix": "",
   "customManagers": [
     {
       "customType": "regex",
@@ -18,11 +22,11 @@
     {
       "customType": "regex",
       "managerFilePatterns": ["/^platformio\\.ini$/"],
+      "matchStringsStrategy": "recursive",
       "matchStrings": [
-        "(?:^|\\n)lib_deps\\s*=\\s*(?<block>[\\s\\S]*?)(?:\\n[^ \\t\\n]|\\n\\n|$)",
-        "(?:\\n[ \\t]+|^lib_deps\\s*=\\s*)(?<depName>[^@\\s\\n/]+/[^@\\s\\n/]+|[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+        "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+        "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
       ],
-      "matchStringsStrategy": "combination",
       "datasourceTemplate": "custom.ds-pio-library",
       "depNameTemplate": "{{depName}}",
       "versioningTemplate": "loose",
@@ -32,7 +36,9 @@
       "customType": "regex",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
       "matchStrings": [
-        "\\n\\s+(?<depName>[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
+        "\\n\\s+(?<depName>[a-zA-Z0-9_/-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
+        // ,
+        // "\\n\\s+idf:\\n\\s+version:\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
       ],
       "matchStringsStrategy": "any",
       "datasourceTemplate": "custom.ds-espressif-component",
@@ -71,20 +77,23 @@
     {
       "groupName": "PlatformIO Platform",
       "matchDepTypes": ["dep-pio-platform"],
-      "addLabels": ["dependencies", "pio:platform"],
-      "prTitle": "Chore(PIO): Update platform `{{{depName}}}` to `{{{newVersion}}}`"
+      "addLabels": ["dependencies", "pio:platform"]
     },
     {
       "groupName": "PlatformIO Library",
       "matchDepTypes": ["dep-pio-library"],
-      "addLabels": ["dependencies", "pio:library"],
-      "prTitle": "Chore(PIO): Update library `{{{depName}}}` to `{{{newVersion}}}`"
+      "addLabels": ["dependencies", "pio:library"]
     },
     {
       "groupName": "ESP-IDF Components",
       "matchDepTypes": ["dep-idf-component"],
-      "addLabels": ["dependencies", "esp-idf"],
-      "prTitle": "Chore(IDF): Update component `{{{depName}}}` to `{{{newVersion}}}`"
+      "addLabels": ["dependencies", "esp-idf:component"]
+    },
+    {
+      "groupName": "ESP-IDF Core",
+      "matchDepTypes": ["dep-idf-core"],
+      "matchPackageNames": ["espressif/esp-idf"],
+      "addLabels": ["dependencies", "esp-idf:core"]
     }
   ]
 }
