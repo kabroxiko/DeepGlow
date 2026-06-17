@@ -39,8 +39,9 @@
       "description": "Extractor aislado y exclusivo para la plataforma IDF",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
       "matchStrings": [
-        "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?v?(?<currentValue>[0-9.]+))[\"']?"
+        "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
       ],
+      "extractVersionTemplate": "^v?(?<version>.*)$",
       "datasourceTemplate": "github-releases",
       "packageNameTemplate": "espressif/esp-idf",
       "versioningTemplate": "semver",
