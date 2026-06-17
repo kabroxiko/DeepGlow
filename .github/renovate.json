@@ -7,42 +7,41 @@
   "commitMessageExtra": "to {{newVersion}}",
   "commitMessageSuffix": "",
   "customManagers": [
-    {
-      "customType": "regex",
-      "managerFilePatterns": ["/^platformio\\.ini$/"],
-      "matchStrings": [
-        "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
-      ],
-      "matchStringsStrategy": "any",
-      "datasourceTemplate": "custom.ds-pio-platform",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-platform"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": ["/^platformio\\.ini$/"],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
-        "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
-      ],
-      "datasourceTemplate": "custom.ds-pio-library",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-library"
-    },
+    // {
+    //   "customType": "regex",
+    //   "managerFilePatterns": ["/^platformio\\.ini$/"],
+    //   "matchStrings": [
+    //     "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+    //   ],
+    //   "matchStringsStrategy": "any",
+    //   "datasourceTemplate": "custom.ds-pio-platform",
+    //   "depNameTemplate": "{{depName}}",
+    //   "versioningTemplate": "loose",
+    //   "depTypeTemplate": "dep-pio-platform"
+    // },
+    // {
+    //   "customType": "regex",
+    //   "managerFilePatterns": ["/^platformio\\.ini$/"],
+    //   "matchStringsStrategy": "recursive",
+    //   "matchStrings": [
+    //     "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+    //     "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
+    //   ],
+    //   "datasourceTemplate": "custom.ds-pio-library",
+    //   "depNameTemplate": "{{depName}}",
+    //   "versioningTemplate": "loose",
+    //   "depTypeTemplate": "dep-pio-library"
+    // },
     {
       "customType": "regex",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+      "matchStringsStrategy": "recursive",
       "matchStrings": [
-        "\\n\\s+(?<depName>[a-zA-Z0-9_/-]+):\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
-        // ,
-        // "\\n\\s+idf:\\n\\s+version:\\s*[\"']?[~^]?(?<currentValue>[0-9.]+).*"
+        "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
+        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_/\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
       ],
-      "matchStringsStrategy": "any",
       "datasourceTemplate": "custom.ds-espressif-component",
-      "depNameTemplate": "{{depName}}",
+      "depNameTemplate": "{{{depName}}}",
       "versioningTemplate": "semver",
       "depTypeTemplate": "dep-idf-component"
     }
@@ -90,10 +89,11 @@
       "addLabels": ["dependencies", "esp-idf:component"]
     },
     {
-      "groupName": "ESP-IDF Core",
-      "matchDepTypes": ["dep-idf-core"],
-      "matchPackageNames": ["espressif/esp-idf"],
-      "addLabels": ["dependencies", "esp-idf:core"]
+      "matchManagers": ["regex"],
+      "matchDepTypes": ["dep-idf-component"],
+      "matchPackageNames": ["idf"],
+      "datasourceTemplate": "github-releases",
+      "packageName": "espressif/esp-idf"
     }
   ]
 }
