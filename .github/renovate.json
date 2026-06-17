@@ -36,17 +36,29 @@
     // },
     {
       "customType": "regex",
-      "description": "Extractor universal para todos los componentes e idf engine",
+      "description": "Extractor aislado y exclusivo para la plataforma IDF",
+      "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
+      "matchStrings": [
+        "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
+      ],
+      "datasourceTemplate": "github-releases",
+      "packageNameTemplate": "espressif/esp-idf",
+      "versioningTemplate": "semver",
+      "depTypeTemplate": "dep-idf-engine"
+    },
+    {
+      "customType": "regex",
+      "description": "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
       "matchStringsStrategy": "recursive",
       "matchStrings": [
         "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
+        "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
       ],
-      "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
-      "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
+      "datasourceTemplate": "custom.ds-espressif-component",
+      "depNameTemplate": "{{{depName}}}",
       "versioningTemplate": "semver",
-      "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
+      "depTypeTemplate": "dep-idf-component"
     }
   ],
   "customDatasources": {
@@ -93,7 +105,6 @@
     },
     {
       "matchManagers": ["regex"],
-      "matchDepNames": ["espressif/esp-idf"],
       "matchDepTypes": ["dep-idf-component"],
       "rangeStrategy": "update-lockfile",
       "matchPackageNames": ["espressif/esp-idf"],
