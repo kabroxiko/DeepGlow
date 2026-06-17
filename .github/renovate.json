@@ -9,32 +9,32 @@
   "commitMessageSuffix": "",
   "enabledManagers": ["custom.regex"],
   "customManagers": [
+    // {
+    //   "customType": "regex",
+    //   "managerFilePatterns": ["/^platformio\\.ini$/"],
+    //   "matchStrings": [
+    //     "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+    //   ],
+    //   "matchStringsStrategy": "any",
+    //   "datasourceTemplate": "custom.ds-pio-platform",
+    //   "depNameTemplate": "{{depName}}",
+    //   "versioningTemplate": "loose",
+    //   "depTypeTemplate": "dep-pio-platform"
+    // },
+    // {
+    //   "customType": "regex",
+    //   "managerFilePatterns": ["/^platformio\\.ini$/"],
+    //   "matchStringsStrategy": "recursive",
+    //   "matchStrings": [
+    //     "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+    //     "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
+    //   ],
+    //   "datasourceTemplate": "custom.ds-pio-library",
+    //   "depNameTemplate": "{{depName}}",
+    //   "versioningTemplate": "loose",
+    //   "depTypeTemplate": "dep-pio-library"
+    // },
     {
-      "customType": "regex",
-      "managerFilePatterns": ["/^platformio\\.ini$/"],
-      "matchStrings": [
-        "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
-      ],
-      "matchStringsStrategy": "any",
-      "datasourceTemplate": "custom.ds-pio-platform",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-platform"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": ["/^platformio\\.ini$/"],
-      "matchStringsStrategy": "recursive",
-      "matchStrings": [
-        "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
-        "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
-      ],
-      "datasourceTemplate": "custom.ds-pio-library",
-      "depNameTemplate": "{{depName}}",
-      "versioningTemplate": "loose",
-      "depTypeTemplate": "dep-pio-library"
-    },
-        {
       "customType": "regex",
       "description": "Extractor universal para todos los componentes e idf engine",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
@@ -45,7 +45,6 @@
       ],
       "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
       "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
-      "extractVersionTemplate": "{{#if (eq depName 'idf')}}^v?(?<version>.*)${{else}}{{{version}}}{{/if}}",
       "versioningTemplate": "semver",
       "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
     }
@@ -87,9 +86,9 @@
     },
     {
       "matchManagers": ["regex"],
-      "matchDepTypes": ["dep-idf-component"],
-      "matchPackageNames": ["espressif/esp-idf"],
-      "enabled": false
+      "matchPackageNames": ["!idf"],
+      "extractVersion": "^v?(?<version>.*)$",
+      "depType": "dep-idf-component"
     },
     {
       "matchManagers": ["regex"],

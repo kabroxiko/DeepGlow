@@ -65,29 +65,17 @@ DEBUG: Repository config (repository=local)
          "customManagers": [
            {
              "customType": "regex",
-             "description": "Extractor aislado y exclusivo para la plataforma IDF",
-             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
-             "matchStrings": [
-               "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
-             ],
-             "datasourceTemplate": "github-releases",
-             "packageNameTemplate": "espressif/esp-idf",
-             "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-engine"
-           },
-           {
-             "customType": "regex",
-             "description": "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)",
+             "description": "Extractor universal para todos los componentes e idf engine",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
              ],
-             "datasourceTemplate": "custom.ds-espressif-component",
-             "depNameTemplate": "{{{depName}}}",
+             "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
+             "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
            }
          ],
          "customDatasources": {
@@ -118,26 +106,23 @@ DEBUG: Repository config (repository=local)
          },
          "packageRules": [
            {
-             "groupName": "PlatformIO Platform",
              "matchDepTypes": ["dep-pio-platform"],
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
            {
-             "groupName": "ESP-IDF Components",
-             "matchDepTypes": ["dep-idf-component"],
-             "addLabels": ["dependencies", "esp-idf:component"]
+             "matchManagers": ["regex"],
+             "matchPackageNames": ["!idf"],
+             "extractVersion": "^v?(?<version>.*)$",
+             "depType": "dep-idf-component"
            },
            {
              "matchManagers": ["regex"],
-             "matchDepTypes": ["dep-idf-component"],
-             "rangeStrategy": "update-lockfile",
-             "matchPackageNames": ["espressif/esp-idf"],
-             "enabled": false
+             "matchPackageNames": ["idf"],
+             "depType": "dep-idf-engine"
            }
          ]
        }
@@ -156,29 +141,17 @@ DEBUG: Config migration necessary (repository=local)
          "customManagers": [
            {
              "customType": "regex",
-             "description": "Extractor aislado y exclusivo para la plataforma IDF",
-             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
-             "matchStrings": [
-               "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
-             ],
-             "datasourceTemplate": "github-releases",
-             "packageNameTemplate": "espressif/esp-idf",
-             "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-engine"
-           },
-           {
-             "customType": "regex",
-             "description": "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)",
+             "description": "Extractor universal para todos los componentes e idf engine",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
              ],
-             "datasourceTemplate": "custom.ds-espressif-component",
-             "depNameTemplate": "{{{depName}}}",
+             "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
+             "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
            }
          ],
          "customDatasources": {
@@ -209,26 +182,23 @@ DEBUG: Config migration necessary (repository=local)
          },
          "packageRules": [
            {
-             "groupName": "PlatformIO Platform",
              "matchDepTypes": ["dep-pio-platform"],
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
            {
-             "groupName": "ESP-IDF Components",
-             "matchDepTypes": ["dep-idf-component"],
-             "addLabels": ["dependencies", "esp-idf:component"]
+             "matchManagers": ["regex"],
+             "matchPackageNames": ["!idf"],
+             "extractVersion": "^v?(?<version>.*)$",
+             "depType": "dep-idf-component"
            },
            {
              "matchManagers": ["regex"],
-             "matchDepTypes": ["dep-idf-component"],
-             "rangeStrategy": "update-lockfile",
-             "matchPackageNames": ["espressif/esp-idf"],
-             "enabled": false
+             "matchPackageNames": ["idf"],
+             "depType": "dep-idf-engine"
            }
          ]
        },
@@ -245,29 +215,17 @@ DEBUG: Config migration necessary (repository=local)
          "customManagers": [
            {
              "customType": "regex",
-             "description": "Extractor aislado y exclusivo para la plataforma IDF",
-             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
-             "matchStrings": [
-               "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
-             ],
-             "datasourceTemplate": "github-releases",
-             "packageNameTemplate": "espressif/esp-idf",
-             "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-engine"
-           },
-           {
-             "customType": "regex",
-             "description": "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)",
+             "description": "Extractor universal para todos los componentes e idf engine",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
              ],
-             "datasourceTemplate": "custom.ds-espressif-component",
-             "depNameTemplate": "{{{depName}}}",
+             "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
+             "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
            }
          ],
          "customDatasources": {
@@ -298,26 +256,23 @@ DEBUG: Config migration necessary (repository=local)
          },
          "packageRules": [
            {
-             "groupName": "PlatformIO Platform",
              "matchDepTypes": ["dep-pio-platform"],
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
            {
-             "groupName": "ESP-IDF Components",
-             "matchDepTypes": ["dep-idf-component"],
-             "addLabels": ["dependencies", "esp-idf:component"]
+             "matchManagers": ["custom.regex"],
+             "matchPackageNames": ["!idf"],
+             "extractVersion": "^v?(?<version>.*)$",
+             "depType": "dep-idf-component"
            },
            {
              "matchManagers": ["custom.regex"],
-             "matchDepTypes": ["dep-idf-component"],
-             "rangeStrategy": "update-lockfile",
-             "matchPackageNames": ["espressif/esp-idf"],
-             "enabled": false
+             "matchPackageNames": ["idf"],
+             "depType": "dep-idf-engine"
            }
          ]
        }
@@ -335,31 +290,19 @@ DEBUG: Post-massage config (repository=local)
          "customManagers": [
            {
              "customType": "regex",
-             "description": ["Extractor aislado y exclusivo para la plataforma IDF"],
-             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
-             "matchStrings": [
-               "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
-             ],
-             "datasourceTemplate": "github-releases",
-             "packageNameTemplate": "espressif/esp-idf",
-             "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-engine"
-           },
-           {
-             "customType": "regex",
              "description": [
-               "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)"
+               "Extractor universal para todos los componentes e idf engine"
              ],
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
              ],
-             "datasourceTemplate": "custom.ds-espressif-component",
-             "depNameTemplate": "{{{depName}}}",
+             "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
+             "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
            }
          ],
          "customDatasources": {
@@ -390,26 +333,23 @@ DEBUG: Post-massage config (repository=local)
          },
          "packageRules": [
            {
-             "groupName": "PlatformIO Platform",
              "matchDepTypes": ["dep-pio-platform"],
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
            {
-             "groupName": "ESP-IDF Components",
-             "matchDepTypes": ["dep-idf-component"],
-             "addLabels": ["dependencies", "esp-idf:component"]
+             "matchManagers": ["custom.regex"],
+             "matchPackageNames": ["!idf"],
+             "extractVersion": "^v?(?<version>.*)$",
+             "depType": "dep-idf-component"
            },
            {
              "matchManagers": ["custom.regex"],
-             "matchDepTypes": ["dep-idf-component"],
-             "rangeStrategy": "update-lockfile",
-             "matchPackageNames": ["espressif/esp-idf"],
-             "enabled": false
+             "matchPackageNames": ["idf"],
+             "depType": "dep-idf-engine"
            }
          ]
        }
@@ -427,31 +367,19 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
          "customManagers": [
            {
              "customType": "regex",
-             "description": ["Extractor aislado y exclusivo para la plataforma IDF"],
-             "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
-             "matchStrings": [
-               "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
-             ],
-             "datasourceTemplate": "github-releases",
-             "packageNameTemplate": "espressif/esp-idf",
-             "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-engine"
-           },
-           {
-             "customType": "regex",
              "description": [
-               "Extractor recursivo exclusivo para componentes (ignora idf de forma estructural)"
+               "Extractor universal para todos los componentes e idf engine"
              ],
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStringsStrategy": "recursive",
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
              ],
-             "datasourceTemplate": "custom.ds-espressif-component",
-             "depNameTemplate": "{{{depName}}}",
+             "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
+             "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}"
            }
          ],
          "customDatasources": {
@@ -482,26 +410,23 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
          },
          "packageRules": [
            {
-             "groupName": "PlatformIO Platform",
              "matchDepTypes": ["dep-pio-platform"],
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
            {
-             "groupName": "ESP-IDF Components",
-             "matchDepTypes": ["dep-idf-component"],
-             "addLabels": ["dependencies", "esp-idf:component"]
+             "matchManagers": ["custom.regex"],
+             "matchPackageNames": ["!idf"],
+             "extractVersion": "^v?(?<version>.*)$",
+             "depType": "dep-idf-component"
            },
            {
              "matchManagers": ["custom.regex"],
-             "matchDepTypes": ["dep-idf-component"],
-             "rangeStrategy": "update-lockfile",
-             "matchPackageNames": ["espressif/esp-idf"],
-             "enabled": false
+             "matchPackageNames": ["idf"],
+             "depType": "dep-idf-engine"
            }
          ]
        },
@@ -526,42 +451,30 @@ DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=
 DEBUG: Using file pattern: **/{j,t}sconfig.json for manager regex (repository=local)
 DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=local)
 DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
-DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
-DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: manager extract durations (ms) (repository=local)
-       "managers": {"regex": 12}
+       "managers": {"regex": 27}
 DEBUG: Found regex package files (repository=local)
-DEBUG: Found regex package files (repository=local)
-DEBUG: Found 2 package file(s) (repository=local)
+DEBUG: Found 1 package file(s) (repository=local)
  INFO: Dependency extraction complete (repository=local)
        "stats": {
-         "managers": {"regex": {"fileCount": 2, "depCount": 5}},
-         "total": {"fileCount": 2, "depCount": 5}
+         "managers": {"regex": {"fileCount": 1, "depCount": 5}},
+         "total": {"fileCount": 1, "depCount": 5}
        }
  WARN: GitHub token is required for some dependencies (repository=local)
        "githubDeps": ["idf"]
-DEBUG: hostRules: no authentication for components-file.espressif.com (repository=local)
-DEBUG: Using queue: host=components-file.espressif.com, concurrency=16 (repository=local)
- INFO: Found no results from datasource that look like a version (repository=local, dependency=espressif/cjson)
-       "result": {
-         "releases": [],
-         "homepage": "https://components.espressif.com/components/espressif/cjson"
-       }
 DEBUG: PackageFiles.add() - Package file saved for base branch (repository=local)
 DEBUG: Package releases lookups complete (repository=local)
-DEBUG: LibYears: no currentVersionTimestamp for joltwallet/littlefs (repository=local)
 DEBUG: Repository libYears (repository=local)
        "libYears": {"managers": {"regex": 0}, "total": 0},
-       "dependencyStatus": {"outdated": 1, "total": 5}
+       "dependencyStatus": {"outdated": 0, "total": 5}
 DEBUG: branchifyUpgrades (repository=local)
 DEBUG: detectSemanticCommits() (repository=local)
 DEBUG: getCommitMessages (repository=local)
 DEBUG: semanticCommits: score=0 (repository=local)
 DEBUG: semanticCommits: disabled (repository=local)
-DEBUG: 1 flattened updates found: joltwallet/littlefs (repository=local)
-DEBUG: Returning 1 branch(es) (repository=local)
-DEBUG: Branch is not pending, removing pending upgrades (repository=local, branch=renovate/esp-idf-components)
+DEBUG: 0 flattened updates found:  (repository=local)
+DEBUG: Returning 0 branch(es) (repository=local)
 DEBUG: config.repoIsOnboarded=true (repository=local)
 DEBUG: packageFiles with updates (repository=local)
        "config": {
@@ -578,105 +491,65 @@ DEBUG: packageFiles with updates (repository=local)
                  "replaceString": "\n  idf:\n    version: \">=5.5.0\"",
                  "skipReason": "github-token-required",
                  "updates": []
-               }
-             ],
-             "matchStrings": [
-               "(?:^|\\n)[ \\t]+(?<depName>idf):\\s+version:\\s+[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+))[\"']?"
-             ],
-             "packageNameTemplate": "espressif/esp-idf",
-             "datasourceTemplate": "github-releases",
-             "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-engine",
-             "packageFile": "src/idf_component.yml"
-           },
-           {
-             "deps": [
+               },
                {
                  "depName": "espressif/led_strip",
-                 "currentValue": "3.0.3",
-                 "datasource": "custom.ds-espressif-component",
-                 "versioning": "semver",
-                 "depType": "dep-idf-component",
-                 "replaceString": "\n  espressif/led_strip: \"^3.0.3",
-                 "updates": [],
                  "packageName": "espressif/led_strip",
+                 "currentValue": "3.0.3",
+                 "datasource": "espressif/led_strip",
+                 "versioning": "semver",
+                 "depType": "espressif/led_strip",
+                 "replaceString": "\n  espressif/led_strip: \"^3.0.3\"",
+                 "updates": [],
                  "warnings": [],
-                 "homepage": "https://components.espressif.com/components/espressif/led_strip",
-                 "mostRecentTimestamp": "2026-02-05T07:03:29.238Z",
-                 "currentVersion": "3.0.3",
-                 "currentVersionTimestamp": "2026-02-05T07:03:29.238Z",
-                 "currentVersionAgeInDays": 132,
-                 "fixedVersion": "3.0.3"
+                 "skipReason": "invalid-config"
                },
                {
                  "depName": "espressif/zlib",
-                 "currentValue": "1.3.2",
-                 "datasource": "custom.ds-espressif-component",
-                 "versioning": "semver",
-                 "depType": "dep-idf-component",
-                 "replaceString": "\n  espressif/zlib: \"^1.3.2",
-                 "updates": [],
                  "packageName": "espressif/zlib",
+                 "currentValue": "1.3.2",
+                 "datasource": "espressif/zlib",
+                 "versioning": "semver",
+                 "depType": "espressif/zlib",
+                 "replaceString": "\n  espressif/zlib: \"^1.3.2\"",
+                 "updates": [],
                  "warnings": [],
-                 "homepage": "https://components.espressif.com/components/espressif/zlib",
-                 "mostRecentTimestamp": "2026-02-27T13:01:06.037Z",
-                 "currentVersion": "1.3.2",
-                 "currentVersionTimestamp": "2026-02-27T13:01:06.037Z",
-                 "currentVersionAgeInDays": 110,
-                 "fixedVersion": "1.3.2"
+                 "skipReason": "invalid-config"
                },
                {
                  "depName": "espressif/cjson",
-                 "currentValue": "1.7.19",
-                 "datasource": "custom.ds-espressif-component",
-                 "versioning": "semver",
-                 "depType": "dep-idf-component",
-                 "replaceString": "\n  espressif/cjson: \"^1.7.19",
-                 "updates": [],
                  "packageName": "espressif/cjson",
+                 "currentValue": "1.7.19",
+                 "datasource": "espressif/cjson",
+                 "versioning": "semver",
+                 "depType": "espressif/cjson",
+                 "replaceString": "\n  espressif/cjson: \"^1.7.19\"",
+                 "updates": [],
                  "warnings": [],
-                 "homepage": "https://components.espressif.com/components/espressif/cjson"
+                 "skipReason": "invalid-config"
                },
                {
                  "depName": "joltwallet/littlefs",
-                 "currentValue": "1.20.4",
-                 "datasource": "custom.ds-espressif-component",
-                 "versioning": "semver",
-                 "depType": "dep-idf-component",
-                 "replaceString": "\n  joltwallet/littlefs: \"^1.20.4",
-                 "updates": [
-                   {
-                     "bucket": "non-major",
-                     "newVersion": "1.22.1",
-                     "newValue": "1.22.1",
-                     "releaseTimestamp": "2026-05-22T13:43:52.001Z",
-                     "newVersionAgeInDays": 26,
-                     "newMajor": 1,
-                     "newMinor": 22,
-                     "newPatch": 1,
-                     "updateType": "minor",
-                     "isBreaking": false,
-                     "branchName": "renovate/esp-idf-components"
-                   }
-                 ],
                  "packageName": "joltwallet/littlefs",
+                 "currentValue": "1.20.4",
+                 "datasource": "joltwallet/littlefs",
+                 "versioning": "semver",
+                 "depType": "joltwallet/littlefs",
+                 "replaceString": "\n  joltwallet/littlefs: \"^1.20.4\"",
+                 "updates": [],
                  "warnings": [],
-                 "homepage": "https://components.espressif.com/components/joltwallet/littlefs",
-                 "mostRecentTimestamp": "2026-05-22T13:43:52.001Z",
-                 "currentVersion": "1.20.4",
-                 "isSingleVersion": true,
-                 "fixedVersion": "1.20.4"
+                 "skipReason": "invalid-config"
                }
              ],
              "matchStrings": [
                "^dependencies:\\s*(?<dependencies>(?:[^\\n]+|\\n[ \\t]+)+)",
-               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-]+\\/[a-zA-Z0-9_\\-]+):\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+(?<depName>[a-zA-Z0-9_\\-\\/]+):\\s*(?:version:\\s*)?[\"']?(?<replaceString>(?:[~^]|>=|<=|>|<)?(?<currentValue>v?[0-9.]+))[\"']?"
              ],
              "matchStringsStrategy": "recursive",
-             "depNameTemplate": "{{{depName}}}",
-             "datasourceTemplate": "custom.ds-espressif-component",
+             "packageNameTemplate": "{{{replace 'idf' 'espressif/esp-idf' depName}}}",
+             "datasourceTemplate": "{{{replace 'idf' 'github-releases' depName}}}",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component",
+             "depTypeTemplate": "{{{replace 'idf' 'dep-idf-engine' depName}}}",
              "packageFile": "src/idf_component.yml"
            }
          ]
@@ -686,67 +559,33 @@ DEBUG: semanticCommits: returning "disabled" from cache (repository=local)
 DEBUG: repository problems (repository=local)
        "repoProblems": ["⚠️ WARN: GitHub token is required for some dependencies"]
 DEBUG: Repository timing splits (milliseconds) (repository=local)
-       "splits": {"init": 747, "onboarding": 0, "extract": 89, "lookup": 1754, "update": 0},
-       "total": 2602
+       "splits": {"init": 741, "onboarding": 0, "extract": 86, "lookup": 45, "update": 0},
+       "total": 883
 DEBUG: Package cache statistics (repository=local)
        "get": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
        "set": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0}
 DEBUG: HTTP statistics (repository=local)
-       "hosts": {
-         "components-file.espressif.com": {
-           "count": 4,
-           "reqAvgMs": 1493,
-           "reqMedianMs": 1543,
-           "reqMaxMs": 1624,
-           "queueAvgMs": 10,
-           "queueMedianMs": 14,
-           "queueMaxMs": 14
-         }
-       },
-       "requests": 4
+       "hosts": {},
+       "requests": 0
 DEBUG: HTTP cache statistics (repository=local)
 DEBUG: Lookup statistics (repository=local)
-       "custom.ds-espressif-component": {"count": 4, "avgMs": 1528, "medianMs": 1578, "maxMs": 1657, "totalMs": 6110}
+       "espressif/led_strip": {"count": 1, "avgMs": 1, "medianMs": 1, "maxMs": 1, "totalMs": 1},
+       "espressif/zlib": {"count": 1, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
+       "espressif/cjson": {"count": 1, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
+       "joltwallet/littlefs": {"count": 1, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0}
 DEBUG: getReleases statistics summary (repository=local)
-       "stats": {
-         "count": 4,
-         "avgMs": 1516,
-         "medianMs": 1567.683958,
-         "maxMs": 1637.8300840000002,
-         "totalMs": 6064.23425
-       },
-       "datasources": {
-         "custom": {
-           "stats": {
-             "count": 4,
-             "avgMs": 1516,
-             "medianMs": 1567.683958,
-             "maxMs": 1637.8300840000002,
-             "totalMs": 6064.23425
-           },
-           "registryUrls": {
-             "": {
-               "stats": {
-                 "count": 4,
-                 "avgMs": 1516,
-                 "medianMs": 1567.683958,
-                 "maxMs": 1637.8300840000002,
-                 "totalMs": 6064.23425
-               }
-             }
-           }
-         }
-       }
+       "stats": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
+       "datasources": {}
 DEBUG: Cache fallback URLs (repository=local)
        "count": 0,
        "hits": {}
 DEBUG: Git operations statistics (repository=local)
  INFO: Repository finished (repository=local)
        "cloned": undefined,
-       "durationMs": 2602,
+       "durationMs": 883,
        "result": undefined,
        "status": undefined,
        "enabled": undefined,
        "onboarded": undefined
 DEBUG: Checking file package cache for expired items
-DEBUG: Deleted 0 of 10 file cached entries in 19ms
+DEBUG: Deleted 0 of 10 file cached entries in 23ms
