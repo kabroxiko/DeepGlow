@@ -56,22 +56,24 @@ DEBUG: Repository config (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
          "commitMessageExtra": "to {{newVersion}}",
          "commitMessageSuffix": "",
+         "enabledManagers": ["custom.regex"],
          "customManagers": [
            {
              "customType": "regex",
              "description": "Extractor exclusivo para la plataforma IDF",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStrings": [
-               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "github-releases",
              "packageNameTemplate": "espressif/esp-idf",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "dep-idf-engine"
            },
            {
              "customType": "regex",
@@ -121,7 +123,7 @@ DEBUG: Repository config (repository=local)
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Library",
+             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
@@ -132,7 +134,7 @@ DEBUG: Repository config (repository=local)
            },
            {
              "matchManagers": ["regex"],
-             "matchDepTypes": ["dep-idf-component"],
+             "matchDepTypes": ["dep-idf-engine"],
              "matchPackageNames": ["idf"],
              "enabled": false
            }
@@ -144,22 +146,24 @@ DEBUG: Config migration necessary (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
          "commitMessageExtra": "to {{newVersion}}",
          "commitMessageSuffix": "",
+         "enabledManagers": ["custom.regex"],
          "customManagers": [
            {
              "customType": "regex",
              "description": "Extractor exclusivo para la plataforma IDF",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStrings": [
-               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "github-releases",
              "packageNameTemplate": "espressif/esp-idf",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "dep-idf-engine"
            },
            {
              "customType": "regex",
@@ -209,7 +213,7 @@ DEBUG: Config migration necessary (repository=local)
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Library",
+             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
@@ -220,7 +224,7 @@ DEBUG: Config migration necessary (repository=local)
            },
            {
              "matchManagers": ["regex"],
-             "matchDepTypes": ["dep-idf-component"],
+             "matchDepTypes": ["dep-idf-engine"],
              "matchPackageNames": ["idf"],
              "enabled": false
            }
@@ -230,22 +234,24 @@ DEBUG: Config migration necessary (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
          "commitMessageExtra": "to {{newVersion}}",
          "commitMessageSuffix": "",
+         "enabledManagers": ["custom.regex"],
          "customManagers": [
            {
              "customType": "regex",
              "description": "Extractor exclusivo para la plataforma IDF",
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStrings": [
-               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "github-releases",
              "packageNameTemplate": "espressif/esp-idf",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "dep-idf-engine"
            },
            {
              "customType": "regex",
@@ -295,7 +301,7 @@ DEBUG: Config migration necessary (repository=local)
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Library",
+             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
@@ -306,7 +312,7 @@ DEBUG: Config migration necessary (repository=local)
            },
            {
              "matchManagers": ["custom.regex"],
-             "matchDepTypes": ["dep-idf-component"],
+             "matchDepTypes": ["dep-idf-engine"],
              "matchPackageNames": ["idf"],
              "enabled": false
            }
@@ -317,22 +323,24 @@ DEBUG: Post-massage config (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
          "commitMessageExtra": "to {{newVersion}}",
          "commitMessageSuffix": "",
+         "enabledManagers": ["custom.regex"],
          "customManagers": [
            {
              "customType": "regex",
              "description": ["Extractor exclusivo para la plataforma IDF"],
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStrings": [
-               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "github-releases",
              "packageNameTemplate": "espressif/esp-idf",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "dep-idf-engine"
            },
            {
              "customType": "regex",
@@ -382,7 +390,7 @@ DEBUG: Post-massage config (repository=local)
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Library",
+             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
@@ -393,7 +401,7 @@ DEBUG: Post-massage config (repository=local)
            },
            {
              "matchManagers": ["custom.regex"],
-             "matchDepTypes": ["dep-idf-component"],
+             "matchDepTypes": ["dep-idf-engine"],
              "matchPackageNames": ["idf"],
              "enabled": false
            }
@@ -404,22 +412,24 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
        "config": {
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "recreateWhen": "always",
+         "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
          "commitMessageExtra": "to {{newVersion}}",
          "commitMessageSuffix": "",
+         "enabledManagers": ["custom.regex"],
          "customManagers": [
            {
              "customType": "regex",
              "description": ["Extractor exclusivo para la plataforma IDF"],
              "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
              "matchStrings": [
-               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "datasourceTemplate": "github-releases",
              "packageNameTemplate": "espressif/esp-idf",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component"
+             "depTypeTemplate": "dep-idf-engine"
            },
            {
              "customType": "regex",
@@ -469,7 +479,7 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
              "addLabels": ["dependencies", "pio:platform"]
            },
            {
-             "groupName": "PlatformIO Library",
+             "groupName": "PlatformIO Libraries",
              "matchDepTypes": ["dep-pio-library"],
              "addLabels": ["dependencies", "pio:library"]
            },
@@ -480,7 +490,7 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
            },
            {
              "matchManagers": ["custom.regex"],
-             "matchDepTypes": ["dep-idf-component"],
+             "matchDepTypes": ["dep-idf-engine"],
              "matchPackageNames": ["idf"],
              "enabled": false
            }
@@ -498,229 +508,32 @@ DEBUG: Found repo ignorePaths (repository=local)
          "**/tests/**",
          "**/__fixtures__/**"
        ]
-DEBUG: No vulnerability alerts found (repository=local)
+DEBUG: Vulnerability alerts are disabled (repository=local)
 DEBUG: No baseBranches (repository=local)
 DEBUG: extract() (repository=local)
 DEBUG: Got file list using git (repository=local)
-DEBUG: Using file pattern: **/build.xml for manager ant (repository=local)
-DEBUG: Using file pattern: /(^|/)tasks/[^/]+\.ya?ml$/ for manager ansible (repository=local)
-DEBUG: Using file pattern: /(^|/)(galaxy|requirements)(\.ansible)?\.ya?ml$/ for manager ansible-galaxy (repository=local)
-DEBUG: Using file pattern: /(^|/)\.tool-versions$/ for manager asdf (repository=local)
-DEBUG: Using file pattern: /(^|/).azuredevops/.+\.ya?ml$/ for manager azure-pipelines (repository=local)
-DEBUG: Using file pattern: /azure.*pipelines?.*\.ya?ml$/ for manager azure-pipelines (repository=local)
-DEBUG: Using file pattern: /(^|/)batect(-bundle)?\.ya?ml$/ for manager batect (repository=local)
-DEBUG: Using file pattern: /(^|/)batect$/ for manager batect-wrapper (repository=local)
-DEBUG: Using file pattern: /(^|/)WORKSPACE(|\.bazel|\.bzlmod)$/ for manager bazel (repository=local)
-DEBUG: Using file pattern: /\.WORKSPACE\.bazel$/ for manager bazel (repository=local)
-DEBUG: Using file pattern: /\.bzl$/ for manager bazel (repository=local)
-DEBUG: Using file pattern: /(^|/|\.)MODULE\.bazel$/ for manager bazel-module (repository=local)
-DEBUG: Using file pattern: /(^|/)\.bazelversion$/ for manager bazelisk (repository=local)
-DEBUG: Using file pattern: /\.bicep$/ for manager bicep (repository=local)
-DEBUG: Using file pattern: **/*-pipelines.yml for manager bitbucket-pipelines (repository=local)
-DEBUG: Using file pattern: /(^|/)bitrise\.ya?ml$/ for manager bitrise (repository=local)
-DEBUG: Using file pattern: /buildkite\.ya?ml/ for manager buildkite (repository=local)
-DEBUG: Using file pattern: /\.buildkite/.+\.ya?ml$/ for manager buildkite (repository=local)
-DEBUG: Using file pattern: /(^|/)project\.toml$/ for manager buildpacks (repository=local)
-DEBUG: Using file pattern: /(^|/)bun\.lockb?$/ for manager bun (repository=local)
-DEBUG: Using file pattern: /(^|/)package\.json$/ for manager bun (repository=local)
-DEBUG: Using file pattern: /(^|/)\.bun-version$/ for manager bun-version (repository=local)
-DEBUG: Using file pattern: /(^|/)Gemfile$/ for manager bundler (repository=local)
-DEBUG: Using file pattern: /\.cake$/ for manager cake (repository=local)
-DEBUG: Using file pattern: /(^|/)Cargo\.toml$/ for manager cargo (repository=local)
-DEBUG: Using file pattern: /(^|/)\.circleci/.+\.ya?ml$/ for manager circleci (repository=local)
-DEBUG: Using file pattern: /(^|/)cloudbuild\.ya?ml/ for manager cloudbuild (repository=local)
-DEBUG: Using file pattern: /(^|/)Podfile$/ for manager cocoapods (repository=local)
-DEBUG: Using file pattern: /(^|/)([\w-]*)composer\.json$/ for manager composer (repository=local)
-DEBUG: Using file pattern: /(^|/)conanfile\.(txt|py)$/ for manager conan (repository=local)
-DEBUG: Using file pattern: /(^|/)\.copier-answers(\..+)?\.ya?ml/ for manager copier (repository=local)
-DEBUG: Using file pattern: /(^|/)cpanfile$/ for manager cpanfile (repository=local)
-DEBUG: Using file pattern: /^\.crow(?:/[^/]+)?\.ya?ml$/ for manager crow (repository=local)
-DEBUG: Using file pattern: /(^|/)deno\.lock$/ for manager deno (repository=local)
-DEBUG: Using file pattern: /(^|/)deno\.(json|jsonc)$/ for manager deno (repository=local)
-DEBUG: Using file pattern: /(^|/)(?:deps|bb)\.edn$/ for manager deps-edn (repository=local)
-DEBUG: Using file pattern: /(^|/)devbox\.json$/ for manager devbox (repository=local)
-DEBUG: Using file pattern: /^.devcontainer/devcontainer.json$/ for manager devcontainer (repository=local)
-DEBUG: Using file pattern: /^.devcontainer.json$/ for manager devcontainer (repository=local)
-DEBUG: Using file pattern: /(^|/)(?:docker-)?compose[^/]*\.ya?ml$/ for manager docker-compose (repository=local)
-DEBUG: Using file pattern: /(^|/|\.)([Dd]ocker|[Cc]ontainer)file$/ for manager dockerfile (repository=local)
-DEBUG: Using file pattern: /(^|/)([Dd]ocker|[Cc]ontainer)file[^/]*$/ for manager dockerfile (repository=local)
-DEBUG: Using file pattern: /(^|/)\.drone\.yml$/ for manager droneci (repository=local)
-DEBUG: Using file pattern: /(^|/)fleet\.ya?ml/ for manager fleet (repository=local)
-DEBUG: Using file pattern: /(?:^|/)gotk-components\.ya?ml$/ for manager flux (repository=local)
-DEBUG: Using file pattern: /(^|/)\.fvm/fvm_config\.json$/ for manager fvm (repository=local)
-DEBUG: Using file pattern: /(^|/)\.fvmrc$/ for manager fvm (repository=local)
-DEBUG: Using file pattern: /(^|/)\.gitmodules$/ for manager git-submodules (repository=local)
-DEBUG: Using file pattern: /(^|/)(workflow-templates|\.(?:github|gitea|forgejo)/(?:workflows|actions))/.+\.ya?ml$/ for manager github-actions (repository=local)
-DEBUG: Using file pattern: /(^|/)action\.ya?ml$/ for manager github-actions (repository=local)
-DEBUG: Using file pattern: /\.gitlab-ci\.ya?ml$/ for manager gitlabci (repository=local)
-DEBUG: Using file pattern: /\.gitlab-ci\.ya?ml$/ for manager gitlabci-include (repository=local)
-DEBUG: Using file pattern: /(^|/)gleam.toml$/ for manager gleam (repository=local)
-DEBUG: Using file pattern: /(^|/)go\.mod$/ for manager gomod (repository=local)
-DEBUG: Using file pattern: /\.gradle(\.kts)?$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /(^|/)gradle\.properties$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /(^|/)gradle/.+\.toml$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /(^|/)buildSrc/.+\.kt$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /\.versions\.toml$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /(^|/)versions.props$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /(^|/)versions.lock$/ for manager gradle (repository=local)
-DEBUG: Using file pattern: /(^|/)gradle/wrapper/gradle-wrapper\.properties$/ for manager gradle-wrapper (repository=local)
-DEBUG: Using file pattern: /\.cabal$/ for manager haskell-cabal (repository=local)
-DEBUG: Using file pattern: /(^|/)requirements\.ya?ml$/ for manager helm-requirements (repository=local)
-DEBUG: Using file pattern: /(^|/)values\.ya?ml$/ for manager helm-values (repository=local)
-DEBUG: Using file pattern: /(^|/)helmfile\.ya?ml(?:\.gotmpl)?$/ for manager helmfile (repository=local)
-DEBUG: Using file pattern: /(^|/)helmfile\.d/.+\.ya?ml(?:\.gotmpl)?$/ for manager helmfile (repository=local)
-DEBUG: Using file pattern: /(^|/)Chart\.ya?ml$/ for manager helmv3 (repository=local)
-DEBUG: Using file pattern: /(^|/)bin/hermit$/ for manager hermit (repository=local)
-DEBUG: Using file pattern: /(^|/)manifest\.json$/ for manager homeassistant-manifest (repository=local)
-DEBUG: Using file pattern: /^Formula/\w*/?[^/]+[.]rb$/ for manager homebrew (repository=local)
-DEBUG: Using file pattern: /\.html?$/ for manager html (repository=local)
-DEBUG: Using file pattern: /(^|/)plugins\.(txt|ya?ml)$/ for manager jenkins (repository=local)
-DEBUG: Using file pattern: /(^|/)jsonnetfile\.json$/ for manager jsonnet-bundler (repository=local)
-DEBUG: Using file pattern: /^.+\.main\.kts$/ for manager kotlin-script (repository=local)
-DEBUG: Using file pattern: /(^|/)kustomization\.ya?ml$/ for manager kustomize (repository=local)
-DEBUG: Using file pattern: /(^|/)project\.clj$/ for manager leiningen (repository=local)
-DEBUG: Using file pattern: /(^|/|\.)pom\.xml$/ for manager maven (repository=local)
-DEBUG: Using file pattern: /(^|/)pom\.template\.xml$/ for manager maven (repository=local)
-DEBUG: Using file pattern: /^(((\.mvn)|(\.m2))/)?settings\.xml$/ for manager maven (repository=local)
-DEBUG: Using file pattern: /(^|/)\.mvn/extensions\.xml$/ for manager maven (repository=local)
-DEBUG: Using file pattern: /(^|\/).mvn/wrapper/maven-wrapper.properties$/ for manager maven-wrapper (repository=local)
-DEBUG: Using file pattern: /(^|\/)mvnw(.cmd)?$/ for manager maven-wrapper (repository=local)
-DEBUG: Using file pattern: /(^|/)package\.js$/ for manager meteor (repository=local)
-DEBUG: Using file pattern: /(^|/)Mintfile$/ for manager mint (repository=local)
-DEBUG: Using file pattern: **/{,.}mise{,.*}.toml for manager mise (repository=local)
-DEBUG: Using file pattern: **/{,.}mise/config{,.*}.toml for manager mise (repository=local)
-DEBUG: Using file pattern: **/.config/mise{,.*}.toml for manager mise (repository=local)
-DEBUG: Using file pattern: **/.config/mise/{mise,config}{,.*}.toml for manager mise (repository=local)
-DEBUG: Using file pattern: **/.config/mise/conf.d/*.toml for manager mise (repository=local)
-DEBUG: Using file pattern: **/.rtx{,.*}.toml for manager mise (repository=local)
-DEBUG: Using file pattern: /(^|/)mix\.exs$/ for manager mix (repository=local)
-DEBUG: Using file pattern: /(^|/)flake\.nix$/ for manager nix (repository=local)
-DEBUG: Using file pattern: /(^|/)\.node-version$/ for manager nodenv (repository=local)
-DEBUG: Using file pattern: /(^|/)package\.json$/ for manager npm (repository=local)
-DEBUG: Using file pattern: /(^|/)pnpm-workspace\.yaml$/ for manager npm (repository=local)
-DEBUG: Using file pattern: /(^|/)\.yarnrc\.yml$/ for manager npm (repository=local)
-DEBUG: Using file pattern: /\.(?:cs|fs|vb)proj$/ for manager nuget (repository=local)
-DEBUG: Using file pattern: /\.(?:props|targets)$/ for manager nuget (repository=local)
-DEBUG: Using file pattern: /(^|/)dotnet-tools\.json$/ for manager nuget (repository=local)
-DEBUG: Using file pattern: /(^|/)global\.json$/ for manager nuget (repository=local)
-DEBUG: Using file pattern: /(^|/)\.nvmrc$/ for manager nvm (repository=local)
-DEBUG: Using file pattern: /(^|/)src/main/features/.+\.json$/ for manager osgi (repository=local)
-DEBUG: Using file pattern: /(^|/)pyproject\.toml$/ for manager pep621 (repository=local)
-DEBUG: Using file pattern: /(^|/)[\w-]*requirements([-._]\w+)?\.(txt|pip)$/ for manager pip_requirements (repository=local)
-DEBUG: Using file pattern: /(^|/)setup\.py$/ for manager pip_setup (repository=local)
-DEBUG: Using file pattern: /(^|/)Pipfile$/ for manager pipenv (repository=local)
-DEBUG: Using file pattern: /(^|/)pyproject\.toml$/ for manager pixi (repository=local)
-DEBUG: Using file pattern: /(^|/)pixi\.toml$/ for manager pixi (repository=local)
-DEBUG: Using file pattern: /(^|/)pyproject\.toml$/ for manager poetry (repository=local)
-DEBUG: Using file pattern: /(^|/)\.pre-commit-config\.ya?ml$/ for manager pre-commit (repository=local)
-DEBUG: Using file pattern: **/.prototools for manager proto (repository=local)
-DEBUG: Using file pattern: /(^|/)pubspec\.ya?ml$/ for manager pub (repository=local)
-DEBUG: Using file pattern: /(^|/)Puppetfile$/ for manager puppet (repository=local)
-DEBUG: Using file pattern: /(^|/)\.python-version$/ for manager pyenv (repository=local)
-DEBUG: Using file pattern: /.+\.container$/ for manager quadlet (repository=local)
-DEBUG: Using file pattern: /.+\.image$/ for manager quadlet (repository=local)
-DEBUG: Using file pattern: /.+\.volume$/ for manager quadlet (repository=local)
-DEBUG: Using file pattern: renovate.json for manager renovate-config (repository=local)
-DEBUG: Using file pattern: renovate.jsonc for manager renovate-config (repository=local)
-DEBUG: Using file pattern: renovate.json5 for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .github/renovate.json for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .github/renovate.jsonc for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .github/renovate.json5 for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .gitlab/renovate.json for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .gitlab/renovate.jsonc for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .gitlab/renovate.json5 for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .renovaterc for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .renovaterc.json for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .renovaterc.jsonc for manager renovate-config (repository=local)
-DEBUG: Using file pattern: .renovaterc.json5 for manager renovate-config (repository=local)
-DEBUG: Using file pattern: /(^|/)\.ruby-version$/ for manager ruby-version (repository=local)
-DEBUG: Using file pattern: /(^|/)runtime.txt$/ for manager runtime-version (repository=local)
-DEBUG: Using file pattern: /(^|/)rust-toolchain(\.toml)?$/ for manager rust-toolchain (repository=local)
-DEBUG: Using file pattern: /\.sbt$/ for manager sbt (repository=local)
-DEBUG: Using file pattern: /project/[^/]*\.scala$/ for manager sbt (repository=local)
-DEBUG: Using file pattern: /project/build\.properties$/ for manager sbt (repository=local)
-DEBUG: Using file pattern: /(^|/)repositories$/ for manager sbt (repository=local)
-DEBUG: Using file pattern: /(^|/)\.scalafmt.conf$/ for manager scalafmt (repository=local)
-DEBUG: Using file pattern: /(^|/)setup\.cfg$/ for manager setup-cfg (repository=local)
-DEBUG: Using file pattern: /(^|/)Package\.swift/ for manager swift (repository=local)
-DEBUG: Using file pattern: **/*.tf for manager terraform (repository=local)
-DEBUG: Using file pattern: **/*.tofu for manager terraform (repository=local)
-DEBUG: Using file pattern: /(^|/)\.terraform-version$/ for manager terraform-version (repository=local)
-DEBUG: Using file pattern: /(^|/)terragrunt\.hcl$/ for manager terragrunt (repository=local)
-DEBUG: Using file pattern: /(^|/)\.terragrunt-version$/ for manager terragrunt-version (repository=local)
-DEBUG: Using file pattern: /\.tflint\.hcl$/ for manager tflint-plugin (repository=local)
-DEBUG: Using file pattern: /^\.travis\.ya?ml$/ for manager travis (repository=local)
-DEBUG: Using file pattern: /\.typ$/ for manager typst (repository=local)
-DEBUG: Using file pattern: **/ProjectSettings/ProjectVersion.txt for manager unity3d (repository=local)
-DEBUG: Using file pattern: /(^|/)\.vela\.ya?ml$/ for manager velaci (repository=local)
-DEBUG: Using file pattern: /(^|/)vendir\.yml$/ for manager vendir (repository=local)
-DEBUG: Using file pattern: /^\.woodpecker(?:/[^/]+)?\.ya?ml$/ for manager woodpecker (repository=local)
-DEBUG: Using file pattern: **/project.yml for manager xcodegen (repository=local)
 DEBUG: Using file pattern: **/{j,t}sconfig.json for manager regex (repository=local)
 DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=local)
 DEBUG: Using file pattern: **/{j,t}sconfig.json for manager regex (repository=local)
 DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=local)
 DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
 DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
-DEBUG: Matched 1 file(s) for manager bun: package.json (repository=local)
-DEBUG: No bun lockfiles found (repository=local)
-DEBUG: Matched 5 file(s) for manager github-actions: .github/workflows/branch-push.yml, .github/workflows/ci-workflow.yml, .github/workflows/pull-request.yml, .github/workflows/release.yml, .github/workflows/renovate.yml (repository=local)
-DEBUG: Matched 1 file(s) for manager html: web/index.html (repository=local)
-DEBUG: Matched 1 file(s) for manager npm: package.json (repository=local)
-DEBUG: Matched 1 file(s) for manager pip_requirements: requirements.txt (repository=local)
-DEBUG: Matched 1 file(s) for manager renovate-config: .github/renovate.json (repository=local)
 DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
-DEBUG: npm file package.json has name "deepglow-ui-preact" (repository=local)
-DEBUG: Detecting pnpm Workspaces (repository=local)
-DEBUG: Detecting workspaces (repository=local)
-DEBUG: Finding locked versions (repository=local)
-DEBUG: Found package-lock.json for package.json (repository=local)
 DEBUG: manager extract durations (ms) (repository=local)
-       "managers": {
-         "bun": 2,
-         "github-actions": 81,
-         "html": 20,
-         "npm": 68,
-         "pip_requirements": 32,
-         "regex": 18,
-         "renovate-config": 11
-       }
-DEBUG: Found github-actions package files (repository=local)
-DEBUG: Found npm package files (repository=local)
-DEBUG: Found pip_requirements package files (repository=local)
+       "managers": {"regex": 25}
 DEBUG: Found regex package files (repository=local)
 DEBUG: Found regex package files (repository=local)
-DEBUG: Found 7 package file(s) (repository=local)
+DEBUG: Found 2 package file(s) (repository=local)
  INFO: Dependency extraction complete (repository=local)
        "stats": {
-         "managers": {
-           "github-actions": {"fileCount": 3, "depCount": 35},
-           "npm": {"fileCount": 1, "depCount": 10},
-           "pip_requirements": {"fileCount": 1, "depCount": 2},
-           "regex": {"fileCount": 2, "depCount": 5}
-         },
-         "total": {"fileCount": 7, "depCount": 52}
+         "managers": {"regex": {"fileCount": 2, "depCount": 5}},
+         "total": {"fileCount": 2, "depCount": 5}
        }
  WARN: GitHub token is required for some dependencies (repository=local)
-       "githubDeps": [
-         "actions/checkout",
-         "actions/cache",
-         "actions/setup-python",
-         "actions/setup-node",
-         "actions/upload-artifact",
-         "python",
-         "node",
-         "cycjimmy/semantic-release-action",
-         "actions/download-artifact",
-         "softprops/action-gh-release",
-         "renovatebot/github-action",
-         "espressif/esp-idf"
-       ]
+       "githubDeps": ["espressif/esp-idf"]
 DEBUG: hostRules: no authentication for components-file.espressif.com (repository=local)
 DEBUG: Using queue: host=components-file.espressif.com, concurrency=16 (repository=local)
-DEBUG: hostRules: no authentication for registry.npmjs.org (repository=local)
-DEBUG: Using queue: host=registry.npmjs.org, concurrency=999 (repository=local)
  INFO: Found no results from datasource that look like a version (repository=local, dependency=espressif/cjson)
        "result": {
          "releases": [],
@@ -730,16 +543,8 @@ DEBUG: PackageFiles.add() - Package file saved for base branch (repository=local
 DEBUG: Package releases lookups complete (repository=local)
 DEBUG: LibYears: no currentVersionTimestamp for joltwallet/littlefs (repository=local)
 DEBUG: Repository libYears (repository=local)
-       "libYears": {
-         "managers": {
-           "github-actions": 0,
-           "npm": 0,
-           "pip_requirements": 0,
-           "regex": 0
-         },
-         "total": 0
-       },
-       "dependencyStatus": {"outdated": 1, "total": 29}
+       "libYears": {"managers": {"regex": 0}, "total": 0},
+       "dependencyStatus": {"outdated": 1, "total": 5}
 DEBUG: branchifyUpgrades (repository=local)
 DEBUG: detectSemanticCommits() (repository=local)
 DEBUG: getCommitMessages (repository=local)
@@ -751,708 +556,6 @@ DEBUG: Branch is not pending, removing pending upgrades (repository=local, branc
 DEBUG: config.repoIsOnboarded=true (repository=local)
 DEBUG: packageFiles with updates (repository=local)
        "config": {
-         "github-actions": [
-           {
-             "deps": [
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/checkout"
-               },
-               {
-                 "depName": "actions/cache",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/cache/restore@v5",
-                 "autoReplaceStringTemplate": "{{depName}}/restore@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v5",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/cache"
-               },
-               {
-                 "depName": "actions/setup-python",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/setup-python@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/setup-python"
-               },
-               {
-                 "depName": "actions/setup-node",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/setup-node@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/setup-node"
-               },
-               {
-                 "depName": "actions/cache",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/cache/save@v5",
-                 "autoReplaceStringTemplate": "{{depName}}/save@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v5",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/cache"
-               },
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/checkout"
-               },
-               {
-                 "depName": "actions/cache",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/cache/restore@v5",
-                 "autoReplaceStringTemplate": "{{depName}}/restore@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v5",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/cache"
-               },
-               {
-                 "depName": "actions/setup-node",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/setup-node@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/setup-node"
-               },
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/checkout"
-               },
-               {
-                 "depName": "actions/cache",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/cache/restore@v5",
-                 "autoReplaceStringTemplate": "{{depName}}/restore@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v5",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/cache"
-               },
-               {
-                 "depName": "actions/setup-python",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/setup-python@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/setup-python"
-               },
-               {
-                 "depName": "actions/setup-node",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/setup-node@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/setup-node"
-               },
-               {
-                 "depName": "actions/upload-artifact",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/upload-artifact@v7",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v7",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/upload-artifact"
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               },
-               {
-                 "datasource": "github-releases",
-                 "depName": "python",
-                 "packageName": "actions/python-versions",
-                 "versioning": "npm",
-                 "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)(-\\d+)?$",
-                 "currentValue": "3.12",
-                 "depType": "uses-with",
-                 "skipReason": "github-token-required",
-                 "updates": []
-               },
-               {
-                 "datasource": "github-releases",
-                 "depName": "node",
-                 "packageName": "actions/node-versions",
-                 "versioning": "node",
-                 "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)(-\\d+)?$",
-                 "currentValue": "24.x",
-                 "depType": "uses-with",
-                 "skipReason": "github-token-required",
-                 "updates": []
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               },
-               {
-                 "datasource": "github-releases",
-                 "depName": "node",
-                 "packageName": "actions/node-versions",
-                 "versioning": "node",
-                 "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)(-\\d+)?$",
-                 "currentValue": "24.x",
-                 "depType": "uses-with",
-                 "skipReason": "github-token-required",
-                 "updates": []
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               },
-               {
-                 "datasource": "github-releases",
-                 "depName": "python",
-                 "packageName": "actions/python-versions",
-                 "versioning": "npm",
-                 "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)(-\\d+)?$",
-                 "currentValue": "3.12",
-                 "depType": "uses-with",
-                 "skipReason": "github-token-required",
-                 "updates": []
-               },
-               {
-                 "datasource": "github-releases",
-                 "depName": "node",
-                 "packageName": "actions/node-versions",
-                 "versioning": "node",
-                 "extractVersion": "^(?<version>\\d+\\.\\d+\\.\\d+)(-\\d+)?$",
-                 "currentValue": "24.x",
-                 "depType": "uses-with",
-                 "skipReason": "github-token-required",
-                 "updates": []
-               }
-             ],
-             "packageFile": ".github/workflows/ci-workflow.yml"
-           },
-           {
-             "deps": [
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/checkout"
-               },
-               {
-                 "depName": "cycjimmy/semantic-release-action",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "cycjimmy/semantic-release-action@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "cycjimmy/semantic-release-action"
-               },
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/checkout"
-               },
-               {
-                 "depName": "actions/download-artifact",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/download-artifact@v8",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v8",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/download-artifact"
-               },
-               {
-                 "depName": "actions/upload-artifact",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/upload-artifact@v7",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v7",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/upload-artifact"
-               },
-               {
-                 "depName": "actions/download-artifact",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/download-artifact@v8",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v8",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/download-artifact"
-               },
-               {
-                 "depName": "actions/download-artifact",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/download-artifact@v8",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v8",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/download-artifact"
-               },
-               {
-                 "depName": "softprops/action-gh-release",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "softprops/action-gh-release@v3",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v3",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "softprops/action-gh-release"
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               }
-             ],
-             "packageFile": ".github/workflows/release.yml"
-           },
-           {
-             "deps": [
-               {
-                 "depName": "actions/checkout",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "actions/checkout@v6",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v6",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "actions/checkout"
-               },
-               {
-                 "depName": "renovatebot/github-action",
-                 "commitMessageTopic": "{{{depName}}} action",
-                 "versioning": "github-actions",
-                 "depType": "action",
-                 "replaceString": "renovatebot/github-action@v46.1.15",
-                 "autoReplaceStringTemplate": "{{depName}}@{{#if newDigest}}{{newDigest}}{{#if newValue}} # {{newValue}}{{/if}}{{/if}}{{#unless newDigest}}{{newValue}}{{/unless}}",
-                 "currentValue": "v46.1.15",
-                 "datasource": "github-tags",
-                 "skipReason": "github-token-required",
-                 "updates": [],
-                 "packageName": "renovatebot/github-action"
-               },
-               {
-                 "depName": "ubuntu",
-                 "currentValue": "latest",
-                 "replaceString": "ubuntu-latest",
-                 "depType": "github-runner",
-                 "datasource": "github-runners",
-                 "autoReplaceStringTemplate": "{{depName}}-{{newValue}}",
-                 "skipReason": "invalid-version",
-                 "updates": [],
-                 "packageName": "ubuntu"
-               }
-             ],
-             "packageFile": ".github/workflows/renovate.yml"
-           }
-         ],
-         "npm": [
-           {
-             "deps": [
-               {
-                 "depType": "dependencies",
-                 "depName": "@preact/preset-vite",
-                 "currentValue": "^2.10.5",
-                 "datasource": "npm",
-                 "prettyDepType": "dependency",
-                 "lockedVersion": "2.10.5",
-                 "updates": [],
-                 "packageName": "@preact/preset-vite",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/preactjs/preset-vite",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "mostRecentTimestamp": "2026-03-20T21:39:56.634Z",
-                 "currentVersion": "2.10.5",
-                 "currentVersionTimestamp": "2026-03-20T21:39:56.634Z",
-                 "currentVersionAgeInDays": 88,
-                 "fixedVersion": "2.10.5"
-               },
-               {
-                 "depType": "dependencies",
-                 "depName": "preact",
-                 "currentValue": "^10.29.2",
-                 "datasource": "npm",
-                 "prettyDepType": "dependency",
-                 "lockedVersion": "10.29.2",
-                 "updates": [],
-                 "packageName": "preact",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/preactjs/preact",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "homepage": "https://preactjs.com",
-                 "currentVersion": "10.29.2",
-                 "currentVersionTimestamp": "2026-05-17T09:58:11.608Z",
-                 "currentVersionAgeInDays": 31,
-                 "fixedVersion": "10.29.2"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "@eslint-react/eslint-plugin",
-                 "currentValue": "^5.8.16",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "5.9.0",
-                 "updates": [],
-                 "packageName": "@eslint-react/eslint-plugin",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/Rel1cx/eslint-react",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "sourceDirectory": "plugins/eslint-plugin",
-                 "mostRecentTimestamp": "2026-06-12T21:43:03.358Z",
-                 "currentVersion": "5.9.0",
-                 "currentVersionTimestamp": "2026-06-12T21:43:03.358Z",
-                 "currentVersionAgeInDays": 4,
-                 "fixedVersion": "5.9.0"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "@eslint/eslintrc",
-                 "currentValue": "^3.3.5",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "3.3.5",
-                 "updates": [],
-                 "packageName": "@eslint/eslintrc",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/eslint/eslintrc",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "mostRecentTimestamp": "2026-03-06T21:11:32.579Z",
-                 "currentVersion": "3.3.5",
-                 "currentVersionTimestamp": "2026-03-06T21:11:32.579Z",
-                 "currentVersionAgeInDays": 102,
-                 "fixedVersion": "3.3.5"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "eslint",
-                 "currentValue": "^10.4.1",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "10.5.0",
-                 "updates": [],
-                 "packageName": "eslint",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/eslint/eslint",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "homepage": "https://eslint.org",
-                 "mostRecentTimestamp": "2026-06-12T17:54:40.577Z",
-                 "currentVersion": "10.5.0",
-                 "currentVersionTimestamp": "2026-06-12T17:54:40.577Z",
-                 "currentVersionAgeInDays": 4,
-                 "fixedVersion": "10.5.0"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "prettier",
-                 "currentValue": "^3.8.3",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "3.8.4",
-                 "updates": [],
-                 "packageName": "prettier",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/prettier/prettier",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "homepage": "https://prettier.io",
-                 "currentVersion": "3.8.4",
-                 "currentVersionTimestamp": "2026-06-09T11:30:06.784Z",
-                 "currentVersionAgeInDays": 8,
-                 "fixedVersion": "3.8.4"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "rollup",
-                 "currentValue": "^4.61.1",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "4.62.0",
-                 "updates": [],
-                 "packageName": "rollup",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/rollup/rollup",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "homepage": "https://rollupjs.org/",
-                 "mostRecentTimestamp": "2026-06-13T08:32:24.547Z",
-                 "currentVersion": "4.62.0",
-                 "currentVersionTimestamp": "2026-06-13T08:32:24.547Z",
-                 "currentVersionAgeInDays": 4,
-                 "fixedVersion": "4.62.0"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "sass",
-                 "currentValue": "^1.100.0",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "1.101.0",
-                 "updates": [],
-                 "packageName": "sass",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/sass/dart-sass",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "mostRecentTimestamp": "2026-06-11T21:16:38.805Z",
-                 "currentVersion": "1.101.0",
-                 "currentVersionTimestamp": "2026-06-11T21:16:38.805Z",
-                 "currentVersionAgeInDays": 5,
-                 "fixedVersion": "1.101.0"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "vite",
-                 "currentValue": "^8.0.16",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "8.0.16",
-                 "updates": [],
-                 "packageName": "vite",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/vitejs/vite",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "sourceDirectory": "packages/vite",
-                 "homepage": "https://vite.dev",
-                 "mostRecentTimestamp": "2026-06-15T03:07:34.598Z",
-                 "currentVersion": "8.0.16",
-                 "currentVersionTimestamp": "2026-06-01T09:50:43.261Z",
-                 "currentVersionAgeInDays": 16,
-                 "fixedVersion": "8.0.16"
-               },
-               {
-                 "depType": "devDependencies",
-                 "depName": "vite-plugin-compression",
-                 "currentValue": "^0.5.1",
-                 "datasource": "npm",
-                 "prettyDepType": "devDependency",
-                 "lockedVersion": "0.5.1",
-                 "updates": [],
-                 "packageName": "vite-plugin-compression",
-                 "versioning": "npm",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/anncwb/vite-plugin-compression",
-                 "registryUrl": "https://registry.npmjs.org",
-                 "sourceDirectory": "packages/core",
-                 "homepage": "https://github.com/anncwb/vite-plugin-compression/tree/master/#readme",
-                 "mostRecentTimestamp": "2022-01-29T01:16:30.338Z",
-                 "currentVersion": "0.5.1",
-                 "currentVersionTimestamp": "2022-01-29T01:16:30.338Z",
-                 "currentVersionAgeInDays": 1600,
-                 "fixedVersion": "0.5.1"
-               }
-             ],
-             "extractedConstraints": {"npm": ">=7"},
-             "packageFileVersion": "1.0.0",
-             "managerData": {
-               "packageJsonName": "deepglow-ui-preact",
-               "hasPackageManager": false,
-               "npmLock": "package-lock.json",
-               "yarnZeroInstall": false,
-               "npmrcFileName": null
-             },
-             "skipInstalls": true,
-             "packageFile": "package.json",
-             "lockFiles": ["package-lock.json"]
-           }
-         ],
-         "pip_requirements": [
-           {
-             "deps": [
-               {
-                 "depName": "platformio",
-                 "packageName": "platformio",
-                 "currentValue": "==6.1.19",
-                 "datasource": "pypi",
-                 "currentVersion": "6.1.19",
-                 "updates": [],
-                 "versioning": "pep440",
-                 "warnings": [],
-                 "registryUrl": "https://pypi.org/pypi",
-                 "homepage": "https://platformio.org",
-                 "mostRecentTimestamp": "2026-02-04T13:40:56.000Z",
-                 "currentVersionTimestamp": "2026-02-04T13:40:56.000Z",
-                 "currentVersionAgeInDays": 132,
-                 "fixedVersion": "6.1.19"
-               },
-               {
-                 "depName": "intelhex",
-                 "packageName": "intelhex",
-                 "currentValue": "==2.3.0",
-                 "datasource": "pypi",
-                 "currentVersion": "2.3.0",
-                 "updates": [],
-                 "versioning": "pep440",
-                 "warnings": [],
-                 "sourceUrl": "https://github.com/python-intelhex/intelhex",
-                 "registryUrl": "https://pypi.org/pypi",
-                 "mostRecentTimestamp": "2020-10-20T20:35:50.000Z",
-                 "currentVersionTimestamp": "2020-10-20T20:35:50.000Z",
-                 "currentVersionAgeInDays": 2065,
-                 "fixedVersion": "2.3.0"
-               }
-             ],
-             "packageFile": "requirements.txt"
-           }
-         ],
          "regex": [
            {
              "deps": [
@@ -1461,7 +564,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "currentValue": "5.5.0",
                  "datasource": "github-releases",
                  "versioning": "semver",
-                 "depType": "dep-idf-component",
+                 "depType": "dep-idf-engine",
                  "replaceString": "\n  idf:\n    version: \">=5.5.0",
                  "depName": "espressif/esp-idf",
                  "skipReason": "github-token-required",
@@ -1469,12 +572,12 @@ DEBUG: packageFiles with updates (repository=local)
                }
              ],
              "matchStrings": [
-               "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+               "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
              ],
              "packageNameTemplate": "espressif/esp-idf",
              "datasourceTemplate": "github-releases",
              "versioningTemplate": "semver",
-             "depTypeTemplate": "dep-idf-component",
+             "depTypeTemplate": "dep-idf-engine",
              "packageFile": "src/idf_component.yml"
            },
            {
@@ -1510,7 +613,7 @@ DEBUG: packageFiles with updates (repository=local)
                  "mostRecentTimestamp": "2026-02-27T13:01:06.037Z",
                  "currentVersion": "1.3.2",
                  "currentVersionTimestamp": "2026-02-27T13:01:06.037Z",
-                 "currentVersionAgeInDays": 109,
+                 "currentVersionAgeInDays": 110,
                  "fixedVersion": "1.3.2"
                },
                {
@@ -1538,7 +641,7 @@ DEBUG: packageFiles with updates (repository=local)
                      "newVersion": "1.22.1",
                      "newValue": "1.22.1",
                      "releaseTimestamp": "2026-05-22T13:43:52.001Z",
-                     "newVersionAgeInDays": 25,
+                     "newVersionAgeInDays": 26,
                      "newMajor": 1,
                      "newMinor": 22,
                      "newPatch": 1,
@@ -1574,89 +677,52 @@ DEBUG: semanticCommits: returning "disabled" from cache (repository=local)
 DEBUG: repository problems (repository=local)
        "repoProblems": ["⚠️ WARN: GitHub token is required for some dependencies"]
 DEBUG: Repository timing splits (milliseconds) (repository=local)
-       "splits": {"init": 756, "onboarding": 0, "extract": 403, "lookup": 842, "update": 0},
-       "total": 2008
+       "splits": {"init": 721, "onboarding": 0, "extract": 89, "lookup": 789, "update": 0},
+       "total": 1615
 DEBUG: Package cache statistics (repository=local)
-       "get": {"count": 12, "avgMs": 110, "medianMs": 83, "maxMs": 362, "totalMs": 1325},
+       "get": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
        "set": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0}
-DEBUG: Datasource cache statistics (repository=local)
-       "pypi": {"https://pypi.org/pypi": {"hit": 2, "miss": 0, "set": 0, "skip": 0}},
-       "npm": {"https://registry.npmjs.org": {"hit": 0, "miss": 0, "set": 0, "skip": 10}}
 DEBUG: HTTP statistics (repository=local)
        "hosts": {
          "components-file.espressif.com": {
            "count": 4,
-           "reqAvgMs": 635,
-           "reqMedianMs": 689,
-           "reqMaxMs": 703,
-           "queueAvgMs": 9,
-           "queueMedianMs": 13,
-           "queueMaxMs": 14
+           "reqAvgMs": 524,
+           "reqMedianMs": 581,
+           "reqMaxMs": 681,
+           "queueAvgMs": 10,
+           "queueMedianMs": 14,
+           "queueMaxMs": 15
          }
        },
        "requests": 4
 DEBUG: HTTP cache statistics (repository=local)
-       "https://registry.npmjs.org": {
-         "/@eslint%2Feslintrc": {"hit": 0, "miss": 0, "localHit": 1},
-         "/@eslint-react%2Feslint-plugin": {"hit": 0, "miss": 0, "localHit": 1},
-         "/@preact%2Fpreset-vite": {"hit": 0, "miss": 0, "localHit": 1},
-         "/eslint": {"hit": 0, "miss": 0, "localHit": 1},
-         "/preact": {"hit": 0, "miss": 0, "localHit": 1},
-         "/prettier": {"hit": 0, "miss": 0, "localHit": 1},
-         "/rollup": {"hit": 0, "miss": 0, "localHit": 1},
-         "/sass": {"hit": 0, "miss": 0, "localHit": 1},
-         "/vite": {"hit": 0, "miss": 0, "localHit": 1},
-         "/vite-plugin-compression": {"hit": 0, "miss": 0, "localHit": 1}
-       }
 DEBUG: Lookup statistics (repository=local)
-       "pypi": {"count": 2, "avgMs": 81, "medianMs": 83, "maxMs": 83, "totalMs": 161},
-       "npm": {"count": 10, "avgMs": 153, "medianMs": 146, "maxMs": 451, "totalMs": 1531},
-       "custom.ds-espressif-component": {"count": 4, "avgMs": 657, "medianMs": 714, "maxMs": 721, "totalMs": 2628}
+       "custom.ds-espressif-component": {"count": 4, "avgMs": 557, "medianMs": 621, "maxMs": 702, "totalMs": 2226}
 DEBUG: getReleases statistics summary (repository=local)
        "stats": {
-         "count": 14,
-         "avgMs": 281,
-         "medianMs": 168.525084,
-         "maxMs": 711.221125,
-         "totalMs": 3937.310542
+         "count": 4,
+         "avgMs": 546,
+         "medianMs": 607.394459,
+         "maxMs": 689.699208,
+         "totalMs": 2184.106667
        },
        "datasources": {
-         "npm": {
-           "stats": {
-             "count": 10,
-             "avgMs": 133,
-             "medianMs": 130.862292,
-             "maxMs": 393.349041,
-             "totalMs": 1326.9753329999999
-           },
-           "registryUrls": {
-             "https://registry.npmjs.org": {
-               "stats": {
-                 "count": 10,
-                 "avgMs": 133,
-                 "medianMs": 130.862292,
-                 "maxMs": 393.349041,
-                 "totalMs": 1326.9753329999999
-               }
-             }
-           }
-         },
          "custom": {
            "stats": {
              "count": 4,
-             "avgMs": 653,
-             "medianMs": 710.251209,
-             "maxMs": 711.221125,
-             "totalMs": 2610.335209
+             "avgMs": 546,
+             "medianMs": 607.394459,
+             "maxMs": 689.699208,
+             "totalMs": 2184.106667
            },
            "registryUrls": {
              "": {
                "stats": {
                  "count": 4,
-                 "avgMs": 653,
-                 "medianMs": 710.251209,
-                 "maxMs": 711.221125,
-                 "totalMs": 2610.335209
+                 "avgMs": 546,
+                 "medianMs": 607.394459,
+                 "maxMs": 689.699208,
+                 "totalMs": 2184.106667
                }
              }
            }
@@ -1668,10 +734,10 @@ DEBUG: Cache fallback URLs (repository=local)
 DEBUG: Git operations statistics (repository=local)
  INFO: Repository finished (repository=local)
        "cloned": undefined,
-       "durationMs": 2008,
+       "durationMs": 1615,
        "result": undefined,
        "status": undefined,
        "enabled": undefined,
        "onboarded": undefined
 DEBUG: Checking file package cache for expired items
-DEBUG: Deleted 0 of 12 file cached entries in 19ms
+DEBUG: Deleted 0 of 10 file cached entries in 19ms
