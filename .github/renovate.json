@@ -37,7 +37,7 @@
       "description": "Extractor exclusivo para la plataforma IDF",
       "managerFilePatterns": ["/^src/idf_component\\.yml$/"],
       "matchStrings": [
-        "(?:^|\\n)[ \\t]+idf:\\s*(?:version:\\s*)?[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
+        "(?:^|\\n)[ \\t]+idf:\\s*\\n[ \\t]+version:\\s*[\"']?(?:[~^]|>=|<=|>|<)?(?<currentValue>[0-9.]+)"
       ],
       "datasourceTemplate": "github-releases",
       "packageNameTemplate": "espressif/esp-idf",
@@ -92,7 +92,7 @@
       "addLabels": ["dependencies", "pio:platform"]
     },
     {
-      "groupName": "PlatformIO Library",
+      "groupName": "PlatformIO Libraries",
       "matchDepTypes": ["dep-pio-library"],
       "addLabels": ["dependencies", "pio:library"]
     },
