@@ -9,31 +9,31 @@
   "commitMessageSuffix": "",
   "enabledManagers": ["custom.regex"],
   "customManagers": [
-    // {
-    //   "customType": "regex",
-    //   "managerFilePatterns": ["/^platformio\\.ini$/"],
-    //   "matchStrings": [
-    //     "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
-    //   ],
-    //   "matchStringsStrategy": "any",
-    //   "datasourceTemplate": "custom.ds-pio-platform",
-    //   "depNameTemplate": "{{depName}}",
-    //   "versioningTemplate": "loose",
-    //   "depTypeTemplate": "dep-pio-platform"
-    // },
-    // {
-    //   "customType": "regex",
-    //   "managerFilePatterns": ["/^platformio\\.ini$/"],
-    //   "matchStringsStrategy": "recursive",
-    //   "matchStrings": [
-    //     "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
-    //     "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
-    //   ],
-    //   "datasourceTemplate": "custom.ds-pio-library",
-    //   "depNameTemplate": "{{depName}}",
-    //   "versioningTemplate": "loose",
-    //   "depTypeTemplate": "dep-pio-library"
-    // },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^platformio\\.ini$/"],
+      "matchStrings": [
+        "platform\\s*=\\s*(?<depName>[^@\\s\\n]+)@(?<currentValue>[0-9.]+)"
+      ],
+      "matchStringsStrategy": "any",
+      "datasourceTemplate": "custom.ds-pio-platform",
+      "depNameTemplate": "{{depName}}",
+      "versioningTemplate": "loose",
+      "depTypeTemplate": "dep-pio-platform"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^platformio\\.ini$/"],
+      "matchStringsStrategy": "recursive",
+      "matchStrings": [
+        "lib_deps\\s*=\\s*(?<dependencies>(?:[^\\n]+|\\n\\t+)+)",
+        "(?<depName>[a-zA-Z0-9_-]+)@(?<currentValue>[0-9.]+)"
+      ],
+      "datasourceTemplate": "custom.ds-pio-library",
+      "depNameTemplate": "{{depName}}",
+      "versioningTemplate": "loose",
+      "depTypeTemplate": "dep-pio-library"
+    },
         {
       "customType": "regex",
       "description": "Extractor universal para todos los componentes e idf engine",
