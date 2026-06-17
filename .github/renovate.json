@@ -42,7 +42,7 @@
       "datasourceTemplate": "github-releases",
       "packageNameTemplate": "espressif/esp-idf",
       "versioningTemplate": "semver",
-      "depTypeTemplate": "dep-idf-component"
+      "depTypeTemplate": "dep-idf-engine"
     },
     {
       "customType": "regex",
@@ -103,7 +103,7 @@
     },
     {
       "matchManagers": ["regex"],
-      "matchDepTypes": ["dep-idf-component"],
+      "matchDepTypes": ["dep-idf-engine"],
       "matchPackageNames": ["idf"],
       "enabled": false
     }
