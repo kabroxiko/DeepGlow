@@ -56,6 +56,8 @@ DEBUG: Repository config (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "prHourlyLimit": 0,
+         "prConcurrentLimit": 0,
          "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
@@ -132,6 +134,8 @@ DEBUG: Config migration necessary (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "prHourlyLimit": 0,
+         "prConcurrentLimit": 0,
          "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
@@ -206,6 +210,8 @@ DEBUG: Config migration necessary (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "prHourlyLimit": 0,
+         "prConcurrentLimit": 0,
          "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
@@ -281,6 +287,8 @@ DEBUG: Post-massage config (repository=local)
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "extends": ["config:recommended"],
          "recreateWhen": "always",
+         "prHourlyLimit": 0,
+         "prConcurrentLimit": 0,
          "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
@@ -358,6 +366,8 @@ DEBUG: Resolved shallow config, without merging internal presets (repository=loc
        "config": {
          "$schema": "https://docs.renovatebot.com/renovate-schema.json",
          "recreateWhen": "always",
+         "prHourlyLimit": 0,
+         "prConcurrentLimit": 0,
          "vulnerabilityAlerts": {"enabled": false},
          "commitMessagePrefix": "🤖",
          "commitMessageTopic": "{{depName}}",
@@ -453,7 +463,7 @@ DEBUG: Using file pattern: **/{j,t}sconfig.*.json for manager regex (repository=
 DEBUG: Using file pattern: /^src/idf_component\.yml$/ for manager regex (repository=local)
 DEBUG: Matched 1 file(s) for manager regex: src/idf_component.yml (repository=local)
 DEBUG: manager extract durations (ms) (repository=local)
-       "managers": {"regex": 27}
+       "managers": {"regex": 29}
 DEBUG: Found regex package files (repository=local)
 DEBUG: Found 1 package file(s) (repository=local)
  INFO: Dependency extraction complete (repository=local)
@@ -559,8 +569,8 @@ DEBUG: semanticCommits: returning "disabled" from cache (repository=local)
 DEBUG: repository problems (repository=local)
        "repoProblems": ["⚠️ WARN: GitHub token is required for some dependencies"]
 DEBUG: Repository timing splits (milliseconds) (repository=local)
-       "splits": {"init": 741, "onboarding": 0, "extract": 86, "lookup": 45, "update": 0},
-       "total": 883
+       "splits": {"init": 714, "onboarding": 0, "extract": 86, "lookup": 40, "update": 0},
+       "total": 855
 DEBUG: Package cache statistics (repository=local)
        "get": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0},
        "set": {"count": 0, "avgMs": 0, "medianMs": 0, "maxMs": 0, "totalMs": 0}
@@ -582,7 +592,7 @@ DEBUG: Cache fallback URLs (repository=local)
 DEBUG: Git operations statistics (repository=local)
  INFO: Repository finished (repository=local)
        "cloned": undefined,
-       "durationMs": 883,
+       "durationMs": 855,
        "result": undefined,
        "status": undefined,
        "enabled": undefined,
